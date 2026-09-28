@@ -1,5 +1,7 @@
 # Media Stack Alternatives — WebRTC Engine, FEC, 3A
 
+> **Status: FROZEN dossier (C2).** Point-in-time research; conclusions may be superseded (e.g. D6 engine change) — live truth is docs/architecture.md + docs/modules/. Do not back-write; new findings get new dated files.
+
 > Research snapshot: 2026-09-28. Supporting doc for [whitepaper.md](../../../whitepaper.md) §7 and [../architecture.md](../../../architecture.md) §4. Facts verified against repo state on snapshot day; drift expected.
 
 ## 1. WebRTC engine comparison

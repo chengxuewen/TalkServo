@@ -1,5 +1,7 @@
 # GitHub Saturation Sweep: PTT-Standard & Dispatch-Console Implementations
 
+> **Status: FROZEN dossier (C2).** Point-in-time research; conclusions may be superseded (e.g. D6 engine change) — live truth is docs/architecture.md + docs/modules/. Do not back-write; new findings get new dated files.
+
 > Purpose: close the exhaustive-GitHub gap for the standards/interworking family behind [standards-ptt-mcptt.md](standards-ptt-mcptt.md) — do OMA-PoC / MCPTT / B-Trunco / Zello / dispatch-console implementations actually exist as OSS on GitHub, and what is mineable? Informs the Converged-stage SIP/RTP gateway boundary (`RelayBackend`, architecture.md §7) and D2 (centralized signaling + SFU).
 > Method: unauthenticated GitHub Search API (`/search/repositories`, `sort=stars&per_page=30`), 16 search queries + 1 follow-up (`murmur language:rust`) + 9 direct `repos`/`readme`/`users` GETs. One rate-limit retry (btrunco first attempt, succeeded). Filter for the table: **stars >= 10 OR pushed_at >= 2023-01-01**; name-match noise clusters above that bar are aggregated, never dropped silently.
 > Date: 2026-09-28 | Snapshot of all numbers at fetch time | Anything not confirmed against code/README is marked **UNVERIFIED**. Rule C1: English only.

@@ -1,5 +1,7 @@
 # PTT Open-Source Landscape — Verified Profiles & Benchmark
 
+> **Status: FROZEN dossier (C2).** Point-in-time research; conclusions may be superseded (e.g. D6 engine change) — live truth is docs/architecture.md + docs/modules/. Do not back-write; new findings get new dated files.
+
 > Research snapshot: 2026-09-28, via GitHub REST API (stars/last-push verified per repo).
 > Purpose: competitive/reference material for TalkServo (see [whitepaper.md](../../../whitepaper.md), [architecture.md](../../../architecture.md)).
 > Note: this archive corrects several claims from the initial planning discussion; corrections are flagged explicitly.

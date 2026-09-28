@@ -1,5 +1,7 @@
 # Commercial PTT Products — Benchmark Notes
 
+> **Status: FROZEN dossier (C2).** Point-in-time research; conclusions may be superseded (e.g. D6 engine change) — live truth is docs/architecture.md + docs/modules/. Do not back-write; new findings get new dated files.
+
 > **Snapshot date: 2026-09-28.** All facts were captured live on this date via direct HTTP fetch
 > of official product pages and Wikipedia (curl; search engines were rate-limited). Pricing, features,
 > and page availability **drift quickly** — re-verify before citing in any published positioning.

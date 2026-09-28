@@ -17,7 +17,7 @@ TalkServo is a **floor-control platform** for real-time voice, aiming to support
 - **Full-duplex voice conferencing** — many participants may speak simultaneously (Discord / Zoom style).
 - **Hybrid mode** — half-duplex and full-duplex switch dynamically by role, priority, and scenario.
 
-Rust is the core implementation language: server, SDK core logic, and floor arbitration are all Rust, exported as multi-language bindings via UniFFI / wasm-bindgen. The web client is TypeScript + React. The media layer avoids Google libwebrtc, evaluating **webrtc-rs**, **libdatachannel**, and similar alternatives to stay lightweight while retaining production-grade WebRTC audio.
+Rust is the core implementation language: server, SDK core logic, and floor arbitration are all Rust, exported as multi-language bindings via UniFFI / wasm-bindgen. The web client is TypeScript + React. The media layer avoids Google libwebrtc; the SFU runs mediasoup (D6, 2026-09-28 — supersedes the earlier webrtc-rs evaluation; §7).
 
 TalkServo's central abstraction is the **Floor** (speaking right). PTT is an *exclusive floor*; a full-duplex conference is an *open floor*; hybrid mode is *dynamic floor-mode switching*. One abstraction covers both intercom and conferencing, making TalkServo general real-time voice control infrastructure rather than a niche walkie-talkie app.
 
@@ -146,10 +146,10 @@ Full details in [architecture.md](architecture.md).
 
 ## 7. Technology Selection
 
-- **WebRTC engine: webrtc-rs preferred** — pure Rust, language-aligned with the core, actively maintained (5.1k stars, 2026-09 snapshot). Note: the webrtc-rs org publishes a sans-IO `sfu` building-block crate (active, pushed 2026-09-13) but **no complete SFU example** — the relay is composed from `broadcast`/`rtp-forwarder` patterns or atop that crate, with `pion/ion-sfu` (inactive since 2023) as architecture reference. libdatachannel (C++) suits C/C++ ecosystems; Google libwebrtc is not adopted.
-- **Audio FEC lives in Opus, not the transport** — the encoder embeds a low-bitrate redundancy of the previous frame; receivers re-decode with `fec=true` on detected loss. SFU forwarding preserves it end-to-end. webrtc-rs requires manual Opus FEC configuration plus loss detection and second-decode logic.
+- **Media/SFU engine: mediasoup (Rust crate 0.24) — user ruling 2026-09-28; revision D6 supersedes the earlier webrtc-rs preference (D3)** — production-proven Router/Transport/Producer/Consumer model, server-side ICE-Lite, same lineage as sister project MediaServo. Accepted costs: Linux-only SFU build (macOS check-only), C++ worker process lifecycle. webrtc-rs stays as candidate for future *native* clients; Google libwebrtc remains rejected.
+- **Audio FEC lives in Opus, not the transport** — the encoder embeds a low-bitrate redundancy of the previous frame; receivers re-decode with `fec=true` on detected loss. The SFU forwards RTP untouched, preserving FEC end-to-end (under D6, recovery is receiver/browser-side; the manual-pipeline note applied to the superseded webrtc-rs plan).
 - **3A (AEC + AGC + ANS)** — PoC uses the `webrtc-audio-processing` FFI (Google-proven); pure-Rust alternatives (`sonora`, `aec3-rs`) or composed crates (`nnnoiseless` + `decibri-aec` + `dagc`) are productization-stage evaluations.
-- Supporting stack: Opus; WebSocket (general) / MQTT (IoT); axum; tokio-tungstenite; UniFFI / wasm-bindgen; React + TypeScript; coturn for STUN/TURN; Kubernetes + Helm at the production stage.
+- Supporting stack: Opus; WebSocket (MQTT deferred, OQ-2 closed WS-first); axum; tokio-tungstenite; UniFFI / wasm-bindgen; React + TypeScript; coturn for STUN/TURN; Kubernetes + Helm at the production stage.
 
 Comparative tables and reasoning: [research/media-stack-alternatives.md](reference/research/media/media-stack-alternatives.md).
 
@@ -171,22 +171,22 @@ Star counts are a 2026-09 snapshot and may drift; see [research/ptt-landscape.md
 
 1. **Core protocol & state machine (1-2 d)** — `talkservo-core`: Floor state machine, message protocol, priority rules; pure Rust, no I/O, unit-testable.
 2. **Rust signaling server (2-3 d)** — axum + tokio-tungstenite; `HashMap<RoomId, FloorState>`; handles Request/Granted/Taken/Release.
-3. **Rust media server (3-5 d)** — minimal audio SFU on webrtc-rs, composed from the `broadcast` / `rtp-forwarder` example patterns or the org's sans-IO `sfu` crate; group PTT relays only the current holder.
-4. **TypeScript client (2-3 d)** — single-page React app; WebSocket signaling; `RTCPeerConnection` to media; keydown/keyup PTT.
+3. **Rust media server (3-5 d)** — mediasoup SFU via the Rust crate 0.24 (D6): supervisor + per-room Router, producer/consumer mapping driven by floor events; group PTT relays only the current holder.
+4. **TypeScript client (2-3 d)** — single-page React app; WebSocket signaling; `mediasoup-client` (wraps RTCPeerConnection) to media; keydown/keyup hold-to-talk.
 
-**Acceptance criteria**: while A holds the floor, B/C are denied; A's audio reaches B and C; after release the room returns to Idle; a high-priority user can pre-empt the holder.
+**Acceptance criteria**: while A holds the floor, B/C are denied; A's audio reaches B and C; after release the room returns to Idle; a high-priority user can pre-empt the holder; holder disconnect releases the floor (full normative list: architecture.md §4).
 
 ## 10. Risks & Mitigations
 
 | Risk | Description | Mitigation |
 | :--- | :--- | :--- |
-| Audio "last mile" | webrtc-rs lacks NetEQ / 3A built-in | integrate webrtc-audio-processing; grow a jitter buffer incrementally |
+| Audio "last mile" (native clients) | non-browser stacks lack NetEQ/3A guarantees | web PoC rides browser 3A; D4 FFI activates with the first native capture (Beta) |
 | FEC recovery logic | must be implemented manually | land Opus in-band FEC first, then optimize |
 | Mobile background audio | background playback, power | follow Radio-Link; use platform background-audio APIs |
 | Public-network QoS | no network-slice guarantees | app-layer priority + TURN relay + edge SFU |
 | SIP / private-network interworking | protocol gap | reserve a SIP/RTP gateway boundary |
 | Trademark & domain | TalkServo needs formal clearance | complete USPTO / China trademark searches before release |
-| FFI build complexity | webrtc-audio-processing pulls C++ | acceptable in PoC; evaluate pure-Rust at productization |
+| C++ process boundary | mediasoup worker is Linux x86_64-only; worker crash kills the media plane | feature-gate + check-only macOS CI (MediaServo precedent); supervisor restart + re-handshake in error model |
 
 ## 11. Roadmap
 
@@ -199,9 +199,11 @@ Star counts are a 2026-09 snapshot and may drift; see [research/ptt-landscape.md
 
 ## 12. Conclusion
 
-TalkServo is not "another PTT app" but a **hybrid-mode real-time voice floor-control platform**: one Floor abstraction unifies half-duplex and full-duplex; a Rust core guarantees cross-platform consistency; webrtc-rs replaces Google libwebrtc to stay lean; webrtc-audio-processing brings production-grade 3A to the PoC.
+TalkServo is not "another PTT app" but a **hybrid-mode real-time voice floor-control platform**: one Floor abstraction unifies half-duplex and full-duplex; a Rust core guarantees cross-platform consistency; mediasoup (D6) replaces any embedded libwebrtc plan; the browser stack supplies 3A in the web PoC, webrtc-audio-processing covers native clients at Beta.
 
 Recommended landing path:
+
+*(2026-09-28 note: superseded by D6 — read "webrtc-rs" below as "mediasoup (Rust crate 0.24)"; browser clients unchanged.)*
 
 > **Rust + webrtc-rs + Opus in-band FEC + webrtc-audio-processing + centralized SFU + WebSocket signaling + standalone Floor Control service.**
 
@@ -219,11 +221,11 @@ The single thing the PoC must prove: **the floor-control flow runs reliably and 
 
 ## Appendix B: Pre-launch Checklist
 
-- crates.io / npm / GitHub search for `talkservo`
+- crates.io / npm / GitHub search for `talkservo` (executed 2026-09-28: crates.io + PyPI clear; npm scoped `@talkservo/*` under consideration — external name collision noted in research/ptt/github-sweep-ptt.md)
 - domains: `talkservo.dev`, `talkservo.io`
 - trademarks: USPTO, EUIPO, China Trademark Office
 - README disclaimer re: the Servo browser engine
-- fix the `talkservo-core` / `talkservo-server` / `talkservo-sdk` namespace
+- crate namespace fixed per D5/D7/D8: `talkservo-core` / `talkservo-sfu` / `talkservo-server` / (deferred) `talkservo-client` — **pre-launch check needed**: the name `talkservo` is currently taken on crates.io by an unrelated placeholder (yuyoung-technologies, 0 versions); reservation strategy required (see research/github-sweep-ptt L135)
 
 ---
 

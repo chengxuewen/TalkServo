@@ -1,5 +1,7 @@
 # GitHub Saturation Sweep: WebRTC Media-Server / SFU / Engine Family
 
+> **Status: FROZEN dossier (C2).** Point-in-time research; conclusions may be superseded (e.g. D6 engine change) — live truth is docs/architecture.md + docs/modules/. Do not back-write; new findings get new dated files.
+
 > Snapshot date: 2026-09-28. Companion to `media-stack-alternatives.md` and `oss-voice-infrastructure.md`.
 > Closes the exhaustive-GitHub gap for the WebRTC media-engine family. All data from the GitHub REST API
 > (`api.github.com`, unauthenticated, `sort=stars&per_page=30`); descriptions are verbatim API fields

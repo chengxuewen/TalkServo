@@ -1,5 +1,7 @@
 # Standards Landscape: PTT Floor Control (OMA PoC, 3GPP MCPTT, Legacy Radio, China Private Net)
 
+> **Status: FROZEN dossier (C2).** Point-in-time research; conclusions may be superseded (e.g. D6 engine change) — live truth is docs/architecture.md + docs/modules/. Do not back-write; new findings get new dated files.
+
 > Purpose: benchmark TalkServo's Floor model (docs/architecture.md §2, docs/whitepaper.md §5) against the formal standards world.
 > Method: primary specs (3GPP TS) fetched and searched directly; secondary sources for radio standards; anything not verifiable at fetch time is marked **UNVERIFIED**.
 > Date: 2026-09-28 | Status: research draft | Rule C1: English only.

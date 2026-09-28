@@ -7,7 +7,8 @@
 | Document | Content | Status |
 |----------|---------|--------|
 | [whitepaper.md](whitepaper.md) | Positioning, Floor model overview, tech selection rationale, PoC roadmap, risks | planning draft 0.1 |
-| [architecture.md](architecture.md) | Floor state machine, crate boundaries, signaling protocol, media pipeline, deployment modes, security, open questions | planning draft 0.1 |
+| [architecture.md](architecture.md) | MASTER: overview, module index, open questions, acceptance, sister-project relation |
+| [modules/01-09](modules/) | design docs: floor model · signaling protocol · components · media pipeline · error model · deployment&security · sdk strategy · web ui · dev toolchain | Floor state machine, crate boundaries, signaling protocol, media pipeline, deployment modes, security, open questions | planning draft 0.1 |
 
 ## Research archive — `reference/research/`
 
@@ -17,6 +18,8 @@ One-time competitive and selection research (frozen dossiers); living references
 |----------|---------|--------|
 | [research/standards-ptt-mcptt.md](reference/research/ptt/standards-ptt-mcptt.md) | OMA PoC / 3GPP MCPTT (TS 24.379/24.380/23.280) floor & priority semantics → TalkServo mapping; TETRA/DMR heritage; B-Trunco | verified (101 lines, team) |
 | [research/commercial-ptt-products.md](reference/research/ptt/commercial-ptt-products.md) | Zello/Voxer/Rave/MCPTT-class/Hytera/Doro feature matrix, product lessons, open-core differentiation | verified (106 lines, team) |
+| [research/ui/ptt-ui-patterns.md](reference/research/ui/ptt-ui-patterns.md) | mainstream voice/PTT UI patterns + floor-viz affordances + gap ledger | verified snapshot |
+| [research/ui/admin-ui-patterns.md](reference/research/ui/admin-ui-patterns.md) | RTC admin console conventions + TalkServo admin v1 candidate list | verified snapshot |
 | [research/github-sweep-ptt.md](reference/research/ptt/github-sweep-ptt.md) | PTT keyword-family exhaustive sweep (7 queries, 137 deduped repos, coverage claims, 5 new peers) | verified snapshot |
 | [research/github-sweep-webrtc.md](reference/research/media/github-sweep-webrtc.md) | WebRTC SFU/engine sweep (230 repos; str0m/kraken/sfu-crate verified; ranked PoC bases) | verified snapshot |
 | [research/github-sweep-ptt-standards.md](reference/research/ptt/github-sweep-ptt-standards.md) | OMA PoC/MCPTT/B-Trunco/SIP/murmur sweep — negative results + name-collision registry | verified snapshot |
@@ -29,13 +32,14 @@ One-time competitive and selection research (frozen dossiers); living references
 
 - All docs in English (C1, see `.agents/memorys/conventions.md`).
 - Architecture docs cite decision IDs (`D{n}`) and pitfalls (`PIT-{n}`) from `.agents/memorys/`.
-- Module-level docs (`docs/modules/NN-*.md`) are created when the corresponding crate lands — no speculative scaffolding.
+- `docs/modules/NN-*.md` = design docs (updated in place as implementation lands). `docs/reference/` = living API/config handbooks + frozen research archives under `reference/research/<domain>/`. (C2)
 
 ## Planned documents (not yet written)
 
 | Document | Trigger |
 |----------|---------|
-| `docs/modules/signaling-protocol.md` + OpenAPI/JSON schema | when `talkservo-core` compiles |
-| `docs/modules/sfu-webrtc.md` | when `talkservo-sfu` exists |
-| `docs/modules/sdk-contract.md` | when UniFFI/wasm bindings are generated |
-| `docs/deployment.md` | Alpha split-services stage |
+| `docs/reference/signaling-schema.md` — OpenAPI/JSON-schema generated from `talkservo-core` wire types | when talkservo-core compiles |
+| `docs/reference/deployment.md` — split-services rollout, capacity, upgrade/rollout policy (OQ gap fix) | Alpha |
+| `docs/reference/config-handbook.md` — live mirror of the modules/06 §config table | first config drift |
+
+All design docs already live in `docs/modules/01-09` (C2 tiering).

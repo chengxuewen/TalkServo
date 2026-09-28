@@ -1,5 +1,7 @@
 # Audio Processing Stack — Opus FEC, NetEQ/Jitter, 3A Libraries
 
+> **Status: FROZEN dossier (C2).** Point-in-time research; conclusions may be superseded (e.g. D6 engine change) — live truth is docs/architecture.md + docs/modules/. Do not back-write; new findings get new dated files.
+
 > Compiled 2026-09-28 from the audio-stack-researcher session's verified fetches (RFC 6716/8215/7254/8310/8311 full texts; crates.io + api.github.com repo/crate status; webrtc.org + Chromium source docs), committed by the lead after the researcher session failed to write (PIT-1 pattern). Researcher-reported facts are cited; anything it could not confirm is marked UNVERIFIED.
 
 ## 1. Opus in-band FEC & loss handling

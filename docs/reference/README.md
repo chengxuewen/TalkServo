@@ -6,7 +6,7 @@ under `research/<domain>/` are frozen one-off dossiers — never rewritten, new 
 
 ## Living references
 
-None yet — registered here as product modules land (PoC stage 1+: `signaling-protocol.md`, `floor-semantics.md`, `sfu-webrtc.md`...).
+None yet — this folder registers API/config/ops handbooks as product modules land (e.g. generated `signaling-protocol-schema.md`). DESIGN documents go to `../modules/` (C2).
 
 ## Research archives
 
@@ -26,3 +26,14 @@ None yet — registered here as product modules land (PoC stage 1+: `signaling-p
 | [research/media/oss-voice-infrastructure.md](research/media/oss-voice-infrastructure.md) | 2026-09-28 | Mumble/LiveKit/mediasoup/Janus/Jitsi + Rust SFU inventory; arbitration precedents | archived (frozen) |
 | [research/media/audio-processing-stack.md](research/media/audio-processing-stack.md) | 2026-09-28 | Opus FEC/PLC, NetEQ vs PTT churn, 3A crate landscape (crates.io-verified) | archived (frozen) |
 | [research/media/github-sweep-webrtc.md](research/media/github-sweep-webrtc.md) | 2026-09-28 | WebRTC SFU/engine family saturation sweep (230 repos, ranked PoC bases) | archived (frozen) |
+
+### `research/ui/` — product surface patterns
+| Path | Compiled | Scope | Status |
+|---|---|---|---|
+| [research/ui/ptt-ui-patterns.md](research/ui/ptt-ui-patterns.md) | 2026-09-28 | Discord/Zello/Mumble/talktome/openPTT... UI patterns: floor viz, PTT affordances, dispatch IA, gap ledger | archived (frozen) |
+| [research/ui/admin-ui-patterns.md](research/ui/admin-ui-patterns.md) | 2026-09-28 | LiveKit/Daily/Janus/talktome/MediaServo admin surfaces; object spine; PoC/Alpha split | archived (frozen) |
+
+### `research/tooling/` — dev-toolchain references
+| Path | Compiled | Scope | Status |
+|---|---|---|---|
+| (pending P0-1) `pixi-task-migration-notes.md` | — | MediaServo pixi/scripts patterns evaluated live during D11 analysis; formalize when scripts ship | planned |

@@ -1,5 +1,7 @@
 # Open-Source Voice Infrastructure — Floor-Arbitration Precedents
 
+> **Status: FROZEN dossier (C2).** Point-in-time research; conclusions may be superseded (e.g. D6 engine change) — live truth is docs/architecture.md + docs/modules/. Do not back-write; new findings get new dated files.
+
 > Research snapshot: 2026-09-28. GitHub stars/last-push verified per repo via api.github.com on snapshot day
 > (raw.githubusercontent.com is blocked from the build network; repo file content fetched via the contents API).
 > Docs claims cited to official sites only. Companion to [ptt-landscape.md](../ptt/ptt-landscape.md) (small PTT apps)

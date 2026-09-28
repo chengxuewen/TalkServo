@@ -1,5 +1,7 @@
 # GitHub Sweep: PTT Keyword Family
 
+> **Status: FROZEN dossier (C2).** Point-in-time research; conclusions may be superseded (e.g. D6 engine change) — live truth is docs/architecture.md + docs/modules/. Do not back-write; new findings get new dated files.
+
 > Purpose: exhaustive GitHub repository search across the push-to-talk keyword family, closing the "did you search GitHub exhaustively?" gap for `ptt-landscape.md`.
 > Method: unauthenticated GitHub Search API (`sort=stars&per_page=30`), 7 queries, snapshot 2026-09-28. No rate-limit hits.
 > Inclusion filter: stars >= 10 OR `pushed_at` on/after 2023-01-01. 161 unique repos returned across queries; 137 pass the filter and are all listed below.
