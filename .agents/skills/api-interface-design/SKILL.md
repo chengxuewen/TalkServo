@@ -5,6 +5,9 @@ description: "Contract-first design for TalkServo: Rust traits (Component/Plugin
 
 # api-interface-design — Contract-First API Design
 
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
+
 > Define the contract BEFORE the implementation. Traits, messages, and endpoints are the architecture — code is decoration.
 
 ## TalkServo API Boundaries
@@ -68,7 +71,7 @@ pub enum SignalingMessage {
     StreamStats { room_id: String, fps: f64, bitrate_kbps: u64 },
 }
 
-// ❌ WRONG: camelCase tags (browser mismatch PIT-06), removed fields
+// ❌ WRONG: camelCase tags (browser mismatch, MediaServo PIT-06), removed fields
 #[serde(tag = "type")]  // missing rename_all → camelCase default
 pub enum SignalingMessage {
     RoomJoin { room_id: String },  // peer_role removed = breaking

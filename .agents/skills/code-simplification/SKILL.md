@@ -5,6 +5,9 @@ description: "Reduce complexity in TalkServo Rust/TS code. Chesterton's Fence an
 
 # code-simplification: complexity reduction
 
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
+
 > Chesterton's Fence + Rule of 500 + Rust borrow checker patterns.
 > Only delete what should be deleted. Never delete what you don't understand.
 
@@ -95,7 +98,7 @@ fn create_pc() -> RTCPeerConnection { ... }
 fn create_pc() -> RTCPeerConnection { ... }
 
 // AFTER: extract commonality into shared module, backends only implement differences
-// chesterton: the triple backend cfg duplication is an architectural cost of D15,
+// chesterton: the triple backend cfg duplication is an architectural cost of MediaServo D15 (sister ledger),
 // cannot be eliminated but can be compressed into the backend/ submodule to minimize.
 ```
 
@@ -161,7 +164,7 @@ File: crates/talkservo-webrtc/src/backend/mod.rs
 Before: 487 lines → after: 312 lines (-36%)
 
 ### Removed
-- [lines 45-78] unused trait `LegacySdpParser` → deleted (git blame: introduced in D78, deprecated in D112)
+- [lines 45-78] unused trait `LegacySdpParser` → deleted (git blame: introduced by a sister-ledger decision and later deprecated)
 - [lines 203-206] dead code `#[cfg(all(nonexistent, feature = "..."))]`
 
 ### Split

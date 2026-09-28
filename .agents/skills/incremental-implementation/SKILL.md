@@ -5,6 +5,9 @@ description: "Thin vertical slices across Rust+TS. Implement→test→verify→c
 
 # Incremental Implementation — TalkServo
 
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
+
 ## Overview
 
 Build in thin vertical slices — one crate, one module, one function at a time. Implement → test → verify → commit. Each slice leaves the workspace compilable and tests green. This is how 7-crate workspaces stay manageable.
@@ -79,7 +82,7 @@ Slice 4: Docker integration test
 For SFU/media pipeline work, prove the riskiest piece first:
 
 ```
-Slice 1: mediasoup transport connect (highest risk — PIT-07)
+Slice 1: mediasoup transport connect (highest risk — MediaServo PIT-07)
   → Verify DTLS/ICE handshake completes ✓
 
 Slice 2: Producer → Consumer video relay
@@ -177,7 +180,7 @@ After each slice, verify with these commands (run only what changed):
 
 ## See Also
 
-- `.agents/memorys/pitfalls.md` — PIT-07 (SFU connect), PIT-11 (mediasoup build)
-- `.agents/memorys/conventions.md` — C5 (GStreamer ↔ WebRTC boundary), C6 (naming)
+- `.agents/memorys/pitfalls ledger (MediaServo PIT-07 connect / PIT-11 build heritage)
+- `.agents/memorys/conventions.md` — C1/C2 (GStreamer/C5-C6 lineage belongs to the sister ledger, not this repo)
 - `.agents/rules/rust/coding-style.md` — Rust conventions
 - `docs/modules/development/docker-workflow.md` — Docker dev workflow

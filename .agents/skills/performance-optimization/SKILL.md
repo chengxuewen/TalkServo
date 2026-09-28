@@ -5,6 +5,9 @@ description: "TalkServo performance profiling and optimization. WebRTC latency t
 
 # performance-optimization — Performance Optimization
 
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
+
 > WebRTC latency + mediasoup throughput + React rendering + cargo bench.
 > Measure first, then optimize. Never optimize on guesses.
 
@@ -288,7 +291,7 @@ cargo bench --workspace -- --quick  # quick baseline (under-sampled, fast verifi
 
 ### Recommendations
 - [P0] none
-- [P1] SFU transport.connect actual call (see pitfall PIT-07)
+- [P1] SFU transport.connect actual call (see MediaServo pitfall PIT-07)
 ```
 
 ## Forbidden

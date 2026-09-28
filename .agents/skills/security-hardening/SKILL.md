@@ -1,9 +1,12 @@
 ---
 name: security-hardening
-description: "TalkServo security audit and hardening. OWASP Top 10 checks, hardcoded secrets/ports/URLs scan (merged review-hardcode), PSK/JWT auth flow review, WebSocket security, secrets management (PIT-10 lesson), mediasoup SFU transport security. Use before release, after auth changes, or when onboarding new PSK keys. Also accessible via /review-hardcode."
+description: "TalkServo security audit and hardening. OWASP Top 10 checks, hardcoded secrets/ports/URLs scan (merged review-hardcode), PSK/JWT auth flow review, WebSocket security, secrets management (MediaServo PIT-10 lesson), mediasoup SFU transport security. Use before release, after auth changes, or when onboarding new PSK keys. Also accessible via /review-hardcode."
 ---
 
 # security-hardening — Security Hardening
+
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
 
 > OWASP Top 10 + PSK/JWT auth + WebSocket security + secrets management.
 > Every rule has a check command. Every check must pass.
@@ -104,7 +107,7 @@ regex = '''(?i)(psk|pre_shared_key)\s*=\s*["'][A-Za-z0-9+/]{32,}["']'''
 
 ### gitleaks pre-commit hook (.git/hooks/pre-commit)
 
-> Reference D201: the existing pre-commit hook runs `cargo fmt --check` + `cargo clippy -- -D warnings`.
+> MediaServo reference D201: their pre-commit hook (not yet installed here) runs `cargo fmt --check` + `cargo clippy -- -D warnings`.
 > Below is the gitleaks integration extending the same hook:
 
 ```bash

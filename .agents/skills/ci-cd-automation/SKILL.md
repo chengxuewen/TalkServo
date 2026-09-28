@@ -5,6 +5,9 @@ description: "TalkServo CI/CD pipeline management: Docker compose (server + SFU)
 
 # ci-cd-automation — TalkServo CI/CD Pipeline
 
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
+
 > The pipeline IS the gate. Every check is a contract. Don't merge red.
 
 ## Pipeline Architecture
@@ -80,7 +83,7 @@ docker compose down
 
 ### Cargo Tasks (mediasoup separate)
 
-talkservo-server runs via Docker (C13) — `scripts/docker-cargo.sh` / `docker compose exec server`;
+talkservo-server Docker path (MediaServo C13 heritage) — `scripts/docker-cargo.sh` / `docker compose exec server`;
 The remaining crates compile natively.
 
 | Task | Command | When |
@@ -184,9 +187,9 @@ grep -r "cfg.*target_os.*macos" crates/
 # Check required system deps:
 sudo apt-get install -y meson ninja-build libuv1-dev libssl-dev
 
-# Check MESON env var (must be absolute path — PIT-12)
-# Check buildtype conflict (PIT-11: remove --buildtype from tasks.py)
-# Clear build cache if build.rs changed (PIT-13):
+# Check MESON env var (absolute path — MediaServo PIT-12)
+# Check buildtype conflict (MediaServo PIT-11: remove --buildtype from tasks.py)
+# Clear build cache if build.rs changed (MediaServo PIT-13):
 rm -rf target/debug/build/mediasoup-sys-*
 ```
 
@@ -248,7 +251,7 @@ Rules:
 |---------|-----------|-----|
 | Resolved (official registry version) — local builds go through Docker (C13) |
 | MESON must be absolute path | PIT-12 | `pixi run -- which meson` |
-| cargo clean -p doesn't clear build cache | PIT-13 | `rm -rf target/debug/build/<pkg>-*` |
+| cargo clean -p doesn't clear build cache | MediaServo PIT-13 | `rm -rf target/debug/build/<pkg>-*` |
 | macOS Docker volume mount slow | constraints.md | Use cargo-cache named volume |
 | Sending test on macOS with sfu-mediasoup | constraints.md | Use Docker or check-only |
 | First Docker build takes 15-30 min | constraints.md | Cache everything possible |
@@ -259,5 +262,5 @@ Rules:
 |-------|-------------|
 | `review-hardcode` | Run BEFORE audit — catch hardcoded secrets in CI config |
 | `test-harness` | Generate test skeletons that CI will run |
-| `lesson-memory` (C9) | CI failures → write to pitfalls.md |
+| `lesson-memory` rule | CI failures → write to pitfalls.md |
 | `think-before-act` | Check CI status BEFORE implementing fix |

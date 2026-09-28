@@ -1,5 +1,7 @@
 # Code Edit Safety
 
+> **Reference note (2026-09-28, PIT-3)**: all `PIT-{n}`/date precedent citations below are **historical, from MediaServo's ledger** unless they say "this project". TalkServo's own pitfalls restart at PIT-1 (`memorys/pitfalls.md`). The rules themselves are re-verified as still-correct for this repo.
+
 > **Target audience**: AI agents editing TalkServo source code.
 > **Violation of these rules causes token waste from repeated fix cycles.**
 

@@ -1,5 +1,9 @@
 # Docker & Network Constraints
 
+> **TalkServo calibration (D11, 2026-09-28)**: docker-cargo.sh is a CI-parity fallback here, not the default dev loop (Linux-native-first). Volume-mount and first-build notes below describe the macOS/Docker pain we deliberately avoid on this host; mediasoup UDP port-range and ICE/STUN constraints remain fully in force.
+
+
+
 > Split from [constraints.md](constraints.md) per D202 (OpenCode config optimization).
 > This file: Docker, network, and container-specific constraints for TalkServo development.
 
@@ -7,7 +11,7 @@
 
 ### Docker Desktop Volume Mount Performance
 - Docker Desktop on macOS uses **osxfs (legacy) or virtiofs (newer)** for bind mounts. Both are **3-5x slower** than native Linux filesystem access.
-- The `cargo-cache` named volume in `docker-compose.yml` mitigates this for dependency downloads, but **workspace source code bind mounts are still slow**.
+- The `cargo-cache` named volume in the compose files (P0-1) mitigates this for dependency downloads, but **workspace source code bind mounts are still slow**.
 - **Mitigation**: Prefer `docker compose exec` for running cargo commands inside the container rather than relying on host-side tooling. Avoid running `cargo build` from a host-mounted volume for large builds — use the container's internal filesystem or a dedicated volume.
 - First-time `cargo build` with `sfu-mediasoup` inside Docker can take **15-30 minutes** (vs. 3-5 minutes for native Linux).
 
@@ -15,7 +19,7 @@
 
 ### UDP Port Range for mediasoup
 - mediasoup Worker RTP/RTCP uses **UDP ports 40000-40100** by default.
-- Port mapping in `docker-compose.yml`:
+- Port mapping in the compose files (P0-1):
   ```
   40000-40100:40000-40100/udp
   ```
@@ -31,4 +35,4 @@
 
 - [constraints.md](constraints.md) — Git commit rules
 - [platform.md](platform.md) — macOS + Linux platform constraints
-- `docs/modules/development/docker-workflow.md` — Docker dev workflow details
+- `docs/modules/09-dev-toolchain.md` — Docker dev workflow details

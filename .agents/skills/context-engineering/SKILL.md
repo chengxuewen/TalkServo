@@ -1,9 +1,12 @@
 ---
 name: context-engineering
-description: "Feed TalkServo agents the right context for a 7-crate polyglot workspace. Routes Rust rules to .rs tasks, C++/FFI rules to webrtc-sys/mediasoup boundaries, protocol rules to WS contract work. Prevents wrong-language lint violations and out-of-scope analysis. Use BEFORE any cross-crate or multi-language TalkServo task."
+description: "Feed TalkServo agents the right context for the workspace (3 crates at PoC per D7; see docs/modules/03). Routes Rust rules to .rs tasks, C++/FFI rules to webrtc-sys/mediasoup boundaries, protocol rules to WS contract work. Prevents wrong-language lint violations and out-of-scope analysis. Use BEFORE any cross-crate or multi-language TalkServo task."
 ---
 
 # context-engineering — Right Context, Right Language
+
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
 
 > Route language-specific rules to the right crate. Don't apply C++ lints to Rust code. Don't audit Python scripts for Rust ownership semantics.
 
@@ -78,12 +81,12 @@ for each crate in scope:
 | Skipping `constraints.md` for webrtc-sys work | Misses macOS -ObjC linker flag (PIT-01) | Always include constraints for FFI |
 | Applying `rules/rust/hooks.md` to TypeScript files | Wrong hooks fire | Only load per-language hooks |
 | Running `cargo test --workspace` for a single-crate change | Slow (~30s) | Use `cargo test -p <crate>` |
-| Not loading `pitfalls.md` for SFU/mediasoup work | Misses PIT-06 through PIT-15 | Always load pitfalls for SFU tasks |
+| Not loading `pitfalls.md` for SFU/mediasoup work | Misses MediaServo PIT-06..15 lineage | Always load pitfalls for SFU tasks |
 
 ## Multi-Language Boundary Rules
 
 ### Rust → C/C++ (webrtc-sys, mediasoup-sys)
-- Only `&[u8]` across FFI boundary (PIT-03, C5)
+- Only `&[u8]` across FFI boundary (MediaServo PIT-03/C5 heritage)
 - `unsafe` blocks require `// SAFETY:` comment
 - `cxx::SharedPtr` types need `impl_thread_safety!` macros
 
@@ -120,7 +123,7 @@ Before submitting work touching multiple crates:
 | `think-before-act` | Context selection IS part of "先查再动手" |  <!-- c1:allow-zh -->
 | `api-interface-design` | Context-engineering informs protocol contracts |
 | `test-harness` | Cross-crate testing needs correct per-crate context |
-| `lesson-memory` (C9) | New multi-language pitfalls → write to `pitfalls.md` |
+| `lesson-memory` rule | New multi-language pitfalls → write to `pitfalls.md` |
 
 ## Task → Skill Routing
 

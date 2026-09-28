@@ -1,14 +1,22 @@
 # Platform Constraints
 
+> **TalkServo calibration (D11, 2026-09-28)**: the macOS-dev + Docker-server posture below is inherited from MediaServo's
+> macOS reality. TalkServo's primary dev machine is Linux x86_64 — mediasoup builds and tests **natively** there.
+> Docker remains for CI-parity runs and deploy images; the macOS workflow applies only if a macOS contributor joins.
+> See `docs/modules/09-dev-toolchain.md`.
+
+
 > Split from [constraints.md](constraints.md) per D202 (OpenCode config optimization).
 > This file: OS/platform-specific constraints for TalkServo development.
 
 ## Platform Constraints
 
+
+
 ### macOS Development — Host/Client Native, Server Docker
-- **Host (`talkservo-host`) and Client (`talkservo-client`)**: Develop and run natively on macOS. These crates do not depend on mediasoup.
+- **`talkservo-core` / `talkservo-client` (when it exists, Beta)**: build natively anywhere — no mediasoup dependency. `talkservo-sfu`/`talkservo-server` with `sfu-mediasoup` need Linux x86_64 (native here; Docker on macOS contributors' machines).
 - **Server (`talkservo-server`)**: Compile and run via Docker when `sfu-mediasoup` feature is enabled. The server binary and `cargo check` work natively on macOS, but mediasoup integration requires a Linux container.
-- Use `docker compose up -d` for the server dev container. See `docs/modules/development/docker-workflow.md`.
+- Use `docker compose up -d` for the server dev container. See `docs/modules/09-dev-toolchain.md`.
 
 ### mediasoup Only Builds on Linux x86_64
 - mediasoup's C++ Worker (compiled via meson/ninja) is a **Linux x86_64-only** native binary. It does not build on macOS ARM64 or Windows.
@@ -19,7 +27,7 @@
 - **CI**: The `test-mediasoup` job runs on `ubuntu-latest` only (see `.github/workflows/ci.yml`).
 
 ### CI: test-mediasoup Runs on ubuntu-latest Only
-- `.github/workflows/ci.yml` defines `test-mediasoup` with `runs-on: ubuntu-latest`. It installs meson, ninja-build, libuv1-dev, and libssl-dev before running `cargo test -p talkservo-server --features sfu-mediasoup`.
+- `.github/workflows/ci.yml` (lands at P0-1) will define `test-mediasoup` with `runs-on: ubuntu-latest`. It installs meson, ninja-build, libuv1-dev, and libssl-dev before running `cargo test -p talkservo-server --features sfu-mediasoup`.
 - The `check` and `test` jobs do run on both `ubuntu-latest` and `macos-latest` (for workspace-level validation without mediasoup features).
 
 ## macOS-Specific Gotchas

@@ -15,6 +15,8 @@ metadata:
 ---
 
 # OpenSpec Propose — TalkServo
+> **⚠️ Porting warning (doc-audit 2026-09-28)**: this skill's process skeleton is reusable, but its project-specific examples were ported from the DeskServo/MediaServo family and **do not describe TalkServo** (HAL/FlatBuffers/Studio/Zenoh references). TalkServo facts: docs/architecture.md + docs/modules/ + ledger D1-D11. Until this skill is re-authored for TalkServo, treat any embedded architecture detail as legacy illustration.
+
 
 Create a structured change proposal for TalkServo. Produce three artifacts that together answer
 "what are we building, how does it fit, and what's the plan?"
@@ -48,27 +50,27 @@ Read every spec whose module overlaps. Note if no relevant spec exists.
 #### b. Read project memory
 
 - `.agents/memorys/status.md` — current phase, module status, known gaps
-- `.agents/memorys/decisions.md` — D1-D50 architecture decisions
-- `.agents/memorys/pitfalls.md` — known sharp edges (MODACS removal, DDS traps, CI gotchas)
-- `.agents/memorys/conventions.md` — naming, immutability, TS/Rust/HAL conventions
+- `.agents/memorys/decisions.md` — D1-D11 architecture decisions
+- `.agents/memorys/pitfalls.md` — known sharp edges (mediasoup worker lifecycle lineage, porting referential-integrity PIT-3, subagent-verification PIT-1)
+- `.agents/memorys/conventions.md` — C1 English-artifacts, C2 docs-tiering
 
 #### c. Assess affected layers
 
 | Layer | Location | When affected |
 |-------|----------|---------------|
-| **HAL Core** | `crates/talkservo-common/` | New traits, types, primitives, error types |
-| **talkservo** | `crates/talkservo/` | Transport/Discovery implementation changes |
-| **FlatBuffers** | `crates/hal-flatbuffers/` + `.fbs` schemas | New/changed cross-language types |
-| **Studio** | `apps/studio/` | Tauri+React+TypeScript frontend changes (D21) |
+| **Domain core** | `crates/talkservo-core/` | FloorState/apply(), wire enums, priority rules |
+| **SFU host** | `crates/talkservo-sfu/` | mediasoup supervisor, Router/transport, apply_floor mapping |
+| **Server** | `crates/talkservo-server/` | WS signaling, rooms, JWT, timers |
+| **Web** | `web/` | SPA screens, PTT affordances, mediasoup-client |
 
 #### d. Assess affected transports
 
-| Transport | Phase | Purpose |
+| Media backend (feature) | Stage | Purpose |
 |-----------|-------|---------|
-| **talkservo** | Phase 1 | In-process HAL Transport/Discovery (D11) |
-| **amw_zenoh** | Phase 2 | Network transport via Zenoh (future) |
+| **sfu-mediasoup** | PoC default | mediasoup worker (Linux x86_64) |
+| **stub-media** | macOS/CI check | signaling-only fallback (explicit) |
 
-Most Phase 1 changes target `talkservo` only.
+Most PoC changes target talkservo-core + talkservo-server (modules/02/03).
 
 ### 3. Create the proposal directory
 
@@ -96,11 +98,11 @@ Create `docs/plans/<change-name>/design.md` with these sections:
 - **Architecture** — ASCII diagram or text description showing modules, data flow, ownership
 - **Files to Touch** — Create / Modify / Delete sub-tables with file paths and purpose
 - **Data Flow** — critical path from entry to exit (Signal: write→store→callback; RPC: invoke→dispatch→result)
-- **Integration Points** — HAL trait boundary, amw boundary, FlatBuffers boundary, Studio boundary
-- **Rust/HAL Specifics** — new traits/structs, Signal/StreamChannel wiring (D10), thread safety (Send+Sync, Config Barrier D17), YAML→FlatBuffers config (D24)
-- **Error Handling** — HAL 5-layer error model (D46): type/transport/resource/discovery/scheduling
-- **Testing Strategy** — checklist: Rust unit, integration, FlatBuffers round-trip, talkservo E2E, qa-fast gate (`./scripts/qa/qa-fast.sh`)
-- **Dependencies** — new cargo deps, FlatBuffers schema changes (or "None")
+- **Integration Points** — wire-contract boundary (modules/02), Sfu trait boundary (modules/03), floor-event flow server→sfu
+- **Rust Specifics** — apply() purity preserved (no I/O in core), generation monotonicity, feature gates (D5/D6), thiserror types
+- **Error Handling** — modules/05 matrix (E1-E10) + DenyReason enum; every log line room/peer/generation
+- **Testing Strategy** — checklist per architecture §4: core unit, stub-media integration, Playwright e2e, netem harness
+- **Dependencies** — new cargo/npm deps (or "None")
 
 ### 6. Write tasks.md
 
@@ -111,31 +113,31 @@ Create `docs/plans/<change-name>/tasks.md`. Tasks must be **atomic, ordered, ind
 
 ## Phase 1: Foundation
 
-- [ ] **Add `<trait/struct>` to HAL Core**
-  - File: `crates/talkservo-common/src/<path>/<file>.rs`
-  - Verify: `cargo check -p talkservo-common`
+- [ ] **Add `<type/fn>` to talkservo-core**
+  - File: `crates/talkservo-core/src/<module>.rs`
+  - Verify: `cargo check -p talkservo-core`
 
-- [ ] **Implement for talkservo**
-  - File: `crates/talkservo/src/<file>.rs`
-  - Verify: `cargo check -p talkservo`
+- [ ] **Implement for server/sfu**
+  - File: `crates/talkservo-{server,sfu}/src/<file>.rs`
+  - Verify: `cargo check -p talkservo-server --no-default-features --features stub-media`
 
-## Phase 2: Transport & Bindings
+## Phase 2: Media & Wire
 
-- [ ] **Update FlatBuffers schema** (if needed)
-  - File: `crates/hal-flatbuffers/<file>.fbs`
-  - Verify: `cargo build -p hal-flatbuffers`
+- [ ] **Update wire contract / RtpParameters mapping** (if needed)
+  - File: `crates/talkservo-core/src/wire.rs` + `web/src/wire.ts`
+  - Verify: serde roundtrip test + modules/02 table update
 
 ## Phase 3: Tests
 
-- [ ] **Add Rust unit tests** (AAA pattern, D33)
+- [ ] **Add Rust unit tests** (AAA pattern)
   - File: same as implementation
-  - Verify: `cargo test -p talkservo-common`
+  - Verify: `cargo test -p talkservo-core`
 
 - [ ] **Add integration tests**
   - File: `tests/<name>_test.rs`
   - Verify: `cargo test --test <name>_test`
 
-- [ ] **Run qa-fast gate**
+- [ ] **Run pixi gate** (`pixi run lint && pixi run test`)
   - Verify: `./scripts/qa/qa-fast.sh` (5 gates: test/clippy/fmt/deny/unwrap)
 
 ## Phase 4: Documentation & Cleanup
@@ -159,10 +161,11 @@ Display summary — change name, artifact list, line counts. Let user request ch
 
 | Purpose | Path |
 |---------|------|
-| HAL Core | `crates/talkservo-common/src/` |
-| talkservo | `crates/talkservo/src/` |
-| FlatBuffers schemas | `crates/hal-flatbuffers/*.fbs` |
-| Studio | `apps/studio/src/` |
+| talkservo-core | `crates/talkservo-core/src/` |
+| talkservo-sfu | `crates/talkservo-sfu/src/` |
+| talkservo-server | `crates/talkservo-server/src/` |
+| Web SPA | `web/src/` |
+| Design docs | `docs/modules/` |
 | Specs | `openspec/specs/` |
 | Plans | `docs/plans/<change-name>/` |
 | Integration tests | `tests/` |
@@ -191,11 +194,11 @@ cargo test                                     # Debug build + tests
 
 ### Rust conventions
 
-- Rust stable toolchain, ownership, borrowing, traits
-- HAL traits + FlatBuffers for cross-language interop (D19)
-- talkservo for Phase 1 transport (D11)
-- Multi-language via FlatBuffers schema (D19)
-- Thread safety: Config Barrier (D17) for RT config changes
+- Rust stable (edition 2024, rust-toolchain.toml), ownership, borrowing, traits
+- Floor model per D1: apply() pure transitions, generation ordering
+- Media per D6: mediasoup crate 0.24, feature-gated (stub-media fallback)
+- Wire discipline: serde snake_case single enum (modules/02)
+- No async/IO in talkservo-core (D5)
 - Config via YAML → FlatBuffers (D24)
 
 ---

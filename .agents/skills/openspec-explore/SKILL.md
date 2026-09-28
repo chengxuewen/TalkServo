@@ -15,6 +15,8 @@ metadata:
 ---
 
 # OpenSpec Explore — TalkServo
+> **⚠️ Porting warning (doc-audit 2026-09-28)**: this skill's process skeleton is reusable, but its project-specific examples were ported from the DeskServo/MediaServo family and **do not describe TalkServo** (HAL/FlatBuffers/Studio/Zenoh references). TalkServo facts: docs/architecture.md + docs/modules/ + ledger D1-D11. Until this skill is re-authored for TalkServo, treat any embedded architecture detail as legacy illustration.
+
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
@@ -41,18 +43,15 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 - Ask clarifying questions that emerge from what they said
 - Challenge assumptions about Rust/HAL architecture
 - Reframe the problem in TalkServo context
-- Find analogies from similar industrial control system stations
+- Find analogies in the PTT/dispatch landscape (docs/reference/research/ptt/) and the mediasoup sister integration (MediaServo)
 
 **Investigate the TalkServo codebase**
 - Map existing architecture relevant to the discussion
-  - `crates/talkservo-common/` — HAL traits, types, primitives (D10/D11/D12)
-  - `crates/talkservo/` — In-process HAL transport/discovery
-  - `crates/hal-flatbuffers/` — FlatBuffers schema + bindings (D19)
-  - `apps/studio/` — Tauri + React + TypeScript IDE (D21)
-  - `Cargo.toml` — Virtual workspace manifest
-- Find integration points across crates
-- Identify patterns already in use (Signal/StreamChannel/RPC primitives, amw trait impls)
-- Surface hidden complexity (Config Barrier RT cycles, type system IEC 61131-3 mapping, SCHED_FIFO)
+  - Design source of truth: docs/architecture.md + docs/modules/01-09 (D1-D11 ledger)
+  - Planned crates (pre-implementation, see modules/03): talkservo-core / talkservo-sfu / talkservo-server + web/ SPA
+- Find integration points (wire contract boundary modules/02, Sfu trait modules/03, floor events)
+- Identify patterns already in use (apply() pure state transitions, generation monotonicity, serde snake_case wire, feature-gated media backend)
+- Surface hidden complexity (worker subprocess lifecycle W-sequence, R1 snapshot resync, FEC/latency acceptance measurement)
 
 **Compare options**
 - Brainstorm multiple Rust/architecture approaches
@@ -140,17 +139,16 @@ When exploring, draw from four structured sources in order of priority:
 
 ### 3. Project Memory (`.agents/memorys/`)
 - `status.md` — current phase, module states, active crates
-- `decisions.md` — D1–D50 architecture decisions with rationale
+- `decisions.md` — D1–D11 architecture decisions with rationale
 - `conventions.md` — naming, immutability, TypeScript/Rust conventions
 - `pitfalls.md` — known gotchas, design review findings, anti-patterns
 - **Check when** questions involve "why was this done this way?" or project history
 
 ### 4. Codebase (`crates/`, `apps/`)
-- `crates/talkservo-common/` — HAL traits, types, primitives (D10/D11/D12)
-- `crates/talkservo/` — in-process transport/discovery (D11, Phase 1)
-- `crates/hal-flatbuffers/` — FlatBuffers schema + bindings (D19, cross-language)
-- `apps/studio/` — Tauri + React + TypeScript IDE (D21, Phase 1)
-- **Check when** questions involve actual implementation details
+- `docs/modules/03-components.md` — crate layout & seams (core/sfu/server + web/)
+- `docs/modules/04-media-pipeline.md` — mediasoup/TURN/netem specifics
+- pre-implementation: no crates/ on disk yet (workspace = plan step P0-1)
+- **Check when** questions involve intended implementation details
 
 ---
 
@@ -162,13 +160,12 @@ When exploring, keep these TalkServo specifics in mind:
 |---------|---------|
 | Build system | cargo workspace → cargo build / cargo test |
 | Rust standard | Rust stable, ownership, borrowing, traits |
-| HAL primitives | Signal / StreamChannel / RPC (D10) |
-| Middleware | talkservo (Phase 1), amw_zenoh (Phase 2) (D11) |
-| Type system | IEC 61131-3 mapped — 14 types (D12) |
-| Multi-language | FlatBuffers schemas + codegen (D19) |
-| RT config | HAL Config Barrier at cycle boundary (D17) |
-| Studio | Tauri window management (D21) |
-| Config format | YAML dev → FlatBuffers runtime (D24) |
+| Floor model | apply() pure transitions, generation ordering (D1) |
+| Media | mediasoup crate 0.24, feature-gated (D6) |
+| Wire | single serde-tagged WS enum (modules/02) |
+| Clients | web SPA; native via UniFFI track (D8) |
+| Desktop | Electron shell over web SPA (D10) |
+| Toolchain | pixi + bootstrap, Linux-native-first (D11) |
 
 ---
 

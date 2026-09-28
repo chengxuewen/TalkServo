@@ -51,7 +51,7 @@ Verify cross-consistency across architecture.md <-> modules/ <-> README <-> AGEN
 - Are descriptions of the same concept consistent? (crate count, Phase status, tech stack version)
 - Do sub-documents duplicate the main document?
 - Is Phase terminology ambiguous?
-- Does crate naming match the C4 convention?
+- Does crate naming follow the docs-structure convention (C2)?
 
 ### 3. Agent Infrastructure Audit (new)
 Verify self-consistency among rules, skills, and memory under .agents/.

@@ -5,6 +5,9 @@ description: "Ground every external dependency decision in official docs. Use wh
 
 # Source-Driven Development — TalkServo
 
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
+
 ## Overview
 
 Every external dependency decision must be backed by official documentation. TalkServo integrates C/C++ FFI (mediasoup, libwebrtc), three WebRTC backends, two codec backends, and Docker tooling. Training data goes stale — documentation doesn't lie. Verify every API call, every feature flag, every build step against upstream docs.
@@ -151,9 +154,9 @@ Optional: initialAvailableOutgoingBitrate, maxIncomingBitrate
 Every non-trivial external dependency usage gets a citation:
 
 ```rust
-// PIT-07: Transport connect must call actual mediasoup API
+// MediaServo PIT-07 heritage: transport connect must call the actual mediasoup API
 // Source: https://docs.rs/mediasoup-sys/0.13/mediasoup/transport/struct.Transport.html#method.connect
-// Decision: D198 (SFU Server-Offer architecture)
+// MediaServo D198 (SFU Server-Offer; our PoC uses standard client-offer, modules/02)
 transport.connect(&dtls_params)?;
 ```
 
@@ -208,7 +211,7 @@ mediasoup-sys 0.13 binds to mediasoup C++ Worker v3. Key constraints:
 - Python 3.9+ for worker build scripts
 - Ubuntu 22.04 LTS recommended base
 
-Source: `mediasoup-sys` README + PIT-11 (meson buildtype conflict)
+Source: `mediasoup-sys` README + MediaServo PIT-11 (meson buildtype conflict)
 
 ### Docker/CI Verification
 
@@ -234,7 +237,7 @@ API from v3.14.x (based on CHANGELOG.md).
 
 ```
 CONFLICT: Both backend-webrtc-rs and backend-webrtc-sys are enabled.
-Source: crates/talkservo-webrtc/Cargo.toml + PIT-04
+Source: crates/talkservo-sfu/Cargo.toml (target layout) + PIT-04
 → compile_error! is expected. Only one backend per build.
 ```
 
@@ -273,7 +276,7 @@ C) Test on Linux CI
 ## See Also
 
 - `.agents/memorys/pitfalls.md` — PIT-04 (mutual exclusion), PIT-11 (mediasoup build)
-- `.agents/memorys/conventions.md` — C5 (GStreamer boundary), C6 (webrtc naming)
-- `.agents/memorys/decisions.md` — D198 (SFU Server-Offer), D155 (GStreamer interface)
+- `.agents/memorys/conventions.md` — C1/C2 (C5/C6 lineage = sister ledger, not this repo)
+- `.agents/memorys/sister ledgers: MediaServo D198/D155 (engine heritage reading only)
 - `.agents/rules/common/constraints.md` — Platform constraints, Docker constraints
 - `crates/talkservo-webrtc/Cargo.toml` — Feature flag matrix

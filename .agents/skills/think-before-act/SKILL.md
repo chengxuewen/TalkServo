@@ -5,6 +5,9 @@ description: "Meta-constraint: investigate first, then act; present options and 
 
 # think-before-act: investigate → propose → approve → (team review) → execute
 
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
+
 > Never act recklessly.
 
 ## Trigger conditions

@@ -1,9 +1,12 @@
 ---
 name: browser-testing
-description: "Admin Dashboard testing via Playwright/DevTools MCP. SFU video playback verification. Use when building/modifying Admin Dashboard UI, debugging SFU video in browser, verifying WebRTC DataChannel, or any browser-facing TalkServo feature. Triggers: 'admin dashboard', 'SFU video', 'browser test', 'playwright test', 'WebRTC in browser', 'console errors', 'check the UI'."
+description: "Web SPA and admin-dashboard testing via Playwright/DevTools MCP. SFU audio playback verification. Use when building/modifying Admin Dashboard UI, debugging SFU video in browser, verifying WebRTC DataChannel, or any browser-facing TalkServo feature. Triggers: 'admin dashboard', 'SFU video', 'browser test', 'playwright test', 'WebRTC in browser', 'console errors', 'check the UI'."
 ---
 
 # Browser Testing — TalkServo Admin Dashboard & SFU
+
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
 
 ## Overview
 
@@ -174,14 +177,14 @@ console.log(JSON.stringify(state));
 
 ```
 ✗ "ICE connection failed"          → Check STUN/TURN config, network
-✗ "DTLS transport failed"          → Check certificates, PIT-07 (connect not called)
+✗ "DTLS transport failed"          → Check certificates, MediaServo PIT-07 (connect not called)
 ✗ "Signal Lost"                    → mediasoup transport disconnected
 ✗ "Failed to create transport"     → Check mediasoup Worker status
 ✗ "RTP timeout"                    → Check UDP port range (40000-40100)
 ✗ "WebSocket error: 1006"          → Server crashed or network issue
 ```
 
-### Known Pitfalls (from PIT-06, PIT-07)
+### Known Pitfalls (inherited from MediaServo ledger)
 
 ```
 PIT-06: SFU message type must be snake_case
@@ -258,7 +261,7 @@ After any browser-facing change:
 
 ## See Also
 
-- `.agents/memorys/pitfalls.md` — PIT-06 (snake_case), PIT-07 (transport connect), PIT-08 (peer_id)
+- `.agents/memorys/pitfalls.md` — PIT-06 (snake_case), PIT-07 (transport connect), MediaServo PIT-08 (peer_id)
 - `.agents/memorys/decisions.md` — D198 (SFU Server-Offer architecture)
 - `.agents/memorys/status.md` — SFU Video Playback status
 - `.agents/rules/common/edit-safety.md` — Verification honesty, self-verification requirement

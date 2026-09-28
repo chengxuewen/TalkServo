@@ -5,6 +5,9 @@ description: "Batch session review: systematically extract lessons learned and w
 
 # lesson-review: batch lesson harvesting
 
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
+
 ## Trigger conditions
 
 - User says '总结经验' / '更新记忆' / '记录教训' / '回顾会话'  <!-- c1:allow-zh -->
@@ -21,7 +24,7 @@ think-before-act  ->  [Action]  ->  lesson-memory  ->  doc-audit
                     lesson-review <- batch gap-filling
 ```
 
-| | `lesson-memory` rule (C9) | `lesson-review` skill |
+| | `lesson-memory` rule | `lesson-review` skill |
 |---|---|---|
 | Timing | Instant (after every error, auto-triggered) | Batch (session end / user-triggered) |
 | Method | Reflection | Interactive review |

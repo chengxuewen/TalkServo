@@ -5,6 +5,9 @@ description: "TalkServo multi-language automated test harness. Generates test sk
 
 # Test Harness
 
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+
+
 Provides automated test generation and verification for the TalkServo multi-language project. Emits test code directly from SDD specs, ensuring AAA mode, Phase alignment, and per-language convention consistency.
 
 **Philosophy**: Tests are not something added after the code is written — they grow directly out of the spec. A good test file = an executable copy of the spec.
@@ -39,7 +42,7 @@ Only fix the currently failing tests, do not generate new tests.
 
 ## Multi-Language Strategy
 
-TalkServo is a multi-language project (D19, D21). Test generation must adapt to each language's conventions.
+TalkServo is a multi-language project (Rust core/server + TS web; sister-ledger D19/D21 lineage — this repo's scope lives in docs/modules/03). Test generation must adapt to each language's conventions.
 
 ### Language Detection
 
