@@ -1,0 +1,99 @@
+# This file is used to ignore files which are generated
+# ----------------------------------------------------------------------------
+
+*~
+*.autosave
+*.core
+*.orig
+*.rej
+.#*
+*.*#
+tags
+.DS_Store
+.directory
+*.debug
+*.app
+Thumbs.db
+
+# xemacs temporary files
+*.flc
+
+# Vim temporary files
+.*.swp
+
+# Visual Studio generated files
+*.ib_pdb_index
+*.idb
+*.ilk
+*.pdb
+*.sln
+*.suo
+*.vcproj
+*vcproj.*.*.user
+*.ncb
+*.sdf
+*.opensdf
+*.vcxproj
+*vcxproj.*
+
+# MinGW generated files
+*.Debug
+*.Release
+
+# Python byte code
+*.pyc
+
+# Binaries
+# --------
+*.dll
+*.exe
+
+# IDE files
+# --------
+.vs
+.idea
+.cache
+.vscode/*
+!.vscode/settings.json
+
+# Build dirs
+# --------
+out
+log
+dist
+build*
+target
+*.node
+/install
+
+# Temp dirs
+# --------
+stash
+
+# nodejs environments
+# --------
+/package-lock.json
+/package.json
+node_modules
+.npm-cache
+.turbo
+nodejs
+
+# Agent dirs
+# --------
+.venv-openspace
+.playwright-mcp
+.codegraph
+.sisyphus
+.omo/*
+
+# reference source 
+# --------
+.refinfo
+Testing/
+PolyOrch
+corrosion
+
+# Don't ignore files
+# --------
+!.omo/omo.jsonc

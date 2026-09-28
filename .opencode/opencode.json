@@ -1,0 +1,125 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "new-api/deepseek-v4-pro",
+  "compaction": {
+    "auto": true,
+    "tail_turns": 15
+  },
+  "enabled_providers": [
+    "new-api"
+  ],
+  "plugin": [
+    "superpowers@git+https://github.com/obra/superpowers.git",
+    "@dietrichgebert/ponytail",
+    "oh-my-openagent@4.19.4",
+    "context-mode"
+  ],
+  "instructions": [
+    ".agents/memorys/status.md",
+    ".agents/memorys/conventions.md",
+    ".agents/rules/common/security.md",
+    ".agents/rules/common/coding-style.md",
+    ".agents/rules/common/agents.md",
+    ".agents/rules/common/code-review.md",
+    ".agents/rules/common/development-workflow.md",
+    ".agents/rules/common/hooks.md",
+    ".agents/rules/common/patterns.md",
+    ".agents/rules/common/performance.md",
+    ".agents/rules/common/testing.md",
+    ".agents/rules/common/constraints.md",
+    ".agents/rules/common/docker.md",
+    ".agents/rules/common/platform.md",
+    ".agents/rules/common/edit-safety.md",
+    ".agents/rules/common/lesson-memory.md",
+    ".agents/rules/rust/coding-style.md",
+    ".agents/rules/rust/hooks.md"
+  ],
+  "mcp": {
+    
+    "websearch": {
+      "type": "remote",
+      "url": "https://websearch.opencode.ai",
+      "enabled": false
+    },
+    "local-codegraph": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "node",
+        ".opencode/init-mcp-codegraph.mjs"
+      ]
+    },
+    "local-playwright": {
+      "type": "local",
+      "enabled": false,
+      "command": [
+        "node",
+        ".opencode/init-mcp-playwright.mjs"
+      ]
+    },
+    "local-github": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}"
+      }
+    },
+    "local-postgres": {
+      "type": "local",
+      "enabled": false,
+      "command": [
+        "node",
+        ".opencode/init-mcp-postgres.mjs"
+      ]
+    },
+    "local-openspace": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "node",
+        ".opencode/init-mcp-openspace.mjs"
+      ]
+    }
+  },
+  "lsp": {
+    "rust-analyzer": {
+      "command": [
+        "node",
+        ".opencode/init-lsp-wrap.mjs",
+        "rust-analyzer"
+      ],
+      "extensions": [
+        "rs"
+      ]
+    },
+    "bash-language-server": {
+      "command": [
+        "node",
+        ".opencode/init-lsp-wrap.mjs",
+        "bash-language-server",
+        "start"
+      ],
+      "extensions": [
+        "sh",
+        "bash"
+      ]
+    },
+    "remark-language-server": {
+      "command": [
+        "node",
+        ".opencode/init-lsp-wrap.mjs",
+        "remark-language-server",
+        "--stdio"
+      ],
+      "extensions": [
+        "md",
+        "markdown"
+      ]
+    }
+  }
+}
