@@ -37,3 +37,12 @@ None yet — this folder registers API/config/ops handbooks as product modules l
 | Path | Compiled | Scope | Status |
 |---|---|---|---|
 | (pending P0-1) `pixi-task-migration-notes.md` | — | MediaServo pixi/scripts patterns evaluated live during D11 analysis; formalize when scripts ship | planned |
+
+### `research/internal/` — self-reviews of this project's own design
+| Path | Compiled | Scope | Status |
+|---|---|---|---|
+| [research/internal/architecture-review-floor.md](research/internal/architecture-review-floor.md) | 2026-09-28 | floor/wire adversarial review vs MCPTT/Mumble/LiveKit (13 findings) | archived (frozen) |
+| [research/internal/architecture-review-media.md](research/internal/architecture-review-media.md) | 2026-09-28 | mediasoup trust/uplink/mechanism review vs official docs+crate source (11) | archived (frozen) |
+| [research/internal/architecture-review-ops.md](research/internal/architecture-review-ops.md) | 2026-09-28 | TLS/JWT/TURN/health/supply-chain (live crate stats) (10) | archived (frozen) |
+| [research/internal/architecture-review-client.md](research/internal/architecture-review-client.md) | 2026-09-28 | browser matrix/Electron/token-UX vs BCD+Electron+LiveKit docs (12) | archived (frozen) |
+| [research/internal/architecture-review-consolidated.md](research/internal/architecture-review-consolidated.md) | 2026-09-28 | lead merge: 46 raw → 21 unique ranked + held-up list + PIT-4 | **actionable index** |

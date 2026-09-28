@@ -110,3 +110,15 @@
 **Date**: 2026-09-28
 **Rationale**: platform.md/docker.md's 'macOS dev + Docker server' shape was MediaServo's macOS-forced form, not a law; borrowing mechanisms while correcting premises avoids inherited complexity. nodejs in pixi (MediaServo missed it) makes web builds reproducible.
 **Source**: analysis session 2026-09-28; details docs/modules/09-dev-toolchain.md.
+
+## D12: FloorState v2 — grant-set model, MediaDown release, queue events, closed DenyReason (2026-09-28)
+
+**Decision**: Post-review (architecture-review-consolidated #1·3·4·5·12·13): replace single-holder slot with `grants: Vec<PeerId>` (cap 1/2/N by mode incl. MCPTT dual-floor), explicit `muted` set, `FloorQueued{pos,gen}` + ModeChange/MuteSet wire messages, `MediaDown` event + `floor_media_grace_ms` release path (no zombie holders), closed `DenyReason` enum incl. RateLimited/PreemptPriority, generation boot offset, role-scoped `ServerSnapshot` (queue = dispatcher-only), `TokenRefresh` push (LiveKit pattern), identity-collision=reject.
+**Date**: 2026-09-28 | **Amends**: D1 (presentation only — the abstraction holds), D2 impact wording via D13.
+**Source**: arch-review-team 2026-09-28 (floor F-01..08, media M-3, client C-6/8/9); all fixes ratified by user approval 2026-09-28.
+
+## D13: Transmission gating — server pauses non-granted producers; mono Opus; consumers via pause/resume diff (2026-09-28)
+
+**Decision**: Refines M1: producers registered once but **paused unless granted** (server-side `Producer::pause`), consumers created-once-then-pause/resume-diff (unifies the three-way doc contradiction, review M-4). Codec pinned mono 48k fullband (M-10). Consequences: idle peers emit no audio uplink (privacy + mobile data + battery), P-budget rides sub-ms pause/resume, DTX question moot.
+**Date**: 2026-09-28 | **Limits**: keep-alive RTCP/consent traffic continues while paused — zombie detection still owns watchdog duty (E11).
+**Source**: media-reviewer M-1/M-2/M-4/M-10 + crate API verification (versatica/mediasoup rust tree, 2026-09-28).

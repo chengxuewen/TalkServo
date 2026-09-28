@@ -8,7 +8,9 @@ Two PoC screens, one SPA (`web/`, Vite+React18+TS+AntD5+zustand, rust-embed serv
 | Route | Role | Layout (normalized from research) |
 |-------|------|-----------------------------------|
 | `/d/:room` | dispatcher | target grid (tile per peer, tally ring red=holder) + event log side panel (grant/taken/idle + generation shown ONLY here) + per-line listen mute/gain + **grant-queue strip** (industry gap — differentiator) + authorized actions (preempt-broadcast / mute-all / ModeChange) |
-| `/f/:room` | field agent | compact live roster (speaking peer highlighted) + one oversized **hold-to-talk** button (pointerdown/up/cancel, thumb zone) + settings drawer (keybind capture, release-delay slider, accessibility toggle) |
+| `/f/:room` | field agent | compact live roster (speaking peer highlighted) + one oversized **hold-to-talk** button (pointerdown/up/cancel, thumb zone) + settings drawer (keybind capture rejecting Ctrl/Cmd+letter, release-delay slider, accessibility toggle; `preventDefault` keydown on the HTT to avoid Space double-fire C-5; polite `aria-live` floor announcements C-11) |
+
+Browser matrix (BCD-verified, C-1/C-2/C-3): Chrome/Edge/Firefox/Safari≥12 (mediasoup-client Safari12 handler; Unified Plan only) ⊂ acceptance #9; `setSinkId` all desktop engines, absent on Android browser (field mobile = D8 native); one `<audio>` element per consumer for sink routing; `devicechange` + `replaceTrack` handles headset hotplug.
 
 Floor visualization law: **one state, one source** — on-air is server-event-driven (`FloorGranted/Taken/Idle`), the client never guesses (UI projection of modules/05 §1 principle 2); audio cues on grant/deny/taken (Mumble pattern, non-visual channel).
 
@@ -25,7 +27,7 @@ Stack decisions fixed: no zod (hand-written TS union mirrors modules/02 §1 unti
 
 ## Desktop shell (D10, 2026-09-28)
 
-First-party desktop dispatcher = **Electron shell wrapping `web/` unchanged**: renderer runs the same SPA with embedded Chromium WebRTC (behavior parity with browser acceptance; Discord desktop is the working precedent); main process contributes OS integration only — `globalShortcut` (closes hard gap #5 on desktop), tray, autostart, `backgroundThrottling:false` hidden-window receive. No Rust client code in the desktop path; no new UI stack. Tauri evaluated and rejected on WebView media fragmentation; costs accepted (~90 MB, Chromium CVE following, electron-updater in scope). Target: Alpha after PoC web slice; field-agent mobile stays on the D8 native-SDK track.
+First-party desktop dispatcher = **Electron shell wrapping `web/` unchanged**: renderer runs the same SPA with embedded Chromium WebRTC (behavior parity with browser acceptance; Discord desktop is the working precedent); main process contributes OS integration only — `globalShortcut` (closes hard gap #5; `register()` returns false when the accelerator is occupied — surface the conflict in settings, review C-4), tray, autostart, `backgroundThrottling:false` hidden-window receive. Shell mechanics (C-7): `requestSingleInstanceLock()`; `render-process-gone → reload()` + R-sequence recovery; Linux auto-update format (AppImage/deb + feed) = Alpha decision; SPA must not gate media on `visibilitychange` (Electron ≥28). No Rust client code in the desktop path; no new UI stack. Tauri evaluated and rejected on WebView media fragmentation; costs accepted (~90 MB, Chromium CVE following, electron-updater in scope). Target: Alpha after PoC web slice; field-agent mobile stays on the D8 native-SDK track.
 
 ## Examples & GUI policy (binding demos, not products)
 

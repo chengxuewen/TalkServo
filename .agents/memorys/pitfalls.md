@@ -31,3 +31,9 @@
 - **Root cause**: the port/rename pass treated prose as language content, not as DATA containing foreign keys into a deliberately reset ledger. C/D/PIT citations are joins; reset invalidates all of them silently.
 - **Solution**: on any cross-project port, script a referential-integrity pass: extract project-scoped identifiers (C/D/PIT ids, crate names, ports, doc paths), join against the target ledger, then re-anchor, delete, or label "MediaServo {id}". Never trust renamed prose.
 - **Verification**: `grep -rn 'PIT-[0-9][0-9]\|C[1-9][0-9]?\b' .agents/skills/*/SKILL.md | grep -v MediaServo` cross-checked against `.agents/memorys` ids (audit join, rerun after any port).
+
+## PIT-4: Standards/spec citations are agent output too — join-verify before trusting (2026-09-28)
+- **Symptom**: audio-stack researcher reported "RFC 6716/8215/7254/8310/8311 full text fetched" and the frozen dossier cited RFC 8215 as the Opus FEC spec. media-reviewer fetched RFC 8215 = "Local-Use IPv4/IPv6 Translation Prefix" — the Opus authorities are RFC 6716 §2.1.7/2.1.9 + RFC 7587. "Fetched" in a report did not mean the content said what was claimed.
+- **Root cause**: citation strings treated as trustworthy metadata rather than claims; lead never joined spec-ids to canonical titles during dossier write.
+- **Solution**: for any external standard/RFC/section id an artifact cites, verify title (datatracker/curl) before commit; corrections to frozen dossiers go in a new dated file (done: architecture-review-media.md M-9), never back-write.
+- **Verification**: `grep -rhoP 'RFC \d{4}' docs/reference/research/ | sort -u` then spot-check titles via https://datatracker.ietf.org/doc/rfcNNNN/.

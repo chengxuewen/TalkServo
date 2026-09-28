@@ -8,6 +8,7 @@ Principles: media failure never corrupts arbitration state; clients never self-h
 | # | Failure | Detection | Floor impact | Recovery | UX |
 |---|---------|-----------|--------------|----------|----|
 | E1 | holder WS drop | heartbeat 30 s / TCP half-open | release + auto-promote | R-sequence on reconnect | muted notice → restored |
+| **E11** | holder **media dies, WS alive** (mic revoked, 4G handover, silent uplink) | `iceConsentTimeout` 30 s auto-close; `icestatechange('disconnected')`→close; PoC adds no-RTP watchdog (2 s) | `MediaDown` after `floor_media_grace_ms` → release+promote (D12) | F-sequence | all see `MediaFailed{holder}` + new grant |
 | E2 | reconnect race | stale `gen` discard | none | — | seamless |
 | E3 | mic denied/busy | getUserMedia reject | none | client shows banner; no Request sent | explicit |
 | E4 | transport timeout (mediasoup 10 s) | await err | none | retry 1 → kick media half only, `MediaFailed{peer}` | "peer audio unreachable" |
@@ -18,7 +19,7 @@ Principles: media failure never corrupts arbitration state; clients never self-h
 | E9 | JWT expired | Join reject | — | close 4401; client refresh+rejoin | re-auth |
 | E10 | port pool exhausted | transport create err | no new media | `MediaCapacity`; existing sessions untouched; PoC cap ~50 transports | "room full" |
 
-Explicitly NOT handled in PoC (YAGNI, revisit at Alpha): FloorState persistence, cross-worker migration, per-message ACK, clock sync (generation replaces wall-clock ordering), rolling-upgrade/version-rollout policy (lands with Alpha deployment.md).
+On startup `generation` begins at a random high offset (E7 stale-socket guard, review F-12). Explicitly NOT handled in PoC (YAGNI, revisit at Alpha): FloorState persistence, cross-worker migration, per-message ACK, clock sync (generation replaces wall-clock ordering), rolling-upgrade/version-rollout policy (lands with Alpha deployment.md).
 
 ## Observability (PoC: structured logs only)
 

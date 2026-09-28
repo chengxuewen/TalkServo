@@ -57,6 +57,8 @@ Design principles:
 | OQ-7 | IPv6 / v4-v6 dual-stack candidates | Alpha | PoC IPv4-only |
 | OQ-8 | TCP transport throughput profile (4G relay over TCP) | acceptance data | enabled in PoC, measure don't assume |
 | OQ-9 | **native SDK media engine**: (c) platform-native WebRTC in mobile shells + Rust owns signaling/floor only → (b) `webrtc-sys` prebuilt libwebrtc FFI (MediaServo-proven) if (c) quality floor unmet; (a) pure webrtc-rs+D4 stays last-resort — mobile audio I/O/NetEQ unproven. Would supersede D3 if (b) chosen | Beta (first native consumer) | phased posture c→b is D8; reopening requires new D entry |
+| OQ-10 | E2EE/SFrame posture before any external hosting (D6 worker holds plaintext — modules/06 trust statement) | Beta gate | review M-1 |
+| OQ-11 | multi-identity/displace policy (today: reject second Join same identity) | Alpha | review C-9 |
 
 ## 4. Acceptance (normative)
 
@@ -66,6 +68,8 @@ Additional (from design session):
 
 6. R1: kill field peer mid-hold → reconnect → snapshot restores correct Idle/granted state, no double-grant.
 7. E6: kill worker → W-sequence restores audio plane without touching floor state (measure real recovery time).
+11. Zombie-holder (E11): kill holder uplink (mic revoked / no-RTP 2 s) with WS alive → `MediaDown` within grace → floor frees, queue promotes — floor NEVER locks on media death.
+12. Transmission gating (D13): non-holders produce nothing (server-paused) — verify zero idle uplink bytes per joined-silent peer except RTCP/consent.
 8. FEC A/B under netem: concealment-share drops ≥30% (FEC on), quantitative via getStats.
 9. ICE classes: host / srflx / relay each complete one full P-sequence on public deployment.
 10. P-latency: keydown→audible ≤ budget lines (300/600 ms) — measured, then this line revised with data.
@@ -82,4 +86,5 @@ Test layers: unit (core, any platform) → integration (stub-media) → e2e auto
 | SDP flow | Server-Offer (D198) | standard client-offer mediasoup-client npm in web PoC; revisit for native SDK |
 | SDK shape | four facades (link/field/deck/client) × 4 binding langs, wide matrix | single client facade, ≤3 binding jobs, trigger-growth (modules/07) |
 
+ > - 2026-09-28 (review remediation, D12/D13): arch-review team 21 findings — grant-set FloorState, MediaDown/E11 release, ModeChange/MuteSet/FloorQueued/TokenRefresh wire, DTX moot + mono, server-side producer gating, wss/TLS + trust statement, snapshot role-scoping, /healthz, config defaults table, pixi.lock rule; consolidated: reference/research/internal/architecture-review-consolidated.md
 > - 2026-09-28 (structure): design sections carved into `docs/modules/` per user ruling — modules/ = design, reference/ = external knowledge. Master retains overview/index/OQ/acceptance/relationship.

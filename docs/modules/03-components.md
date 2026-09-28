@@ -25,8 +25,8 @@ flowchart LR
 | Crate | Responsibility | Depends on | Test surface |
 |-------|----------------|-----------|--------------|
 | `talkservo-core` | FloorState, apply(), message enums, DenyReason | serde, thiserror | exhaustive unit (no tokio/I-O) |
-| `talkservo-sfu` | supervisor + worker lifecycle, Router registry, `Sfu` trait below, SDP↔RtpParameters | core, mediasoup 0.24 | integration (Linux); stub on macOS |
-| `talkservo-server` | axum+WS, room mailbox, timers, rate limit, e2e glue | core, sfu, tokio-tungstenite, jsonwebtoken | integration (stub-media) + e2e |
+| `talkservo-sfu` | supervisor + worker lifecycle (`Supervisor::acquire_worker()` behind round-robin, crate `worker_manager` verified), Router registry, `Sfu` trait below, SDP↔RtpParameters. `apply_floor` mechanism unified (review M-4): consumers created once per (listener×producer) at grant, thereafter **pause/resume diff** (`Consumer::pause/resume`, `Producer::pause` — verified in versatica/mediasoup rust/src/router 2026-09-28) | core, mediasoup 0.24 | integration (Linux); stub on macOS |
+| `talkservo-server` | axum+WS, room mailbox, timers, rate limit, `GET /healthz` (compose/CI readiness), e2e glue | core, sfu, tokio-tungstenite, jsonwebtoken | integration (stub-media) + e2e |
 
 ```rust
 #[async_trait] pub trait Sfu {

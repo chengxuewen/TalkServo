@@ -67,3 +67,5 @@ secrets:      scripts/scan-hardcode.sh            # path already referenced by s
 ## 5. Decision hooks
 
 D11 (this posture) · D5/D7 (default-features discipline + member gating) · D6 (mediasoup is why meson/ninja/clang exist at all) · platform.md/docker.md rule files annotated to defer to this module.
+
+**Lockfile rule (review O-§3)**: `pixi.lock` commit is mandatory alongside `Cargo.lock` — conda-side meson/clang/openssl versions must not float across machines (that float is precisely the MESON_ARGS pitfall surface above).

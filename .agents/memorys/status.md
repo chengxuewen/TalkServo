@@ -1,6 +1,6 @@
 # TalkServo Status
 
-**Generated**: 2026-09-28 | Decisions: 11 entries | Phase: 0 complete, Phase 1 (core crate) not started | Branch: main
+**Generated**: 2026-09-28 | Decisions: 13 entries | Phase: 0 complete, Phase 1 (core crate) not started | Branch: main
 
 > TalkServo is a sister project of MediaServo (same RTC domain). Engineering lessons are accumulated from scratch;
 > MediaServo's historical ledgers live in its own repository under `.agents/memorys/` — they are not migrated here and must not impersonate this project's history.
@@ -33,11 +33,14 @@
 | D9 | Web UI scope: 2 screens, admin→Alpha, gap ledger | ✅ adopted |
 | D10 | Desktop = Electron shell over web SPA; Tauri rejected | ✅ adopted |
 | D11 | pixi + bootstrap, Linux-native-first; Docker=CI-parity | ✅ adopted |
+| D12 | FloorState v2 grant-set + MediaDown + queue wire | ✅ adopted |
+| D13 | transmission gating (producer pause) + mono | ✅ adopted |
 
 ## Next Steps
 
 1. PoC design approved via brainstorm and absorbed into docs/architecture.md v0.2 (dispatch beachhead, mediasoup D6, R1 snapshot-resync, FEC in acceptance)
 1b. doc-audit Full run 2026-09-28: 45 findings → 16 merged → all fixed (see memorys/pitfalls.md PIT-3)
-2. User review of architecture.md v0.2, then implementation plan (workspace/pixi/CI skeleton + talkservo-core first slice)
+2. (done 2026-09-28) arch-review remediation applied (D12/D13, 21 findings → modules updated)
+3. User review of architecture.md + modules v0.2, then implementation plan (workspace/pixi/CI skeleton + talkservo-core first slice)
 3. Establish workspace / pixi / CI skeleton per D5+D7 (`talkservo-core` first, P0-1)
 3. PoC stage 1: Floor state machine + unit tests (whitepaper §9)
