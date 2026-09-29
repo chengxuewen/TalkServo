@@ -19,7 +19,9 @@ talkservo-client (Rust, single session facade: join / ptt / listen / floor-event
 
 Rules inherited by reference and re-earned on use (MediaServo D227/240/241/247/248): single facade API (no facade matrices), C-ABI-is-contract, ABI stability + symbol prefix from day one of Beta, upgrade triggers before performance layers (ctypes→pyo3 equivalent: measured need only).
 
-Media engine for native clients = OQ-9, phased c→b; modules/02-06 server architecture is engine-agnostic by construction (floor/arbitration lives in core + WS wire; media is swappable under the client facade).
+Native media engine (D15, OQ-9 closed): multi-backend compile-time dispatch, MediaServo D139-140 isomorph — `backend-webrtc-sys` (prebuilt libwebrtc FFI; LiveKit rust-sdks crate default candidate, sister vendored fork fallback) for production mobile; `backend-webrtc-rs` (pure-Rust secondary: desktop-Linux/CI; D3's engine revived here); `backend-stub`. The client crate defines one internal `ClientMediaBackend` trait (create/destroy/produce/consume/play + stats) — the mediasoup client protocol is written ONCE against it. Platform audio-session (AudioFocus/AVAudioSession) stays in the thin shells. webrtc-sys upstream (LiveKit vs sister fork) verified at Beta kickoff.
+
+modules/02-06 server architecture is engine-agnostic by construction (floor/arbitration lives in core + WS wire; media is swappable under the client facade).
 
 ## Binding layout (Beta activation order, mirrors MediaServo's verified tree)
 
@@ -39,4 +41,23 @@ bindings/
 
 Workspace: `-c`/`-cxx` crates are root `[workspace]` members (shared lock/toolchain, one `cargo build` builds all ABI artifacts); python/mobile dirs are out-of-members by design. Node: absent until a named consumer (D8). Binding CI jobs capped at 3 (C, Cxx, Py) — MediaServo's 4-way matrix is the cautionary precedent. ABI gates reused: symbol-prefix check, soname discipline, `cargo deny`, header compile test.
 
+## TS client SDK (D14, 2026-09-28)
+
+`packages/client` — same-language deliverable, orthogonal to the native binding matrix above. Facade: `new TalkServoClient({role}) → connect(url,jwt) / requestFloor({preempt}) / releaseFloor() / on('floor'|'peers'|'audio')`; internally owns WS lifecycle, floor-state mirror, mediasoup-client device/transport/produce/consume, R1 snapshot recovery, silent TokenRefresh, role-scoped snapshot dispatch (D12). Consumers: web SPA (thin views), Electron renderer (same package), Node bots (free — pure TS). PoC: in-repo only, unpublished; Beta: `@talkservo/client` npm publish, versioned with wire `v:1`. Wire types: hand-written TS unions mirroring modules/02 until `talkservo-core` emits the schema artifact.
+
 Node.js status update (D10, 2026-09-28): the Electron desktop shell names a *potential* napi consumer (main-process media/background hooks — deferred need, desktop media currently lives in the renderer's Chromium and needs no Rust binding). Rule unchanged: `bindings/node/` opens only when that need is real; the shell itself consumes `web/` + WS directly.
+
+## Binding matrix (final, 2026-09-28)
+
+| Language | Channel | When | Consumer |
+|----------|---------|------|----------|
+| TS/JS | `@talkservo/client` (D14, wraps mediasoup-client) | PoC in-repo / Beta npm | SPA, Electron, Node bots (isomorphic, free) |
+| Kotlin / Swift (mobile) | UniFFI over talkservo-client | Beta (with D15 backend) | field apps |
+| C | cdylib C ABI (`talkservo_*`) | Beta | embedded / console base |
+| C++ | header-only RAII over the same C ABI | Beta | dispatch-hardware OEMs |
+| Python | ctypes over the same C ABI | Beta | bots / recording taps / probes |
+| Node native (napi) | NOT planned — TS SDK already covers Node | trigger: main-process need TS cannot meet | — |
+| C# | P/Invoke over the C ABI (zero new native work) | trigger-gated (WinForms/WPF dispatch seats, Unity) | none named yet |
+| Java | JNI over the C ABI | trigger-gated | none named yet |
+
+Rules: binding CI jobs capped at 3 (C/Cxx/Py); C#/Java compile against the .so/.dll and never enter the Rust build matrix; every new language requires a named real consumer first (D8).

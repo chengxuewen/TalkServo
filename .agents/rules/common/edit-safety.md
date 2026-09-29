@@ -190,3 +190,24 @@ When a batch `edit` reports a mismatch, some ops may have already applied — re
 
 **Blocking condition**: full-batch resend after partial failure; a replace without `assert count==1`; treating a piped command's exit code as the gate result.
 **Source**: inherited from MediaServo PIT-177.
+
+### 18. Patch scripts anchor with regex, never fragile literals
+
+In long sessions, literal anchors in python/heredoc patches fail on invisible drift (trailing `2>/dev/null` suffixes, `||` double pipes, backtick placement, frontmatter changes). This cost 4+ failed patch rounds in one session. Write anchors as `re.search(r'^- \*\*Check\*\*: .*marker.*$', s, re.M)` — anchor on stable structure (line start + unique token), then replace the matched span. Assert the regex matched before writing.
+
+**Blocking condition**: two consecutive literal-anchor mismatches in the same batch.
+**Source**: this project, 2026-09-28 English-migration batch (4 misses → regex retry pattern).
+
+### 19. Long-session state: grep ground truth before any state-dependent assertion
+
+After 30+ turns, remembered git status / file inventory / directory lists go stale — assertions built on memory misfire (edit hash mismatches from guessed LINE#IDs, "dir X doesn't exist" claims disproven by `ls`). Before any state-dependent operation (patch anchor, git add scope, existence claim), run the cheap ground-truth command first: `git status --short`, `grep -c`, `ls`. Never assert from memory.
+
+**Blocking condition**: an assertion error where the anchor text came from session memory instead of a same-turn read.
+**Source**: this project, 2026-09-28 (C1-check anchor missed twice; lang-dir misclaim caught by audit cross-check).
+
+### 20. Revision-line claims must reference a real body change
+
+Writing a plan/doc header line claiming "+X step added" while only the header was patched (body unchanged) creates a phantom feature that a reviewer's grep will catch — cost: one full review lane + a fix round. Same family as PIT-4 (unverified citations). After adding any "revision/N.B. says X was added" line, immediately re-grep the body for the claimed content before moving on.
+
+**Blocking condition**: committing a revision/changelog line whose claimed change is not grep-present in the same diff.
+**Source**: this project, 2026-09-28 plan-review (P1-1 phantom schema step + F4, caught independently by 2 lanes).

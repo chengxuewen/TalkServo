@@ -17,7 +17,7 @@ Principles: media failure never corrupts arbitration state; clients never self-h
 | E7 | server process death | supervisor | lost (PoC: no persistence — accepted) | full reconnect + empty-room rebuild | brief total drop |
 | E8 | forged/invalid msg | apply validation → Denied{NotMember} | rejected | warn-log (security surface #1) | sender sees Denied |
 | E9 | JWT expired | Join reject | — | close 4401; client refresh+rejoin | re-auth |
-| E10 | port pool exhausted | transport create err | no new media | `MediaCapacity`; existing sessions untouched; PoC cap ~50 transports | "room full" |
+| E10 | port pool exhausted | transport create err | no new media | `MediaCapacity`; existing sessions untouched; PoC cap 50 transports (arbitrary guardrail, measure at acceptance — review M-5) | "room full" |
 
 On startup `generation` begins at a random high offset (E7 stale-socket guard, review F-12). Explicitly NOT handled in PoC (YAGNI, revisit at Alpha): FloorState persistence, cross-worker migration, per-message ACK, clock sync (generation replaces wall-clock ordering), rolling-upgrade/version-rollout policy (lands with Alpha deployment.md).
 

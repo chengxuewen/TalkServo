@@ -44,7 +44,7 @@ audit="cargo deny check"                  coverage="cargo tarpaulin --workspace 
 web-install="npm ci --prefix web"         web-build="npm run build --prefix web"   web-dev="npm run dev --prefix web"
 run-server="cargo run -p talkservo-server" run-coturn="docker compose -f docker/coturn.yml up"
 [feature.ci.tasks]
-ci-check="cargo check --workspace"        ci-check-mac="cargo check --workspace --no-default-features"
+ci-check="cargo check --workspace"        ci-check-mac="cargo check --workspace --no-default-features --features talkservo-server/stub-media"  # review H-3: zero-backend fires compile_error — stub must be explicit
 ci-lint / ci-test / ci-test-mediasoup(ubuntu image)
 [activation] env = { MESON=…, NINJA=…, LIBCLANG_PATH=…, PKG_CONFIG_PATH=… }  # + MESON_ARGS unset comment citing sister PIT
 [environments] dev=["dev"] ci=["ci"]

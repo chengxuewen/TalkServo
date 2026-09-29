@@ -44,4 +44,6 @@ Rules (normative):
 8. Release/Leave/Mute with non-granted peer = idempotent no-op. Repeated Request by grante = idempotent.
 9. PoC starvation policy: none beyond cap (documented ceiling — revisit at Alpha with aging).
 
+**Holder definition (D12)**: `holder` ≡ `grants[0]` and exists only in Exclusive/Hybrid (cap ≥1); Open mode has no holder — all unmuted peers are grantees. E11/F-sequence wording applies to grantees generally, holder-phrased for dispatch readability.
+
 Priority model: user priority (static ceiling by role) ≥ request priority (per-request); preempt effective only when strictly above current grantees. `DenyReason { Busy, ExceedsCeiling, NotMember, RateLimited, PreemptPriority, NoMedia }` — closed enum; every denial visible on the wire, silent drops forbidden (rate limit included).
