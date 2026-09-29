@@ -5,5 +5,6 @@
 //! identity types, the wire contract (modules/02), and the `apply()`
 //! reduction (rules 1-9) under exhaustive unit test.
 
+pub mod error;
 pub mod ids;
 pub mod wire;
