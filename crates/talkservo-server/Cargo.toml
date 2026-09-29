@@ -6,16 +6,31 @@ version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lib]
+name = "talkservo_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "talkservo-server"
+path = "src/main.rs"
+
 [dependencies]
 talkservo-core = { path = "../talkservo-core" }
 talkservo-sfu = { path = "../talkservo-sfu", default-features = false }
 axum.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "sync", "time"] }
 serde.workspace = true
 serde_json.workspace = true
 jsonwebtoken.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+futures-util.workspace = true
+thiserror.workspace = true
 
 [features]
 default = ["sfu-mediasoup"]
 sfu-mediasoup = ["talkservo-sfu/sfu-mediasoup"]
 stub-media = ["talkservo-sfu/stub-media"]
+[dev-dependencies]
+tokio-tungstenite.workspace = true
+futures-util.workspace = true

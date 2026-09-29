@@ -18,9 +18,13 @@ serde_json = "1"
 thiserror = "2"
 
 # plan-2 scope (declared now so Task 2 skeletons compile; versions pinned at expansion)
-axum = "0.8"
+axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync"] }
 jsonwebtoken = "9"
+tracing = "0.1"
+futures-util = "0.3"
+tokio-tungstenite = "0.28"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 mediasoup = "0.24"
 
 [profile.release]
