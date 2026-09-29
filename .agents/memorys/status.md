@@ -1,6 +1,6 @@
 # TalkServo Status
 
-**Generated**: 2026-09-28 | Decisions: 16 entries | Phase: 0 complete, Phase 1 (core crate) not started | Branch: main
+**Generated**: 2026-09-29 | Decisions: 16 entries | Phase: 1 core slice LANDED (P0-1) — plan-2 (server+SFU) next | Branch: main
 
 > TalkServo is a sister project of MediaServo (same RTC domain). Engineering lessons are accumulated from scratch;
 > MediaServo's historical ledgers live in its own repository under `.agents/memorys/` — they are not migrated here and must not impersonate this project's history.
@@ -9,13 +9,17 @@
 
 | Crate / Module | Tests | Notes |
 |-------|:----:|------|
-| docs/ (whitepaper + architecture master + modules/01-08 + reference/research ×11) | — | planning drafts v0.2 |
+| crates/talkservo-core | 38 | ids + wire contract (27-variant, D16) + FloorState apply() rules 1-9; floor.rs coverage 87.5% |
+| crates/talkservo-sfu | 1 | Sfu trait + exactly-one-backend compile gate (mediasoup|stub) |
+| crates/talkservo-server | 0 | /healthz axum stub; mediasoup worker builds natively (3m52s first build) |
+| docs/ (whitepaper + architecture + modules/01-09 + reference) | — | v0.2 + plan series |
 
 ## Phase Status
 
 | Phase | Status |
 |-------|:----:|
 | 0 Scaffolding/config adaptation | ✅ (docs system ported + English migration; whitepaper/architecture/research generated 2026-09-28) |
+| 1 core crate (P0-1) | ✅ 2026-09-29 — workspace + pixi toolchain + talkservo-core domain slice (plan-1 executed) |
 | 1+ | ⬜ |
 
 ## Decision Status

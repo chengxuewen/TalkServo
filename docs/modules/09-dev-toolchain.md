@@ -28,7 +28,7 @@ TalkServo's development host is Linux x86_64 — which is also the mediasoup wor
 | GStreamer/flatbuffers deps, imgui/vendor layers, Jetson aarch64 activation, *.bat windows suite, e2e brand/compat probes | reject | each needs a named TalkServo consumer first |
 | .so.<MAJOR> dev symlinks | defer | Beta with bindings |
 
-## 3. pixi.toml shape (target, lands with workspace)
+## 3. pixi.toml shape (LANDED 2026-09-29 — pixi.toml at repo root; deviations from this sketch: +pip/invoke/requests deps (mediasoup-sys build.rs drives the worker build through python invoke), +CC/CXX→conda clang++-23 (base env has no gcc; mediasoup-sys build.rs probes libstdc++ via CXX), +LD_LIBRARY_PATH=$CONDA_PREFIX/lib (conda-built flatc needs conda GLIBCXX at runtime — host libstdc++ too old))
 
 ```toml
 [workspace]  name="talkservo"  platforms=["linux-64","osx-64","osx-arm64"]
@@ -62,7 +62,7 @@ CI parity:    scripts/docker-cargo.sh test -p talkservo-server --features sfu-me
 secrets:      scripts/scan-hardcode.sh            # path already referenced by security-hardening skill — implementation = this repo's grep-based scan
 ```
 
-`scripts/` initial inventory at P0 (lands together with the workspace in the implementation plan, task "toolchain first slice"): `_common.sh bootstrap.sh pixi.sh scan-hardcode.sh docker-cargo.sh` + `Cargo.toml pixi.toml rust-toolchain.toml deny.toml clippy.toml tarpaulin.toml .gitignore` deltas + `docker/` compose files. No cargo tasks may reference crates that do not exist — bootstrap must be idempotent on a crates-less checkout (check-guard, exit 0 with notice).
+`scripts/` initial inventory at P0 (LANDED 2026-09-29: _common.sh bootstrap.sh pixi.sh scan-hardcode.sh docker-cargo.sh + Cargo.toml pixi.toml rust-toolchain.toml deny.toml clippy.toml tarpaulin.toml; docker/ compose files deferred to plan-2 T5): `_common.sh bootstrap.sh pixi.sh scan-hardcode.sh docker-cargo.sh` + `Cargo.toml pixi.toml rust-toolchain.toml deny.toml clippy.toml tarpaulin.toml .gitignore` deltas + `docker/` compose files. No cargo tasks may reference crates that do not exist — bootstrap must be idempotent on a crates-less checkout (check-guard, exit 0 with notice).
 
 ## 5. Decision hooks
 

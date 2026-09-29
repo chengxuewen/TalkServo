@@ -6,10 +6,18 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
+# unmaintained transitive deps inside the mediasoup tree — not actionable at PoC;
+# drop each ignore when upstream (webrtc-rs ecosystem) ships replacements
+ignore = [
+  "RUSTSEC-2024-0375", # atty
+  "RUSTSEC-2024-0384", # instant
+  "RUSTSEC-2024-0436", # paste
+]
 
 [licenses]
 version = 2
-allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0", "Zlib"]
+# MPL-2.0/0BSD/LLVM-exception/CDLA-Permissive-2.0 enter via the mediasoup tree
+allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0", "Zlib", "MPL-2.0", "0BSD", "Apache-2.0 WITH LLVM-exception", "CDLA-Permissive-2.0", "CC0-1.0"]
 
 [bans]
 multiple-versions = "warn"

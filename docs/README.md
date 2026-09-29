@@ -48,7 +48,7 @@ All design docs already live in `docs/modules/01-09` (C2 tiering).
 
 | Plan | Scope | Status |
 |------|-------|--------|
-| [plans/2026-09-28-p0-workspace-core.md](plans/2026-09-28-p0-workspace-core.md) | P0-1 toolchain + talkservo-core first slice | ready — awaiting execution method |
+| [plans/2026-09-28-p0-workspace-core.md](plans/2026-09-28-p0-workspace-core.md) | P0-1 toolchain + talkservo-core first slice | **EXECUTED 2026-09-29** (4 gate commits) |
 | [plans/2026-09-28-plan2-server-sfu.md](plans/2026-09-28-plan2-server-sfu.md) | signaling server + SFU host | skeleton (expand at execution) |
 | [plans/2026-09-28-plan3-web-client-sdk.md](plans/2026-09-28-plan3-web-client-sdk.md) | packages/client + web SPA | skeleton |
 | [plans/2026-09-28-plan4-deployment-acceptance.md](plans/2026-09-28-plan4-deployment-acceptance.md) | public deployment + 12-item acceptance | skeleton |
