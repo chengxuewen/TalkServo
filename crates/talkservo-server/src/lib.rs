@@ -6,8 +6,10 @@ pub async fn healthz() -> axum::Json<serde_json::Value> {
 }
 
 pub mod auth;
+pub mod media;
 pub mod config;
 pub mod obs;
 pub mod room;
+#[cfg(feature = "stub-media")]
 pub mod test_bridge;
 pub mod ws;

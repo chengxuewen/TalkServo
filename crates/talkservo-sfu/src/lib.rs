@@ -12,6 +12,8 @@ pub mod stub_internal;
 
 pub use error::SfuError;
 pub use host::{ActivityState, ProducerId, Sfu};
+#[cfg(feature = "stub-media")]
+pub use stub::StubSfu;
 pub use talkservo_core::wire::TransportInfo;
 
 // Exactly one media backend must be active (modules/03 feature block).

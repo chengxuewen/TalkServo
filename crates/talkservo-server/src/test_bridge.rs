@@ -3,12 +3,22 @@
 //! line is the Router::new() chain itself, never behavior.
 
 use crate::{auth, config::Config, ws};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub use ws::App as AppState;
 
 pub fn config_for_test(secret: &str) -> Config {
     Config::for_test(secret)
+}
+
+/// Test convenience: stub-media App (tests never run under live features).
+pub fn test_app(config: Config) -> Arc<AppState> {
+    Arc::new(AppState {
+        config,
+        rooms: tokio::sync::Mutex::new(HashMap::new()),
+        media: std::sync::Arc::new(talkservo_sfu::StubSfu::new()),
+    })
 }
 
 pub fn build_router(state: Arc<AppState>) -> axum::Router {

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use talkservo_server::{config, obs, ws};
+use talkservo_sfu::Sfu as _;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -20,12 +21,18 @@ async fn main() {
     let config = config::Config::from_env();
 
     // SFU backend: exactly one (feature-gated; stub under stub-media).
-    let sfu = sfu_backend();
-    tracing::info!(backend = sfu, version = VERSION, "talkservo-server starting");
+    #[cfg(feature = "stub-media")]
+    let media_handle: std::sync::Arc<talkservo_sfu::StubSfu> =
+        std::sync::Arc::new(talkservo_sfu::StubSfu::new());
+    #[cfg(not(feature = "stub-media"))]
+    let media_handle: std::sync::Arc<talkservo_sfu::MediasoupSfu> =
+        std::sync::Arc::new(talkservo_sfu::MediasoupSfu::new());
+    tracing::info!(backend = media_handle.backend(), version = VERSION, "talkservo-server starting");
 
     let app_state = Arc::new(ws::App {
         config,
         rooms: tokio::sync::Mutex::new(HashMap::new()),
+        media: media_handle,
     });
 
     let app = axum::Router::new()
@@ -41,14 +48,3 @@ async fn main() {
     axum::serve(listener, app).await.expect("server run");
 }
 
-/// Build the active SFU host (exactly-one gate enforced by the sfu crate).
-fn sfu_backend() -> &'static str {
-    #[cfg(feature = "stub-media")]
-    {
-        "stub"
-    }
-    #[cfg(not(feature = "stub-media"))]
-    {
-        "mediasoup"
-    }
-}

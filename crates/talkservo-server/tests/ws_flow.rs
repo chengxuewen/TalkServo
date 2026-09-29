@@ -1,3 +1,5 @@
+#![cfg(feature = "stub-media")]
+
 //! Plan-2 Task 2 integration tests — real WS clients against the stub path.
 //! Feature combo (plan-2 #4): `--no-default-features --features stub-media`.
 
@@ -8,8 +10,6 @@ use tokio_tungstenite::MaybeTlsStream;
 use tokio_tungstenite::WebSocketStream;
 type Ws = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
-use std::collections::HashMap;
-use std::sync::Arc;
 use talkservo_server::test_bridge;
 
 /// Ephemeral server instance (stub path). Inlined here: cargo compiles each
@@ -23,10 +23,7 @@ impl TestServer {
     pub async fn start() -> Self {
         let secret = format!("test-secret-{}", std::process::id());
         let config = test_bridge::config_for_test(&secret);
-        let app_state = Arc::new(test_bridge::AppState {
-            config,
-            rooms: tokio::sync::Mutex::new(HashMap::new()),
-        });
+        let app_state = test_bridge::test_app(config);
         let app = test_bridge::build_router(app_state);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

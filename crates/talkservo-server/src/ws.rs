@@ -18,6 +18,11 @@ use tokio::sync::mpsc;
 pub struct App {
     pub config: Config,
     pub rooms: tokio::sync::Mutex<HashMap<RoomId, mpsc::Sender<RoomCommand>>>,
+    /// Concrete SFU backend (exactly one; feature-selected, modules/03).
+    #[cfg(feature = "stub-media")]
+    pub media: std::sync::Arc<talkservo_sfu::StubSfu>,
+    #[cfg(not(feature = "stub-media"))]
+    pub media: std::sync::Arc<talkservo_sfu::MediasoupSfu>,
 }
 
 pub enum RoomCommand {
@@ -276,6 +281,8 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
             app.config.max_peers,
             app.config.max_queue,
         );
+        let media = app.media.clone();
+        let mut media_ctx = crate::media::MediaCtx::default();
         while let Some(cmd) = rx.recv().await {
             match cmd {
                 RoomCommand::Join {
@@ -341,6 +348,30 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                         let snap = state.snapshot_for(&from);
                         if let Some(m) = state.members.get(&from) {
                             let _ = m.sink.send(snap);
+                        }
+                        continue;
+                    }
+                    // media-plane messages route through the sfu host
+                    if matches!(
+                        msg,
+                        SignalingMessage::TransportCreate
+                            | SignalingMessage::TransportConnect { .. }
+                            | SignalingMessage::Produce { .. }
+                            | SignalingMessage::Consume { .. }
+                    ) {
+                        let replies = crate::media::handle_media_message(
+                            media.as_ref(),
+                            &state.id,
+                            &from,
+                            &msg,
+                            &mut media_ctx,
+                            app.config.transport_guardrail,
+                        )
+                        .await;
+                        if let Some(m) = state.members.get(&from) {
+                            for d in replies {
+                                let _ = m.sink.send(d);
+                            }
                         }
                         continue;
                     }
