@@ -97,3 +97,6 @@ corrosion
 # Don't ignore files
 # --------
 !.omo/omo.jsonc
+# P0-1 toolchain (plan-1 Task 1) — Rust/pixi artifacts
+/.pixi/
+/pixi.lock.bak

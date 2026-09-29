@@ -1,0 +1,19 @@
+# cargo-deny — minimal viable gate (plan-1 Task 1).
+# Advisories (RustSec) + license allowlist; bans skipped until dep surface grows (plan-2).
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0", "Zlib"]
+
+[bans]
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

@@ -1,0 +1,60 @@
+# TalkServo pixi workspace — D11 (Linux-native-first; Docker = CI parity only).
+# Shape per docs/modules/09 §3. Lockfile rule: pixi.lock committed alongside Cargo.lock (review O-§3).
+[workspace]
+name = "talkservo"
+channels = ["https://conda.anaconda.org/conda-forge"]
+platforms = ["linux-64", "osx-64", "osx-arm64"]
+version = "0.1.0"
+
+# Build chain for the mediasoup C++ worker (meson/ninja/clang) + node >= 22 for web/ Vite builds.
+[dependencies]
+rust = ">=1.85,<2"
+python = "3.12.*"
+nodejs = ">=22"
+meson = "*"
+ninja = "*"
+clang = "*"
+libclang = "*"
+openssl = "*"
+pkg-config = "*"
+zlib = "*"
+ripgrep = "*"
+pyyaml = "*"
+
+[feature.dev.tasks]
+check       = "cargo check --workspace"
+build       = "cargo build --workspace"
+test        = "cargo test --workspace"
+lint        = "cargo clippy --workspace --all-targets -- -D warnings"
+test-sfu    = "cargo test -p talkservo-server --features sfu-mediasoup"
+format      = "cargo fmt --all -- --check"
+format-fix  = "cargo fmt --all"
+audit       = "cargo deny check"
+coverage    = "cargo tarpaulin --workspace --out Lcov"
+web-install = "npm ci --prefix web"
+web-build   = "npm run build --prefix web"
+web-dev     = "npm run dev --prefix web"
+run-server  = "cargo run -p talkservo-server"
+run-coturn  = "docker compose -f docker/coturn.yml up"
+
+[feature.ci.tasks]
+ci-check     = "cargo check --workspace"
+# zero-backend workspace build fires the no-media compile_error — stub must be explicit (review H-3)
+ci-check-mac = "cargo check --workspace --no-default-features --features talkservo-server/stub-media"
+ci-lint      = "cargo clippy --workspace --all-targets -- -D warnings"
+ci-test      = "cargo test --workspace"
+ci-test-mediasoup = "cargo test -p talkservo-server --features sfu-mediasoup"
+
+# MediaServo sister-PIT (MESON_ARGS unset trick): conda-injected MESON/MESON_ARGS buildtype
+# clashes with meson setup → cryptic schema error in mediasoup-sys builds. Blank them so
+# meson keeps its own defaults. LIBCLANG_PATH needed by clang-sys (bindgen) at build time.
+[activation.env]
+MESON = ""
+MESON_ARGS = ""
+NINJA = ""
+LIBCLANG_PATH = "$CONDA_PREFIX/lib"
+PKG_CONFIG_PATH = "$CONDA_PREFIX/lib/pkgconfig"
+
+[environments]
+dev = ["dev"]
+ci  = ["ci"]

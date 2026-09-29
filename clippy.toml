@@ -1,0 +1,3 @@
+# clippy gate config — plan-1 Task 1.
+# Pedantic stays OFF at PoC (noise > signal pre-code); correctness = default-on; disallow
+# unwrap/expect in non-test code via lint groups once core logic lands (Task 3/4 watch).
