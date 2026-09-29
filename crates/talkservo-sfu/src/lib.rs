@@ -27,4 +27,4 @@ compile_error!("no media backend active");
 mod mediasoup_host;
 
 #[cfg(feature = "sfu-mediasoup")]
-pub use mediasoup_host::{MediasoupSfu, Supervisor};
+pub use mediasoup_host::{MediasoupSfu, Supervisor, WorkerRestarted};

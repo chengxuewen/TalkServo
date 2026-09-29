@@ -1930,6 +1930,7 @@ name = "talkservo-sfu"
 version = "0.1.0"
 dependencies = [
  "mediasoup",
+ "mediasoup-types",
  "serde",
  "serde_json",
  "talkservo-core",

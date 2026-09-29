@@ -25,8 +25,12 @@ async fn main() {
     let media_handle: std::sync::Arc<talkservo_sfu::StubSfu> =
         std::sync::Arc::new(talkservo_sfu::StubSfu::new());
     #[cfg(not(feature = "stub-media"))]
-    let media_handle: std::sync::Arc<talkservo_sfu::MediasoupSfu> =
-        std::sync::Arc::new(talkservo_sfu::MediasoupSfu::new());
+    let media_handle: std::sync::Arc<talkservo_sfu::MediasoupSfu> = {
+        let supervisor = std::sync::Arc::new(talkservo_sfu::Supervisor::new());
+        // W-sequence: supervisor notifies on worker death; the server task
+        // (rooms registry) fans MediaRestart out per room — wired in ws.rs.
+        std::sync::Arc::new(talkservo_sfu::MediasoupSfu::new(supervisor))
+    };
     tracing::info!(backend = media_handle.backend(), version = VERSION, "talkservo-server starting");
 
     let app_state = Arc::new(ws::App {

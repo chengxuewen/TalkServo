@@ -13,8 +13,12 @@ thiserror.workspace = true
 talkservo-core = { path = "../talkservo-core" }
 tokio = { workspace = true, optional = true }
 mediasoup = { workspace = true, optional = true }
+mediasoup-types = { workspace = true, optional = true }
 
 [features]
 default = ["sfu-mediasoup"]
-sfu-mediasoup = ["dep:mediasoup", "dep:tokio"]
+sfu-mediasoup = ["dep:mediasoup", "dep:mediasoup-types", "dep:tokio"]
 stub-media = []
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

@@ -26,6 +26,7 @@ futures-util = "0.3"
 tokio-tungstenite = "0.28"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 mediasoup = "0.24"
+mediasoup-types = "0.4"
 
 [profile.release]
 lto = "thin"
