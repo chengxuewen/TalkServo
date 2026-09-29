@@ -169,4 +169,5 @@ export class TalkServoClient {
 }
 
 export * from "./types.js";
+export * from "./media.js";
 export { initialMirror } from "./store.js";
