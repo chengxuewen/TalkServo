@@ -1,0 +1,30 @@
+{
+  "name": "talkservo-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@talkservo/client": "file:../packages/client",
+    "@ant-design/icons": "^5.3",
+    "antd": "^5.18",
+    "react": "^18.3",
+    "react-dom": "^18.3",
+    "react-router-dom": "^6.24",
+    "zustand": "^4.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3",
+    "@types/react-dom": "^18.3",
+    "@vitejs/plugin-react": "^4.3",
+    "typescript": "^5.5",
+    "vite": "^5.3",
+    "vitest": "^2.0",
+    "@testing-library/react": "^15",
+    "jsdom": "^24"
+  }
+}

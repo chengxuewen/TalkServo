@@ -1,0 +1,33 @@
+body {
+  margin: 0;
+  background: #141414;
+  color: rgba(255, 255, 255, 0.85);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+.tally-ring {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #555;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.tally-ring.holder {
+  background: #ff4d4f;
+  border-color: #ff4d4f;
+  box-shadow: 0 0 8px #ff4d4f;
+}
+.tally-ring.granted {
+  border-color: #ff4d4f;
+}
+.mirror-note {
+  color: #888;
+  font-size: 12px;
+  margin-top: 4px;
+}

@@ -170,4 +170,5 @@ export class TalkServoClient {
 
 export * from "./types.js";
 export * from "./media.js";
-export { initialMirror } from "./store.js";
+export type { LikeWebSocket, SignalOptions } from "./signal.js";
+export { initialMirror, type FloorMirror } from "./store.js";
