@@ -1760,6 +1760,9 @@ dependencies = [
  "mediasoup",
  "serde",
  "serde_json",
+ "talkservo-core",
+ "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]

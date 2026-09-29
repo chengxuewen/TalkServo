@@ -19,7 +19,7 @@ thiserror = "2"
 
 # plan-2 scope (declared now so Task 2 skeletons compile; versions pinned at expansion)
 axum = "0.8"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync"] }
 jsonwebtoken = "9"
 mediasoup = "0.24"
 

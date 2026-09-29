@@ -9,9 +9,12 @@ repository.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true
+talkservo-core = { path = "../talkservo-core" }
+tokio = { workspace = true, optional = true }
 mediasoup = { workspace = true, optional = true }
 
 [features]
 default = ["sfu-mediasoup"]
-sfu-mediasoup = ["dep:mediasoup"]
+sfu-mediasoup = ["dep:mediasoup", "dep:tokio"]
 stub-media = []

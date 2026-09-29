@@ -61,6 +61,14 @@ pub struct Pending {
     pub priority: u8,
 }
 
+/// WebRTC transport parameters handed to a client (modules/02 `TransportInfo`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TransportInfo {
+    pub ice: serde_json::Value,
+    pub dtls: serde_json::Value,
+    pub addrs: serde_json::Value,
+}
+
 /// Role-scoped snapshot payload (D12/D16): field peers never see the queue.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "payload", rename_all = "snake_case")]
