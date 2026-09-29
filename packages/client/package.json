@@ -1,0 +1,22 @@
+{
+  "name": "@talkservo/client",
+  "version": "0.1.0",
+  "description": "TalkServo signaling + floor-control client SDK (PoC, unpublished — D14)",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "mediasoup-client": "^3.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@vitest/coverage-v8": "^2.1.9",
+    "typescript": "^5.5",
+    "vitest": "^2.0"
+  }
+}

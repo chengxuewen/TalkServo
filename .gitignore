@@ -100,3 +100,7 @@ corrosion
 # P0-1 toolchain (plan-1 Task 1) — Rust/pixi artifacts
 /.pixi/
 /pixi.lock.bak
+
+# plan-3 node artifacts
+packages/client/node_modules/
+packages/client/coverage/
