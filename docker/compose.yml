@@ -1,0 +1,26 @@
+# TalkServo PoC deployment: server + coturn (modules/04/06).
+# Secrets via env file — never committed (see config/sample.env for the full key set).
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      TS_JWT_SECRET: ${TS_JWT_SECRET:?set TS_JWT_SECRET in the env file}
+      TS_BIND: 0.0.0.0:8080
+    ports:
+      - "8080:8080"
+      - "40000-40100:40000-40100/udp"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      - coturn
+    restart: unless-stopped
+
+  coturn:
+    image: coturn/coturn:latest
+    network_mode: host
+    restart: unless-stopped

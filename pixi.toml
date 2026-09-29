@@ -39,7 +39,8 @@ web-install = "npm ci --prefix web"
 web-build   = "npm run build --prefix web"
 web-dev     = "npm run dev --prefix web"
 run-server  = "cargo run -p talkservo-server"
-run-coturn  = "docker compose -f docker/coturn.yml up"
+run-coturn  = "docker compose -f docker/compose.yml up coturn"
+issue-token = "bash scripts/issue-token.sh"
 
 [feature.ci.tasks]
 ci-check     = "cargo check --workspace"

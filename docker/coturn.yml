@@ -1,0 +1,18 @@
+# coturn for TalkServo PoC (modules/04 ICE/TURN) — host networking for UDP range.
+# Pinned flags per modules/06: short-TTL REST-less credentials are issued by the
+# server in `Welcome` (HMAC), so coturn runs with `use-auth-secret` (TURN_SECRET
+# stays physically separate from TS_JWT_SECRET — independent rotation).
+listening-port=3478
+listening-ip=0.0.0.0
+external-ip=${TURN_EXTERNAL_IP:-0.0.0.0}
+min-port=40000
+max-port=40100
+use-auth-secret
+static-auth-secret=${TURN_SECRET:?set TURN_SECRET in the env file}
+realm=talkservo
+no-tls
+no-dtls
+# PoC scope: no TLS turn; Alpha adds certs (modules/06 ladder)
+fingerprint
+log-file=stdout
+verbose
