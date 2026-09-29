@@ -13,3 +13,7 @@
 | Weak-net harness | `tc netem loss 12%` | A/B FEC on/off, 60 s; pass line: `concealmentEvents` share drops ≥30% (getStats-based, quantitative); also used for P-latency measurement |
 
 Floor↔media coupling (**D13 gating**, supersedes M1 wording): publish once, server **pauses non-granted producers** — uplink gated by grant, not just relay (review M-2: privacy/mobile-data/battery); `FloorGranted{grants,gen}` resumes granted producers + their consumers for every other peer; `FloorIdle`/`FloorTaken` re-pauses; in `Open` mode all unmuted producers run; audibility is Router state — no renegotiation, one control round-trip (pause/resume diff per modules/03).
+
+> **Deployment note (plan-2, 2026-09-29):** the coturn container/flags land with
+> `docker/coturn.yml` in plan-2 T5 (LANDED) — supersedes the earlier "at P0-1"
+> expectation for this file's TURN setup. <!-- superseded-by-plan-2 -->

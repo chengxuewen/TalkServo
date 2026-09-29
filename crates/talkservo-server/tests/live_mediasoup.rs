@@ -3,9 +3,7 @@
 #![cfg(all(feature = "sfu-mediasoup", target_os = "linux"))]
 
 use talkservo_core::ids::{PeerId, RoomId};
-use talkservo_core::wire::FloorMode;
-use talkservo_core::floor::{FloorEvent, FloorLimits, FloorState};
-use talkservo_sfu::{ActivityState, Sfu};
+use talkservo_sfu::Sfu;
 
 #[tokio::test]
 async fn mediasoup_backend_labels_and_reports_honest_errors() {

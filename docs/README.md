@@ -28,6 +28,12 @@ One-time competitive and selection research (frozen dossiers); living references
 | [research/audio-processing-stack.md](reference/research/media/audio-processing-stack.md) | Opus FEC/PLC/DTX (RFC 8215), NetEQ vs PTT churn buffering, 3A crate landscape verified on crates.io | verified (66 lines, team data) |
 | [research/media-stack-alternatives.md](reference/research/media/media-stack-alternatives.md) | WebRTC engine comparison, Opus FEC mechanics, 3A routes | verified snapshot |
 
+## Living references — `docs/reference/` (C2)
+
+| Document | Content | Status |
+|----------|---------|--------|
+| [reference/server-api.md](reference/server-api.md) | implemented server surface: routes, J-sequence, floor/media behaviors, config keys, honest gaps | living (plan-2) |
+
 ## Conventions (project-wide)
 
 - All docs in English (C1, see `.agents/memorys/conventions.md`).
