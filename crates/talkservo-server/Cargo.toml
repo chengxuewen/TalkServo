@@ -1,0 +1,21 @@
+[package]
+name = "talkservo-server"
+description = "Signaling server binary: WS fan-out + SFU orchestration (mediasoup host) — PoC entry point"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+talkservo-core = { path = "../talkservo-core" }
+talkservo-sfu = { path = "../talkservo-sfu", default-features = false }
+axum.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+jsonwebtoken.workspace = true
+
+[features]
+default = ["sfu-mediasoup"]
+sfu-mediasoup = ["talkservo-sfu/sfu-mediasoup"]
+stub-media = ["talkservo-sfu/stub-media"]

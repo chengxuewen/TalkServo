@@ -1,0 +1,17 @@
+[package]
+name = "talkservo-sfu"
+description = "SFU host trait + backend selection: mediasoup (default, Linux) or stub (CI/mac) — exactly one active (modules/03)"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+mediasoup = { workspace = true, optional = true }
+
+[features]
+default = ["sfu-mediasoup"]
+sfu-mediasoup = ["dep:mediasoup"]
+stub-media = []
