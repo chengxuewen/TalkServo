@@ -6,5 +6,6 @@
 //! reduction (rules 1-9) under exhaustive unit test.
 
 pub mod error;
+pub mod floor;
 pub mod ids;
 pub mod wire;
