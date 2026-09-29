@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use talkservo_server::{auth, config, obs, ws};
+use talkservo_server::{config, obs, ws};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

@@ -3,7 +3,6 @@
 //! line is the Router::new() chain itself, never behavior.
 
 use crate::{auth, config::Config, ws};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 pub use ws::App as AppState;

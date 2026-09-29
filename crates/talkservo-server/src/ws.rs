@@ -125,7 +125,7 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                 _ => "invalid_token",
             };
             let err = SignalingMessage::Error {
-                code: code.into(),
+                code: code.to_string(),
                 detail: e.to_string(),
             };
             let _ = tx
@@ -169,7 +169,7 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
         Ok(Ok(rx)) => rx,
         Ok(Err(code)) => {
             let err = SignalingMessage::Error {
-                code: code.into(),
+                code,
                 detail: "identity already connected".into(),
             };
             let _ = tx
@@ -198,11 +198,9 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                         }
                         match serde_json::from_str::<SignalingMessage>(&t) {
                             Ok(m) => {
-                                if matches!(m, SignalingMessage::Resync) {
-                                    let _ = room_tx.send(RoomCommand::Wire { from: peer.clone(), msg: m }).await;
-                                } else {
-                                    let _ = room_tx.send(RoomCommand::Wire { from: peer.clone(), msg: m }).await;
-                                }
+                                let _ = room_tx
+                                    .send(RoomCommand::Wire { from: peer.clone(), msg: m })
+                                    .await;
                             }
                             Err(_) => {
                                 let err = SignalingMessage::Error {
@@ -330,7 +328,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             });
                             let snap = state.snapshot_for(&peer);
                             let _ = conn_sink.send(snap);
-                            let (wire_tx, wire_rx) = mpsc::channel(64);
+                            let (_wire_tx, wire_rx) = mpsc::channel(64);
                             let _ = reply.send(Ok(wire_rx));
                         }
                         Err(code) => {

@@ -8,8 +8,43 @@ use tokio_tungstenite::MaybeTlsStream;
 use tokio_tungstenite::WebSocketStream;
 type Ws = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
-mod harness;
-use harness::TestServer;
+use std::collections::HashMap;
+use std::sync::Arc;
+use talkservo_server::test_bridge;
+
+/// Ephemeral server instance (stub path). Inlined here: cargo compiles each
+/// tests/*.rs as its own crate, so a shared harness file would double-compile.
+pub struct TestServer {
+    pub url: String,
+    pub secret: String,
+}
+
+impl TestServer {
+    pub async fn start() -> Self {
+        let secret = format!("test-secret-{}", std::process::id());
+        let config = test_bridge::config_for_test(&secret);
+        let app_state = Arc::new(test_bridge::AppState {
+            config,
+            rooms: tokio::sync::Mutex::new(HashMap::new()),
+        });
+        let app = test_bridge::build_router(app_state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind ephemeral");
+        let addr = listener.local_addr().expect("addr");
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("serve");
+        });
+        Self {
+            url: format!("ws://{addr}/ws"),
+            secret,
+        }
+    }
+
+    pub fn ws_url(&self) -> &str {
+        &self.url
+    }
+}
 
 async fn ws_connect(url: &str) -> Ws {
     let (ws, _) = tokio_tungstenite::connect_async(url).await.expect("connect");
@@ -58,7 +93,7 @@ mod talkservo_server_test_helpers {
 #[tokio::test]
 async fn join_welcome_caps_list_snapshot_sequence() {
     let srv = TestServer::start().await;
-    let mut a = ws_connect(&srv.ws_url()).await;
+    let mut a = ws_connect(srv.ws_url()).await;
     send_json(&mut a, &join_msg(&srv.secret, "peer-a", "room-1", talkservo_core::wire::Role::Field)).await;
 
     // J sequence: Welcome → RouterCaps → PeerList → ServerSnapshot
@@ -78,14 +113,14 @@ async fn join_welcome_caps_list_snapshot_sequence() {
 #[tokio::test]
 async fn identity_collision_rejects_second_join() {
     let srv = TestServer::start().await;
-    let mut a = ws_connect(&srv.ws_url()).await;
+    let mut a = ws_connect(srv.ws_url()).await;
     send_json(&mut a, &join_msg(&srv.secret, "dup", "room-1", talkservo_core::wire::Role::Field)).await;
     let _ = recv_msg(&mut a).await; // welcome
     let _ = recv_msg(&mut a).await; // caps
     let _ = recv_msg(&mut a).await; // list
     let _ = recv_msg(&mut a).await; // snapshot
 
-    let mut b = ws_connect(&srv.ws_url()).await;
+    let mut b = ws_connect(srv.ws_url()).await;
     send_json(&mut b, &join_msg(&srv.secret, "dup", "room-1", talkservo_core::wire::Role::Field)).await;
     let err = recv_msg(&mut b).await;
     match err {
@@ -97,7 +132,7 @@ async fn identity_collision_rejects_second_join() {
 #[tokio::test]
 async fn bad_version_closes_with_error() {
     let srv = TestServer::start().await;
-    let mut a = ws_connect(&srv.ws_url()).await;
+    let mut a = ws_connect(srv.ws_url()).await;
     let jwt = talkservo_server_test_helpers::issue(&srv.secret, "p", "r", talkservo_core::wire::Role::Field);
     send_json(&mut a, &SignalingMessage::Join { v: 99, jwt }).await;
     let err = recv_msg(&mut a).await;
@@ -110,7 +145,7 @@ async fn bad_version_closes_with_error() {
 #[tokio::test]
 async fn dispatch_sees_queue_field_does_not() {
     let srv = TestServer::start().await;
-    let mut d = ws_connect(&srv.ws_url()).await;
+    let mut d = ws_connect(srv.ws_url()).await;
     send_json(&mut d, &join_msg(&srv.secret, "disp", "room-1", talkservo_core::wire::Role::Dispatch)).await;
     // drain join burst (4 messages)
     for _ in 0..4 {
@@ -133,7 +168,7 @@ async fn dispatch_sees_queue_field_does_not() {
 #[tokio::test]
 async fn floor_request_grants_first_peer() {
     let srv = TestServer::start().await;
-    let mut a = ws_connect(&srv.ws_url()).await;
+    let mut a = ws_connect(srv.ws_url()).await;
     send_json(&mut a, &join_msg(&srv.secret, "pa", "room-1", talkservo_core::wire::Role::Field)).await;
     for _ in 0..4 {
         let _ = recv_msg(&mut a).await;

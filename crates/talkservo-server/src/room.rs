@@ -56,11 +56,9 @@ impl RoomState {
     /// Broadcast, optionally excluding one peer (join/leave deltas go to
     /// OTHERS only — the subject gets the full PeerList instead, modules/02).
     pub fn broadcast_except(&self, msg: &SignalingMessage, skip: Option<&PeerId>) {
-        for (_peer, m) in &self.members {
-            if let Some(s) = skip {
-                if *s == m.info.id {
-                    continue;
-                }
+        for m in self.members.values() {
+            if skip.is_some_and(|s| *s == m.info.id) {
+                continue;
             }
             let visible = match (m.info.role, msg) {
                 // FloorQueued positions only matter to dispatch (field sees
@@ -77,7 +75,6 @@ impl RoomState {
                 let _ = m.sink.send(msg.clone());
             }
         }
-        let _ = peer_unused();
     }
 
     /// Build the role-scoped snapshot for `peer` (D12).
@@ -197,9 +194,7 @@ impl RoomState {
     /// Leave: emit PeerLeft delta to survivors + queue purge is core's job
     /// via Leave event; returns the survivor-facing delta.
     pub fn leave(&mut self, peer: &PeerId) -> Option<SignalingMessage> {
-        if self.members.remove(peer).is_none() {
-            return None;
-        }
+        self.members.remove(peer)?;
         let gen_before = self.floor.generation();
         let (next, _emitted) = self.floor.apply(
             &FloorEvent::Leave { peer: peer.clone() },
@@ -215,4 +210,3 @@ impl RoomState {
     }
 }
 
-fn peer_unused() {}
