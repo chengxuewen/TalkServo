@@ -1,6 +1,6 @@
 # TalkServo Status
 
-**Generated**: 2026-09-29 | Decisions: 16 entries | Phase: plan-2 server+SFU LANDED (stub-complete; live mediasoup host = next slice) | Branch: main
+**Generated**: 2026-09-29 | Decisions: 16 entries | Phase: plan-3 web+SDK LANDED (live mediasoup host done; consume/e2e-browser = next slice) | Branch: main
 
 > TalkServo is a sister project of MediaServo (same RTC domain). Engineering lessons are accumulated from scratch;
 > MediaServo's historical ledgers live in its own repository under `.agents/memorys/` — they are not migrated here and must not impersonate this project's history.
@@ -9,6 +9,8 @@
 
 | Crate / Module | Tests | Notes |
 |-------|:----:|------|
+| packages/client (TS SDK, unpublished D14) | 16 | wire mirror + signal transport + store + facade + media manager; coverage 78.9% |
+| web/ (SPA, Vite+React18+AntD5) | 2 | dispatcher + field pages, S-3 session bridge, dark theme; embedded via feature `embedded-web` |
 | crates/talkservo-core | 38 | ids + wire contract (27-variant, D16) + FloorState apply() rules 1-9; floor.rs coverage 87.5% |
 | crates/talkservo-sfu | 1 | Sfu trait (create/connect/produce/consume/apply_floor diff/peer_left/media_activity E11 seam) + StubSfu call-log backend + MediasoupSfu skeleton (supervisor seam) |
 | crates/talkservo-sfu | 1 | Sfu trait + exactly-one-backend compile gate (mediasoup|stub) |

@@ -22,10 +22,16 @@ pub fn test_app(config: Config) -> Arc<AppState> {
 }
 
 pub fn build_router(state: Arc<AppState>) -> axum::Router {
-    axum::Router::new()
+    let app = axum::Router::new()
         .route("/healthz", axum::routing::get(crate::healthz))
-        .route("/ws", axum::routing::get(ws::ws_handler))
-        .with_state(state)
+        .route("/ws", axum::routing::get(ws::ws_handler));
+    #[cfg(feature = "embedded-web")]
+    let app = {
+        use axum::routing::get;
+        app.route("/", get(crate::embed::index))
+            .route("/*path", get(crate::embed::asset))
+    };
+    app.with_state(state)
 }
 
 pub fn issue_token(

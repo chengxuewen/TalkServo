@@ -24,6 +24,7 @@
     "typescript": "^5.5",
     "vite": "^5.3",
     "vitest": "^2.0",
+    "@playwright/test": "^1.45",
     "@testing-library/react": "^15",
     "jsdom": "^24"
   }

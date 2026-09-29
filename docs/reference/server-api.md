@@ -75,11 +75,14 @@ attempt at PoC; retry-1 lands with the live host).
 `TRANSPORT_GUARDRAIL` · `NO_RTP_WATCHDOG_MS` · `ROOM_IDLE_TTL_S` · `MAX_PEERS` ·
 `MAX_QUEUE` · `MAX_FRAME_BYTES` · `TS_BIND`.
 
-## Not yet in the binary (honest gaps → live-host slice)
+## Not yet in the binary (honest gaps → next slice)
 
-- Real mediasoup orchestration (`create_transport` etc. return task-pointer
-  errors; trait surface + supervisor seam pinned).
+- `consume` server path (needs mediasoup-client deviceCaps exchange; the SDK
+  media manager is ready, e2e exercises it once the browser lands).
 - TURN credential issuance in `Welcome` (stubs today).
 - `RoomIdleTtl` reaper task (config plumbed; loop lands with the host slice).
-- Canonical WS fixtures recording (plan-3 T1 consumes transcripts — record
-  during the live slice bring-up, per cross-review F3).
+- E11 probing via AudioLevelObserver (paused-state inference only today).
+- Canonical WS fixtures recording (cross-review F3; capture during browser
+  e2e bring-up).
+- Embedded web: feature `embedded-web` serves `web/dist` at `/` (LANDED —
+  build web first).

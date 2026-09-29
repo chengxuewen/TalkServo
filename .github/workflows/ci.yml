@@ -59,6 +59,19 @@ jobs:
           sudo apt-get install -y --no-install-recommends meson ninja-build libuv1-dev libssl-dev
       - run: cargo test -p talkservo-server --features sfu-mediasoup
 
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefix packages/client
+      - run: npm test --prefix packages/client
+      - run: npm ci --prefix web
+      - run: npm run build --prefix web -- --noEmit=false
+      - run: npm test --prefix web
+
   audit:
     runs-on: ubuntu-latest
     steps:

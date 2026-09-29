@@ -41,8 +41,12 @@ async fn main() {
 
     let app = axum::Router::new()
         .route("/healthz", axum::routing::get(healthz))
-        .route("/ws", axum::routing::get(ws::ws_handler))
-        .with_state(app_state);
+        .route("/ws", axum::routing::get(ws::ws_handler));
+    #[cfg(feature = "embedded-web")]
+    let app = app
+        .route("/", axum::routing::get(talkservo_server::embed::index))
+        .route("/*path", axum::routing::get(talkservo_server::embed::asset));
+    let app = app.with_state(app_state);
 
     let bind = std::env::var("TS_BIND").unwrap_or_else(|_| "0.0.0.0:8080".into());
     let listener = tokio::net::TcpListener::bind(&bind)
