@@ -10,6 +10,7 @@ pub mod media;
 pub mod config;
 pub mod obs;
 pub mod room;
+pub mod timers;
 #[cfg(feature = "stub-media")]
 pub mod test_bridge;
 pub mod ws;

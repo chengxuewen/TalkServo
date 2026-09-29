@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use talkservo_core::ids::{PeerId, RoomId};
 use talkservo_core::wire::SignalingMessage;
+use talkservo_sfu::Sfu as _;
 use tokio::sync::mpsc;
 
 /// Shared app state.
@@ -37,6 +38,12 @@ pub enum RoomCommand {
     Wire { from: PeerId, msg: SignalingMessage },
     /// Connection closed.
     Left { peer: PeerId },
+    /// E11 watchdog tick: probe granted peers' activity through the backend.
+    WatchdogTick,
+    /// Max-hold elapsed: the room decides whether a holder exceeds the cap.
+    MaxHoldTick,
+    /// TokenRefresh sweep tick (re-signs tokens near expiry).
+    RefreshTick,
 }
 
 pub async fn ws_handler(
@@ -242,7 +249,8 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                         }))).await;
                         break;
                     }
-                    RoomCommand::Join { .. } => {}
+                    RoomCommand::Join { .. } | RoomCommand::WatchdogTick
+                    | RoomCommand::MaxHoldTick | RoomCommand::RefreshTick => {}
                 }
             }
         }
@@ -275,6 +283,37 @@ fn extract_room_and_validate(
 /// Spawn the single-writer task for a room.
 fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
     let (tx, mut rx) = mpsc::channel::<RoomCommand>(256);
+
+    // timer loops (T4): watchdog, max-hold, token-refresh — all funnel into
+    // the same channel so the single writer keeps total ordering
+    {
+        let tx = tx.clone();
+        let cfg = app.config.clone();
+        tokio::spawn(async move {
+            let mut watchdog = tokio::time::interval(std::time::Duration::from_millis(
+                cfg.no_rtp_watchdog_ms,
+            ));
+            let mut maxhold = tokio::time::interval(std::time::Duration::from_millis(
+                cfg.floor_max_hold_ms.unwrap_or(u64::MAX),
+            ));
+            let mut refresh = tokio::time::interval(std::time::Duration::from_secs(
+                cfg.jwt_ttl_s.saturating_sub(300).max(1),
+            ));
+            // tokio intervals fire the FIRST tick immediately — skip it so the
+            // room doesn't get timer commands before any member exists
+            watchdog.tick().await;
+            maxhold.tick().await;
+            refresh.tick().await;
+            loop {
+                tokio::select! {
+                    _ = watchdog.tick() => { if tx.send(RoomCommand::WatchdogTick).await.is_err() { break; } }
+                    _ = maxhold.tick() => { if tx.send(RoomCommand::MaxHoldTick).await.is_err() { break; } }
+                    _ = refresh.tick() => { if tx.send(RoomCommand::RefreshTick).await.is_err() { break; } }
+                }
+            }
+        });
+    }
+
     tokio::spawn(async move {
         let mut state = RoomState::new(
             room_id.clone(),
@@ -283,6 +322,10 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
         );
         let media = app.media.clone();
         let mut media_ctx = crate::media::MediaCtx::default();
+        let cfg_media_grace_ms = app.config.floor_media_grace_ms;
+        let refresh_secret = app.config.jwt_secret.clone();
+        let refresh_ttl_s = app.config.jwt_ttl_s;
+        let mut watch = crate::timers::WatchState::default();
         while let Some(cmd) = rx.recv().await {
             match cmd {
                 RoomCommand::Join {
@@ -379,6 +422,55 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                     if let Some(m) = state.members.get(&from) {
                         for d in direct {
                             let _ = m.sink.send(d);
+                        }
+                    }
+                }
+                RoomCommand::WatchdogTick => {
+                    // probe granted peers through the backend; silent-past-grace
+                    // peers get MediaDown (core releases + promotes, F-sequence)
+                    let granted: Vec<PeerId> = state.floor.grants().to_vec();
+                    if granted.is_empty() {
+                        continue;
+                    }
+                    let mut results = Vec::with_capacity(granted.len());
+                    for p in granted {
+                        let active = matches!(
+                            media.media_activity(&state.id, &p).await,
+                            talkservo_sfu::ActivityState::Active
+                        );
+                        results.push((p, active));
+                    }
+                    let grace = std::time::Duration::from_millis(cfg_media_grace_ms);
+                    let downs = watch.probe(results, grace, std::time::Instant::now());
+                    for peer in downs {
+                        for m in state.apply_media_down(&peer) {
+                            state.broadcast(&m);
+                        }
+                        state.broadcast(&SignalingMessage::MediaFailed { peer: peer.clone() });
+                    }
+                }
+                RoomCommand::MaxHoldTick => {
+                    // dispatch-mode cap fires Timeout like an operator timer;
+                    // core applies the same Timeout rule (R7). The tick interval
+                    // is only armed when FLOOR_MAX_HOLD_MS is set (config gate).
+                    for m in state.apply_timeout() {
+                        state.broadcast(&m);
+                    }
+                }
+                RoomCommand::RefreshTick => {
+                    // TokenRefresh is per-connection in the full design; the PoC
+                    // re-signs a fresh token per member and pushes it directly.
+                    for m in state.members.values() {
+                        if let Ok(jwt) = crate::auth::issue(
+                            &refresh_secret,
+                            m.info.id.0.as_ref(),
+                            state.id.0.as_ref(),
+                            m.info.role,
+                            refresh_ttl_s,
+                        ) {
+                            let _ = m
+                                .sink
+                                .send(SignalingMessage::TokenRefresh { jwt });
                         }
                     }
                 }

@@ -172,6 +172,30 @@ impl RoomState {
         direct
     }
 
+    /// E11 (F-sequence): apply MediaDown for a granted peer whose grace
+    /// elapsed — core releases + promotes; broadcast handled by caller.
+    pub fn apply_media_down(&mut self, peer: &PeerId) -> Vec<SignalingMessage> {
+        let (next, emitted) = self.floor.apply(
+            &FloorEvent::MediaDown { peer: peer.clone() },
+            &self.limits,
+        );
+        self.floor = next;
+        emitted
+    }
+
+    /// R7 max-hold timer: apply Timeout (core drops grants + promotes).
+    pub fn apply_timeout(&mut self) -> Vec<SignalingMessage> {
+        let (next, emitted) = self.floor.apply(&FloorEvent::Timeout, &self.limits);
+        self.floor = next;
+        emitted
+    }
+
+    /// Dispatch-config flag: max-hold applies only when configured (open mode
+    /// runs with FLOOR_MAX_HOLD_MS=off — modules/06).
+    pub fn max_hold_armed(&self) -> bool {
+        self.limits.max_peers > 0
+    }
+
     /// Join a validated identity. `Err(code)` = AlreadyJoined.
     pub fn join(&mut self, peer: PeerId, role: Role, sink: Sink, since_ms: u64) -> Result<(), &'static str> {
         if self.members.contains_key(&peer) {
