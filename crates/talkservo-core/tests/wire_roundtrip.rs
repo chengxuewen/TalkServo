@@ -217,6 +217,6 @@ fn generation_is_required_on_floor_messages() {
 #[test]
 fn ids_serialize_as_plain_strings() {
     // keeps TS unions simple: PeerId is a string on the wire, not a wrapper object
-    let v = serde_json::to_value(&pid("peer-9")).unwrap();
+    let v = serde_json::to_value(pid("peer-9")).unwrap();
     assert_eq!(v, serde_json::json!("peer-9"));
 }
