@@ -21,6 +21,9 @@ thiserror = "2"
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync"] }
 jsonwebtoken = "9"
+hmac = "0.12"
+sha1 = "0.10"
+base64 = "0.22"
 tracing = "0.1"
 futures-util = "0.3"
 tokio-tungstenite = "0.28"

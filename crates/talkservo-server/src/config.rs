@@ -4,6 +4,11 @@
 #[derive(Debug, Clone)]
 pub struct Config {
     pub jwt_secret: String,
+    /// TURN static-auth secret (coturn `use-auth-secret`). None = TURN creds
+    /// disabled (Welcome carries empty uris) — PoC dev runs without coturn.
+    pub turn_secret: Option<String>,
+    /// TURN URI template delivered in Welcome (e.g. "turn:host:3478").
+    pub turn_uri: String,
     pub jwt_ttl_s: u64,
     pub turn_ttl_s: u64,
     /// `off` disables the max-hold timer (open mode); `Some(ms)` for dispatch.
@@ -33,6 +38,8 @@ impl Config {
         });
         Self {
             jwt_secret,
+            turn_secret: std::env::var("TURN_SECRET").ok(),
+            turn_uri: std::env::var("TURN_URI").unwrap_or_default(),
             jwt_ttl_s: env_u64("TS_JWT_TTL_S", 3600),
             turn_ttl_s: env_u64("TURN_TTL_S", 3600),
             floor_max_hold_ms: match std::env::var("FLOOR_MAX_HOLD_MS").as_deref() {
@@ -57,6 +64,8 @@ impl Config {
     pub fn for_test(jwt_secret: impl Into<String>) -> Self {
         Self {
             jwt_secret: jwt_secret.into(),
+            turn_secret: None,
+            turn_uri: String::new(),
             jwt_ttl_s: 3600,
             turn_ttl_s: 3600,
             floor_max_hold_ms: Some(45_000),

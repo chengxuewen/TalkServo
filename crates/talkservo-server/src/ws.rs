@@ -363,10 +363,22 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             );
                             // J burst, deterministic order (modules/02 §J):
                             // Welcome → RouterCaps → PeerJoined(delta) → PeerList → Snapshot
+                            // TURN short-term creds (modules/06 rung 4);
+                            // disabled → empty uris (dev runs without coturn)
+                            let turn_creds = crate::turn::issue(
+                                app.config.turn_secret.as_deref().unwrap_or(""),
+                                app.config.turn_ttl_s,
+                                std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .map(|d| d.as_secs())
+                                    .unwrap_or(0),
+                                &app.config.turn_uri,
+                            )
+                            .unwrap_or_else(|| serde_json::json!({"uris": []}));
                             let _ = conn_sink.send(SignalingMessage::Welcome {
                                 v: 1,
                                 peer_id: peer.clone(),
-                                turn_creds: serde_json::json!({"uris": []}),
+                                turn_creds,
                             });
                             let caps = media.router_caps(&state.id).await;
                             let _ = conn_sink.send(SignalingMessage::RouterCaps {
