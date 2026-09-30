@@ -43,7 +43,6 @@ async fn live_worker_e6_kill_notifies_and_respawns() {
 
 #[tokio::test]
 async fn live_consume_across_peers() {
-    use talkservo_core::wire::TransportInfo as _TransportInfoUnused;
     let sup = std::sync::Arc::new(talkservo_sfu::Supervisor::new());
     let sfu = talkservo_sfu::MediasoupSfu::new(sup.clone());
     let room = RoomId::from("consume-room");
