@@ -1,0 +1,15 @@
+# TalkServo TLS termination — Caddy (automatic certificate management).
+#
+# Production (Let's Encrypt): point talk.example.com at this host, 80/443 open.
+#   talk.example.com {
+#       reverse_proxy /ws  127.0.0.1:8080
+#       reverse_proxy /*   127.0.0.1:8080
+#   }
+#
+# Self-signed (field-device distribution per review-focus pin):
+#   run `caddy trust` on the CA host; distribute the root cert to devices.
+
+talk.example.com {
+	# WebSocket upgrade is automatic through Caddy's reverse_proxy.
+	reverse_proxy 127.0.0.1:8080
+}

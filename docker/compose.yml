@@ -1,16 +1,22 @@
 # TalkServo PoC deployment: server + coturn (modules/04/06).
 # Secrets via env file — never committed (see config/sample.env for the full key set).
 services:
+  # Local-parity mode (default): mounts the host-built release binary — the
+  # dev loop is native (D11); image build = CI lane (`--profile image`).
   server:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+    image: ubuntu:22.04
+    working_dir: /app
+    volumes:
+      - ../target/release/talkservo-server:/app/talkservo-server:ro
+      - ../web/dist:/app/web/dist:ro
     environment:
       TS_JWT_SECRET: ${TS_JWT_SECRET:?set TS_JWT_SECRET in the env file}
       TS_BIND: 0.0.0.0:8080
+    command: ["/app/talkservo-server"]
     ports:
-      - "8080:8080"
-      - "40000-40100:40000-40100/udp"
+      # host 18080 — 8080 is occupied by the sister project on this box
+      - "18080:8080"
+      - "34000-34100:40000-40100/udp"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
       interval: 10s
@@ -20,7 +26,21 @@ services:
       - coturn
     restart: unless-stopped
 
+  # Full-image mode: docker compose --profile image up (CI artifact check)
+  server-image:
+    profiles: ["image"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      TS_JWT_SECRET: ${TS_JWT_SECRET:?set TS_JWT_SECRET in the env file}
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+
   coturn:
     image: coturn/coturn:latest
     network_mode: host
+    environment:
+      TURN_SECRET: ${TURN_SECRET:?set TURN_SECRET in the env file}
     restart: unless-stopped

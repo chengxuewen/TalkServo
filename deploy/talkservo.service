@@ -1,0 +1,24 @@
+# TalkServo systemd unit — install:
+#   cp deploy/talkservo.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now talkservo
+# Env file (secrets, never committed): /etc/talkservo/env
+[Unit]
+Description=TalkServo signaling + SFU host
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=talkservo
+EnvironmentFile=/etc/talkservo/env
+ExecStart=/opt/talkservo/talkservo-server
+Restart=always
+RestartSec=2
+# E7 note (modules/05): process death loses room state (PoC, accepted) —
+# Restart=always brings the binary back; clients re-run R1 on reconnect.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/talkservo
+
+[Install]
+WantedBy=multi-user.target
