@@ -143,3 +143,83 @@ async fn e4_transport_timeout_emits_media_failed() {
         other => panic!("expected transport_timeout, got {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn r_f15_apply_floor_invoked_on_grant_path() {
+    // R-F15 regression: the room task must reconcile media after every floor
+    // transition — the stub's call log is the evidence.
+    let srv = TestServer::start().await;
+    let mut a = ws_connect(srv.ws_url()).await;
+    join_and_drain(&mut a, &srv, "gater", talkservo_core::wire::Role::Field).await;
+
+    srv.media.clear_calls();
+    send_json(&mut a, &SignalingMessage::FloorRequest { priority: 0, preempt: false }).await;
+    let mut granted = false;
+    for _ in 0..6 {
+        let m = recv_msg(&mut a).await;
+        if matches!(m, SignalingMessage::FloorGranted { .. }) { granted = true; break; }
+    }
+    assert!(granted);
+    let calls = srv.media.calls();
+    assert!(
+        calls.iter().any(|c| matches!(c, talkservo_sfu::stub::Call::ApplyFloor { .. })),
+        "apply_floor must be invoked on the grant path (R-F15): {calls:?}"
+    );
+}
+
+#[tokio::test]
+async fn r_f16_peer_left_media_cascade() {
+    // R-F16 regression: WS drop frees the peer's media objects immediately.
+    let srv = TestServer::start().await;
+    let mut a = ws_connect(srv.ws_url()).await;
+    join_and_drain(&mut a, &srv, "leaver", talkservo_core::wire::Role::Field).await;
+
+    // create a transport so the stub holds media state for this peer
+    send_json(&mut a, &SignalingMessage::TransportCreate).await;
+    let _ = recv_msg(&mut a).await; // TransportInfo
+
+    srv.media.clear_calls();
+    let _ = a.close(None).await;
+    // wait for the server-side Left processing
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    let calls = srv.media.calls();
+    assert!(
+        calls.iter().any(|c| matches!(c, talkservo_sfu::stub::Call::PeerLeft { peer, .. } if peer == "leaver")),
+        "peer_left must fire on disconnect (R-F16): {calls:?}"
+    );
+}
+
+#[tokio::test]
+async fn r_f14_consume_of_ungranted_producer_denied() {
+    // R-F14 regression: a producer id that exists but whose owner is NOT
+    // granted must be refused — no consumer, no audio.
+    let srv = TestServer::start().await;
+    let mut a = ws_connect(srv.ws_url()).await;
+    join_and_drain(&mut a, &srv, "holder", talkservo_core::wire::Role::Field).await;
+    let mut b = ws_connect(srv.ws_url()).await;
+    join_and_drain(&mut b, &srv, "eaves", talkservo_core::wire::Role::Field).await;
+
+    // holder transport up + produce (no floor request — grants stay empty)
+    send_json(&mut a, &SignalingMessage::TransportCreate).await;
+    let _ = recv_msg(&mut a).await; // TransportInfo
+    send_json(&mut a, &SignalingMessage::TransportConnect { dtls: serde_json::json!({}) }).await;
+    send_json(&mut a, &SignalingMessage::Produce { rtp_parameters: serde_json::json!({}) }).await;
+    let mut producer_id: Option<String> = None;
+    for _ in 0..4 {
+        let m = recv_msg(&mut a).await;
+        if let SignalingMessage::ProduceOk { producer_id: pid_val } = m {
+            producer_id = Some(pid_val.to_string());
+            break;
+        }
+    }
+    let pid = producer_id.expect("produce must succeed");
+
+    // eavesdropper consumes the ungranted producer → denied
+    send_json(&mut b, &SignalingMessage::Consume { producer_id: serde_json::json!(pid) }).await;
+    let reply = recv_msg(&mut b).await;
+    match reply {
+        SignalingMessage::Error { code, .. } => assert_eq!(code, "consume_denied"),
+        other => panic!("consume of ungranted producer must be denied, got {other:?}"),
+    }
+}

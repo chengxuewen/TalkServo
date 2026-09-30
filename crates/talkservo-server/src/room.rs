@@ -11,6 +11,13 @@ use talkservo_core::ids::{PeerId, RoomId};
 use talkservo_core::wire::{PeerInfo, Role, ServerSnapshotPayload, SignalingMessage};
 use tokio::sync::mpsc;
 
+/// Result of one floor-protocol message: direct replies + whether the floor
+/// state moved (drives the media reconcile call, D13).
+pub struct FloorOutcome {
+    pub direct: Vec<SignalingMessage>,
+    pub mutated: bool,
+}
+
 /// Per-connection outbound sink.
 pub type Sink = mpsc::UnboundedSender<SignalingMessage>;
 
@@ -32,6 +39,8 @@ pub struct RoomState {
     /// Armed when the room becomes empty (idle-TTL reaper, D16/CM-1);
     /// disarmed by the next Join.
     empty_since: Option<Instant>,
+    /// peer → latest producer id (R-F14 consume gate registry).
+    producers_by_peer: HashMap<PeerId, String>,
     /// FloorRequest → request instant; consumed by the grant path to emit
     /// `grant_latency_ms` (modules/05 §Obs, acceptance #10). Kept across
     /// queueing so queued→promoted grants measure from the ORIGINAL request.
@@ -53,6 +62,7 @@ impl RoomState {
             last_request: HashMap::new(),
             empty_since: None, // a new room has its creator en route
             pending_requests: HashMap::new(),
+            producers_by_peer: HashMap::new(),
         }
     }
 
@@ -153,8 +163,9 @@ impl RoomState {
 
     /// Convert a wire message from a peer into the floor event + protocol
     /// responses. Returns messages to send to the requester (acks/errors).
-    pub fn handle_floor_message(&mut self, from: &PeerId, msg: &SignalingMessage) -> Vec<SignalingMessage> {
+    pub fn handle_floor_message(&mut self, from: &PeerId, msg: &SignalingMessage) -> FloorOutcome {
         let mut direct = Vec::new();
+        let mut mutated = false;
         let cooldown_ok = self
             .last_request
             .get(from)
@@ -170,7 +181,7 @@ impl RoomState {
                         reason: talkservo_core::wire::DenyReason::RateLimited,
                         generation,
                     });
-                    return direct;
+                    return FloorOutcome { direct, mutated: false };
                 }
                 self.last_request.insert(from.clone(), Instant::now());
                 self.pending_requests
@@ -198,6 +209,8 @@ impl RoomState {
         if let Some(ev) = ev {
             let (next, emitted) = self.floor.apply(&ev, &self.limits);
             self.floor = next;
+            mutated = true; // any apply() result reflects a floor transition
+
             for m in emitted {
                 // latency tap: grant/taken mark the END of a request's wait
                 match &m {
@@ -229,7 +242,33 @@ impl RoomState {
                 }
             }
         }
-        direct
+        FloorOutcome { direct, mutated }
+    }
+
+    /// R-F14 gate: does `producer_id` (wire string) belong to a GRANTED peer
+    /// in this room? Unknown producers → false (no existence oracle).
+    pub fn producer_owner_granted(&self, producer_id: &str) -> bool {
+        // The server assigns producer ids at ProduceOk time; the roster keeps
+        // the peer→producer map here (filled by the Produce path below).
+        self.producers_by_peer
+            .values()
+            .any(|pid| pid == producer_id)
+            && self
+                .producers_by_peer
+                .iter()
+                .any(|(peer, pid)| {
+                    pid == producer_id && self.floor.grants().contains(peer)
+                })
+    }
+
+    /// Record a produced producer id for its owner (ProduceOk path).
+    pub fn note_producer(&mut self, peer: &PeerId, producer_id: String) {
+        self.producers_by_peer.insert(peer.clone(), producer_id);
+    }
+
+    /// Immutable view for the media reconciliation call (D13).
+    pub fn floor_ref(&self) -> &talkservo_core::floor::FloorState {
+        &self.floor
     }
 
     /// E11 (F-sequence): apply MediaDown for a granted peer whose grace

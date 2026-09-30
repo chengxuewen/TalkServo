@@ -27,25 +27,9 @@ async fn recv_msg(stream: &mut Ws) -> Option<SignalingMessage> {
     }
 }
 
-/// Capture this process's stdout while `f` runs (obs::latency prints JSON
-/// lines to stdout).
-async fn capture_stdout<F: std::future::Future>(f: F) -> String
-where
-    F::Output: Send + 'static,
-{
-    // PoC approach: run the future, then read the interposed buffer —
-    // simplest reliable capture: spawn a reader on /proc/self/fd/1 is messy;
-    // instead assert via the tracing-free println! path with a pipe? For a
-    // hermetic test we flip it: the latency line is ALSO observable via the
-    // published behavior (grant works), so this test asserts the LOG by
-    // re-running the flow under `cargo test -- --nocapture` in CI grep.
-    // Here: smoke-run the flow (log lines go to the test stdout).
-    f.await;
-    String::new()
-}
-
 #[tokio::test]
 async fn grant_path_emits_latency_line() {
+    // R-F21: assert the ring, not stdout (deterministic under the harness)
     let secret = format!("lat-secret-{}", std::process::id());
     let config = test_bridge::config_for_test(&secret);
     let app_state = test_bridge::test_app(config);
@@ -69,9 +53,12 @@ async fn grant_path_emits_latency_line() {
         }
     }
     assert!(granted);
-    // The grant_latency_ms JSON line was printed to stdout by obs::latency —
-    // visible under `cargo test -- --nocapture`; CI asserts the grep.
-    let _ = capture_stdout(async {});
+    // R-F21: the latency line MUST be recorded — ring assertion, not stdout.
+    let recs = talkservo_server::obs::drain_latency("grant_latency_ms");
+    assert!(
+        recs.iter().any(|r| r.room == "lat-room" && r.peer == "lat-peer"),
+        "grant_latency_ms line for lat-room/lat-peer must exist: {recs:?}"
+    );
 }
 
 #[tokio::test]
@@ -133,4 +120,12 @@ async fn grant_latency_covers_queued_promotion() {
         }
     }
     assert!(b_promoted, "b must be promoted after a releases");
+    // R-F21: queued→promoted grant measures the FULL wait from the original
+    // request — one record for qb must exist.
+    let recs = talkservo_server::obs::drain_latency("grant_latency_ms");
+    assert!(
+        recs.iter().any(|r| r.room == "q-room" && r.peer == "qb"),
+        "queued promotion must emit grant_latency_ms for qb: {recs:?}"
+    );
 }
+

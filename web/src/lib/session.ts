@@ -17,6 +17,10 @@ export interface RoomSession {
   events: ClientEvent[];
   connected: boolean;
   selfId: string | null;
+  /** S-F4: in-flight connect promise — StrictMode double-invoke awaits the
+   *  SAME attempt instead of minting a second transport (which would trip
+   *  already_joined and leave a dead handle on the session). */
+  connectPromise: Promise<void> | null;
 }
 
 interface SessionKey {
@@ -68,6 +72,7 @@ export function ensureSession(
     events: [],
     connected: false,
     selfId: null,
+    connectPromise: null,
   };
   client.on((e) => {
     switch (e.kind) {
@@ -93,7 +98,9 @@ export function ensureSession(
   return session;
 }
 
-/** Connect the session (JWT minted by the host page or dev helper). */
+/** Connect the session (JWT minted by the host page or dev helper).
+ *  Idempotent: concurrent/StrictMode-doubled calls share one attempt;
+ *  an already-connected session is a no-op. */
 export async function connectSession(
   key: string,
   url: string,
@@ -101,7 +108,18 @@ export async function connectSession(
 ): Promise<void> {
   const s = sessions.get(key);
   if (!s) throw new Error(`no session ${key}`);
-  await s.client.connect(url, jwt);
+  if (s.connectPromise) return s.connectPromise;
+  if (s.connected) return;
+  s.connectPromise = s.client
+    .connect(url, jwt)
+    .then(() => {
+      s.connectPromise = null;
+    })
+    .catch((err) => {
+      s.connectPromise = null; // allow retry (fresh JWT, transient net)
+      throw err;
+    });
+  await s.connectPromise;
 }
 
 export function dropSession(key: string): void {

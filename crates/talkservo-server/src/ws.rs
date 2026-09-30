@@ -168,16 +168,40 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
     };
 
     // Ask the room to register us (AlreadyJoined check inside).
-    let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
-    room_tx
-        .send(RoomCommand::Join {
-            peer: peer.clone(),
-            role: claims.role,
-            sink: outbound_tx.clone(),
-            reply: reply_tx,
-        })
-        .await
-        .expect("room alive");
+    let (reply_tx, mut reply_rx) = tokio::sync::oneshot::channel();
+    // R-F4: the cloned sender can be dead if the room self-reaped between
+    // our registry lookup and this send — retry ONCE through a fresh lookup
+    // (the reaper removed the stale entry, so the retry spawns a live room).
+    let join_cmd = RoomCommand::Join {
+        peer: peer.clone(),
+        role: claims.role,
+        sink: outbound_tx.clone(),
+        reply: reply_tx,
+    };
+    let room_tx = if room_tx.send(join_cmd).await.is_err() {
+        let mut rooms = app.rooms.lock().await;
+        let room_tx = rooms
+            .entry(room_id.clone())
+            .or_insert_with(|| spawn_room(room_id.clone(), app.clone()))
+            .clone();
+        drop(rooms);
+        // fresh reply channel — the old oneshot's other end died with the task
+        let (reply_tx2, reply_rx2) = tokio::sync::oneshot::channel();
+        reply_rx = reply_rx2;
+        room_tx
+            .send(RoomCommand::Join {
+                peer: peer.clone(),
+                role: claims.role,
+                sink: outbound_tx.clone(),
+                reply: reply_tx2,
+            })
+            .await
+            .expect("freshly spawned room is alive");
+        room_tx
+    } else {
+        room_tx
+    };
+    let _ = &room_tx;
 
     let cmd_rx = match reply_rx.await {
         Ok(Ok(rx)) => rx,
@@ -424,6 +448,22 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             | SignalingMessage::Produce { .. }
                             | SignalingMessage::Consume { .. }
                     ) {
+                        // R-F14: consume gate — requester must be a member and
+                        // the target producer must belong to a GRANTED peer
+                        // (floor confidentiality; guessed ids get nothing)
+                        if let SignalingMessage::Consume { producer_id } = &msg {
+                            let pid = producer_id.to_string();
+                            let allowed = state.producer_owner_granted(&pid);
+                            if !allowed {
+                                if let Some(m) = state.members.get(&from) {
+                                    let _ = m.sink.send(SignalingMessage::Error {
+                                        code: "consume_denied".into(),
+                                        detail: "producer not available for consumption".into(),
+                                    });
+                                }
+                                continue;
+                            }
+                        }
                         let replies = crate::media::handle_media_message(
                             media.as_ref(),
                             &state.id,
@@ -433,6 +473,10 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             app.config.transport_guardrail,
                         )
                         .await;
+                        // R-F14 registry: ProduceOk pins producer→owner
+                        if let Some(SignalingMessage::ProduceOk { producer_id }) = replies.first() {
+                            state.note_producer(&from, producer_id.to_string());
+                        }
                         if let Some(m) = state.members.get(&from) {
                             for d in replies {
                                 let _ = m.sink.send(d);
@@ -440,11 +484,16 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                         }
                         continue;
                     }
-                    let direct = state.handle_floor_message(&from, &msg);
+                    let floor_mutated = state.handle_floor_message(&from, &msg);
                     if let Some(m) = state.members.get(&from) {
-                        for d in direct {
+                        for d in floor_mutated.direct {
                             let _ = m.sink.send(d);
                         }
+                    }
+                    // D13 gating: media reconciles with the NEW state after
+                    // every floor transition (R-F15 — was missing entirely)
+                    if floor_mutated.mutated {
+                        media.apply_floor(&state.id, state.floor_ref()).await;
                     }
                 }
                 RoomCommand::IdleTick => {
@@ -504,6 +553,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             state.broadcast(&m);
                         }
                         state.broadcast(&SignalingMessage::MediaFailed { peer: peer.clone() });
+                        media.apply_floor(&state.id, state.floor_ref()).await;
                     }
                 }
                 RoomCommand::MaxHoldTick => {
@@ -513,6 +563,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                     for m in state.apply_timeout() {
                         state.broadcast(&m);
                     }
+                    media.apply_floor(&state.id, state.floor_ref()).await;
                 }
                 RoomCommand::RefreshTick => {
                     // TokenRefresh is per-connection in the full design; the PoC
@@ -532,6 +583,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                     }
                 }
                 RoomCommand::Left { peer } => {
+                    media.peer_left(&state.id, &peer).await; // R-F16: free media objects NOW
                     if let Some(delta) = state.leave(&peer) {
                         obs::event(
                             state.id.0.as_ref(),

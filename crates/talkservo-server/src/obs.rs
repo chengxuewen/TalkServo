@@ -86,6 +86,40 @@ pub fn latency(room: &str, peer: &str, generation: u64, metric: &str, ms: u64) {
         "gen": generation,
     });
     println!("{line}");
+    // R-F21: tests assert against this ring — stdout capture is unreliable
+    // under the test harness, the ring is deterministic. Bounded: latency
+    // lines are low-frequency (one per grant), 1k entries never overflow
+    // meaningfully; tests drain it.
+    if let Some(mut ring) = LATENCY_RING.lock().ok().filter(|r| r.len() < 1024) {
+        ring.push(LatencyRecord {
+            metric: metric.to_string(),
+            room: room.to_string(),
+            peer: peer.to_string(),
+            ms,
+        });
+    }
+}
+
+/// R-F21: capture ring for latency lines (test assertion surface; also
+/// readable by an ops sidecar — bounded at 1k, low-frequency producer).
+#[doc(hidden)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct LatencyRecord {
+    pub metric: String,
+    pub room: String,
+    pub peer: String,
+    pub ms: u64,
+}
+
+#[doc(hidden)]
+static LATENCY_RING: std::sync::Mutex<Vec<LatencyRecord>> = std::sync::Mutex::new(Vec::new());
+
+/// Drain records matching `metric` from the ring (test helper).
+#[doc(hidden)]
+pub fn drain_latency(metric: &str) -> Vec<LatencyRecord> {
+    let mut ring = LATENCY_RING.lock().expect("ring");
+    let matched: Vec<LatencyRecord> = ring.drain(..).filter(|r| r.metric == metric).collect();
+    matched
 }
 
 /// Init the tracing subscriber (JSON to stdout, env-filter level).
