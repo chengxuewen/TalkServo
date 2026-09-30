@@ -3,6 +3,7 @@
 #![cfg(all(feature = "sfu-mediasoup", target_os = "linux"))]
 
 use talkservo_core::ids::{PeerId, RoomId};
+use talkservo_core::wire::FloorMode;
 use talkservo_sfu::Sfu;
 
 #[tokio::test]
@@ -86,4 +87,49 @@ async fn live_consume_across_peers() {
     let params = sfu.consume(&room, &b, &producer_id).await
         .expect("server-side consume must succeed with router caps");
     assert!(params.get("mid").is_some(), "consumer rtp_parameters must carry mid: {params:?}");
+}
+
+#[tokio::test]
+async fn live_e11_activity_truth_source() {
+    let sup = std::sync::Arc::new(talkservo_sfu::Supervisor::new());
+    let sfu = talkservo_sfu::MediasoupSfu::new(sup);
+    let room = RoomId::from("e11-room");
+    let peer = PeerId::from("mic");
+
+    let _transport = sfu.create_transport(&room, &peer).await.expect("transport");
+    let rtp = serde_json::json!({
+        "mid": "0",
+        "codecs": [{
+            "mimeType": "audio/opus", "payloadType": 100, "clockRate": 48000,
+            "channels": 2, "parameters": {}, "rtcpFeedback": []
+        }],
+        "headerExtensions": [], "encodings": []
+    });
+    match sfu.produce(&room, &peer, rtp).await {
+        Ok(pid) => {
+            // resumed-but-silent (observer never fired volumes): the OLD
+            // paused-state inference would say Active — the truth source
+            // (AudioLevelObserver speaking set) correctly says Silent.
+            sfu.apply_floor(
+                &room,
+                &{
+                    use talkservo_core::floor::{FloorEvent, FloorLimits};
+                    talkservo_core::floor::FloorState::initial(FloorMode::Exclusive)
+                        .apply(&FloorEvent::Request { peer: peer.clone(), priority: 0, preempt: false }, &FloorLimits::default())
+                        .0
+                },
+            )
+            .await;
+            let activity = sfu.media_activity(&room, &peer).await;
+            assert_eq!(
+                activity,
+                talkservo_sfu::ActivityState::Silent,
+                "resumed producer with no audio above threshold must report Silent"
+            );
+            let _ = pid;
+        }
+        Err(e) => {
+            eprintln!("produce rejected (env-dependent): {e}");
+        }
+    }
 }

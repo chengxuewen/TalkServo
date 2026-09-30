@@ -31,6 +31,10 @@ struct SupervisorInner {
     manager: mediasoup::worker_manager::WorkerManager,
     /// room → router (rebuilt on W-sequence).
     routers: RwLock<HashMap<RoomId, mediasoup::router::Router>>,
+    /// producer_id → room: producers currently ABOVE the audio threshold
+    /// (AudioLevelObserver volumes events add; silence events clear). This is
+    /// the E11 truth source — paused-state inference cannot see a muted mic.
+    speaking: RwLock<HashMap<mediasoup::producer::ProducerId, RoomId>>,
     restart_tx: broadcast::Sender<WorkerRestarted>,
 }
 
@@ -42,6 +46,7 @@ impl Supervisor {
                 worker: Mutex::new(None),
                 manager: mediasoup::worker_manager::WorkerManager::new(),
                 routers: RwLock::new(HashMap::new()),
+                speaking: RwLock::new(HashMap::new()),
                 restart_tx,
             }),
         }
@@ -88,6 +93,37 @@ impl Supervisor {
             .create_router(options)
             .await
             .map_err(|e| SfuError::Other(format!("router create failed: {e}")))?;
+
+        // E11 truth: AudioLevelObserver reports who is actually producing
+        // audio above the threshold. volumes → speaking[producer]=room;
+        // silence → clear the room's entries. The 1s interval gives the 2s
+        // watchdog ≥2 samples per window (modules/05 E11).
+        let mut observer_options = mediasoup::prelude::AudioLevelObserverOptions::default();
+        observer_options.max_entries = std::num::NonZeroU16::new(16).expect("nonzero");
+        observer_options.threshold = -70;
+        observer_options.interval = 1000;
+        let observer = router
+            .create_audio_level_observer(observer_options)
+            .await
+            .map_err(|e| SfuError::Other(format!("audio level observer: {e}")))?;
+
+        let inner_for_volumes = Arc::clone(&self.inner);
+        let room_for_volumes = room.clone();
+        let _volumes_handler = observer.on_volumes(move |volumes| {
+            if let Ok(mut set) = inner_for_volumes.speaking.try_write() {
+                for v in volumes {
+                    set.insert(v.producer.id(), room_for_volumes.clone());
+                }
+            }
+        });
+        let inner_for_silence = Arc::clone(&self.inner);
+        let room_for_silence = room.clone();
+        let _silence_handler = observer.on_silence(move || {
+            if let Ok(mut set) = inner_for_silence.speaking.try_write() {
+                set.retain(|_, r| r != &room_for_silence);
+            }
+        });
+
         self.inner
             .routers
             .write()
@@ -339,11 +375,23 @@ impl Sfu for MediasoupSfu {
     }
 
     async fn media_activity(&self, room: &RoomId, peer: &PeerId) -> ActivityState {
-        // E11 probe (PoC form): resumed producer = presumed flowing RTP.
-        // AudioLevelObserver attach lands with the E-measurement slice.
+        // E11 truth chain: producer must exist, be resumed (granted), AND be
+        // above the audio threshold. A muted mic keeps the producer resumed —
+        // the observer's silence event is what actually catches it.
         let producers = self.producers.read().await;
-        match producers.get(&(room.clone(), peer.clone())) {
-            Some(p) if !p.paused() => ActivityState::Active,
+        let is_granted_resumed = matches!(
+            producers.get(&(room.clone(), peer.clone())),
+            Some(p) if !p.paused()
+        );
+        if !is_granted_resumed {
+            return ActivityState::Silent;
+        }
+        let producer_id = producers
+            .get(&(room.clone(), peer.clone()))
+            .map(|p| p.id());
+        let speaking = self.supervisor.inner.speaking.read().await;
+        match producer_id {
+            Some(id) if speaking.contains_key(&id) => ActivityState::Active,
             _ => ActivityState::Silent,
         }
     }
