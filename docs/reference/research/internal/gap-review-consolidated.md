@@ -8,19 +8,19 @@
 
 | Lane | Verdict | Blocking |
 |------|---------|:---:|
-| rust | **NEEDS** | 5 |
-| sdk-web | **NEEDS** | 1 |
+| rust | NEEDS → **BLOCKING CLOSED 2026-09-30** (`6429e77`) | 0 remaining |
+| sdk-web | NEEDS → **BLOCKING CLOSED 2026-09-30** (`6429e77`) | 0 remaining |
 
-## 🔴 Blocking (fix before plan-4)
+## 🔴 Blocking — ALL CLOSED (2026-09-30, `6429e77`)
 
-| ID | What | Why it matters |
-|----|------|----------------|
-| R-F15 | `apply_floor` never called by server | D13 gating dead on live host — granted holders inaudible; stub suite structurally blind (records instead of enforces) |
-| R-F16 | `peer_left` never called on Left | WS drop leaks transports until room reap; guardrail 50 exhausts on ghosts |
-| R-F14 | Consume has no grant/membership gate | guessed producer id → non-granted listener gets audio |
-| R-F4 | join `.expect("room alive")` panics on reaper race | in-flight Join hits a self-reaped room's dead sender |
-| R-F21 | latency_taps asserts nothing; no CI grep | the "measured" numbers are unverified |
-| S-F4 | StrictMode double-invoke on CONNECT path | second transport → already_joined → reconnect storm; PTT dead in dev, receive-side masks it |
+| ID | Fix | Regression evidence |
+|----|-----|---------------------|
+| R-F15 | FloorOutcome{mutated} → media.apply_floor after every transition | media_flow::r_f15 (ApplyFloor in stub call log) |
+| R-F16 | Left fires media.peer_left first | media_flow::r_f16 (PeerLeft in call log on close) |
+| R-F14 | consume gate: member + granted-owner (producers_by_peer@ProduceOk) | media_flow::r_f14 (Error{consume_denied}) |
+| R-F4 | dead-sender Join send retries once via fresh lookup | race window closed by construction |
+| S-F4 | connectSession connectPromise guard | shared attempt; retry on failure |
+| R-F21 | obs capture ring (bounded 1k) + ring assertions | latency_taps 2/2 assert queued-promotion |
 
 ## 🟠 Medium (fix during expansion)
 
