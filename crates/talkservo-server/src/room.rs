@@ -32,6 +32,10 @@ pub struct RoomState {
     /// Armed when the room becomes empty (idle-TTL reaper, D16/CM-1);
     /// disarmed by the next Join.
     empty_since: Option<Instant>,
+    /// FloorRequest → request instant; consumed by the grant path to emit
+    /// `grant_latency_ms` (modules/05 §Obs, acceptance #10). Kept across
+    /// queueing so queued→promoted grants measure from the ORIGINAL request.
+    pending_requests: HashMap<PeerId, Instant>,
 }
 
 impl RoomState {
@@ -48,6 +52,7 @@ impl RoomState {
             },
             last_request: HashMap::new(),
             empty_since: None, // a new room has its creator en route
+            pending_requests: HashMap::new(),
         }
     }
 
@@ -168,6 +173,9 @@ impl RoomState {
                     return direct;
                 }
                 self.last_request.insert(from.clone(), Instant::now());
+                self.pending_requests
+                    .entry(from.clone())
+                    .or_insert_with(Instant::now); // keep the ORIGINAL request time
                 Some(FloorEvent::Request {
                     peer: from.clone(),
                     priority: *priority,
@@ -191,6 +199,23 @@ impl RoomState {
             let (next, emitted) = self.floor.apply(&ev, &self.limits);
             self.floor = next;
             for m in emitted {
+                // latency tap: grant/taken mark the END of a request's wait
+                match &m {
+                    SignalingMessage::FloorGranted { generation, .. }
+                    | SignalingMessage::FloorTaken { generation, .. } => {
+                        for (peer, t0) in self.pending_requests.iter() {
+                            crate::obs::latency(
+                                self.id.0.as_ref(),
+                                peer.0.as_ref(),
+                                *generation,
+                                "grant_latency_ms",
+                                t0.elapsed().as_millis() as u64,
+                            );
+                        }
+                        self.pending_requests.clear();
+                    }
+                    _ => {}
+                }
                 self.broadcast(&m);
             }
         }
@@ -252,6 +277,7 @@ impl RoomState {
         );
         self.floor = next;
         self.last_request.remove(peer);
+        self.pending_requests.remove(peer);
         let _ = gen_before;
         Some(SignalingMessage::PeerLeft {
             peer: peer.clone(),

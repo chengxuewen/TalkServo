@@ -27,8 +27,42 @@ async fn main() {
     #[cfg(not(feature = "stub-media"))]
     let media_handle: std::sync::Arc<talkservo_sfu::MediasoupSfu> = {
         let supervisor = std::sync::Arc::new(talkservo_sfu::Supervisor::new());
-        // W-sequence: supervisor notifies on worker death; the server task
-        // (rooms registry) fans MediaRestart out per room — wired in ws.rs.
+        // W-sequence step 2: worker death → MediaRestart fanout per live room.
+        // (E6 measures recovery via media_recovery_ms, modules/05 §Obs.)
+        let mut restarts = supervisor.restart_rx();
+        let rooms_for_restart = app_state.rooms.clone();
+        tokio::spawn(async move {
+            let mut exited_at: Option<std::time::Instant> = None;
+            loop {
+                // half-open sweep: worker death is announced by kill_worker's
+                // notification; mark time, then the NEXT notification (respawn)
+                // closes the measurement
+                if restarts.recv().await.is_err() {
+                    break; // supervisor gone
+                }
+                let now = std::time::Instant::now();
+                let t0 = exited_at.unwrap_or(now);
+                let recovery_ms = now.duration_since(t0).as_millis() as u64;
+                // fanout MediaRestart to every live room + log recovery
+                let rooms = rooms_for_restart.lock().await;
+                for (room_id, tx) in rooms.iter() {
+                    let _ = tx.send(talkservo_server::ws::RoomCommand::Wire {
+                        from: talkservo_core::ids::PeerId::from("system"),
+                        msg: talkservo_core::wire::SignalingMessage::MediaRestart {
+                            room: room_id.clone(),
+                            reason: "worker rebuild".into(),
+                        },
+                    });
+                }
+                drop(rooms);
+                tracing::info!(
+                    event = "media_restart_done",
+                    ms = recovery_ms,
+                    "media_recovery_ms measured"
+                );
+                exited_at = None;
+            }
+        });
         std::sync::Arc::new(talkservo_sfu::MediasoupSfu::new(supervisor))
     };
     tracing::info!(backend = media_handle.backend(), version = VERSION, "talkservo-server starting");
