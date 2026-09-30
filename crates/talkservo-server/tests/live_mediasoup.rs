@@ -84,7 +84,7 @@ async fn live_consume_across_peers() {
     };
 
     // B consumes A's producer — server-side, router caps only
-    let params = sfu.consume(&room, &b, &producer_id).await
+    let (_consumer_id, params) = sfu.consume(&room, &b, &producer_id).await
         .expect("server-side consume must succeed with router caps");
     assert!(params.get("mid").is_some(), "consumer rtp_parameters must carry mid: {params:?}");
 }
