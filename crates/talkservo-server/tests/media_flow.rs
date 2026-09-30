@@ -85,6 +85,11 @@ async fn transport_create_connect_produce_flow() {
     // J-step 6: Produce → ProduceOk
     send_json(&mut a, &SignalingMessage::Produce { rtp_parameters: serde_json::json!({}) }).await;
     assert!(matches!(recv_msg(&mut a).await, SignalingMessage::ProduceOk { .. }));
+    // additive announcement follows ProduceOk (pull-model consume wire)
+    assert!(matches!(
+        recv_msg(&mut a).await,
+        SignalingMessage::ProducerAvailable { .. }
+    ));
 
     // sfu saw the calls
     let calls = srv.media.calls();
@@ -215,7 +220,13 @@ async fn r_f14_consume_of_ungranted_producer_denied() {
     }
     let pid = producer_id.expect("produce must succeed");
 
-    // eavesdropper consumes the ungranted producer → denied
+    // eavesdropper first sees the availability announcement (broadcast)
+    assert!(matches!(
+        recv_msg(&mut b).await,
+        SignalingMessage::ProducerAvailable { .. }
+    ));
+
+    // then the consume gate denies the ungranted producer
     send_json(&mut b, &SignalingMessage::Consume { producer_id: serde_json::json!(pid) }).await;
     let reply = recv_msg(&mut b).await;
     match reply {

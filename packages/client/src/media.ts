@@ -133,6 +133,10 @@ export class MediaManager {
     client.onMessage((msg) => {
       if (msg.type === "router_caps") {
         this.routerCaps = msg.media_codecs;
+      } else if (msg.type === "producer_available") {
+        // pull model: remember the mapping; the grant sweep consumes
+        this.producerByPeer.set(msg.peer, String(msg.producer_id));
+        this.consumeGrantedNow();
       } else if (msg.type === "consume_ok") {
         const pid = String(msg.producer_id);
         const peer = this.pendingConsumes.get(pid);
@@ -150,6 +154,9 @@ export class MediaManager {
           for (const peer of [...this.handles.keys()]) {
             if (!granted.has(peer)) this.releasePeer(peer);
           }
+          // new grants trigger the consume sweep (announcement may precede)
+          this.grants = e.mirror.grants;
+          this.consumeGrantedNow();
           return;
         }
         case "media-failed":
@@ -199,13 +206,24 @@ export class MediaManager {
     return h;
   }
 
+  /** producer_id by peer (from ProducerAvailable announcements). */
+  private producerByPeer = new Map<string, string>();
+  /** Current grant set (drives the consume sweep). */
+  private grants: string[] = [];
+
   /** Pull-model consume: request every granted peer's producer (J-step 7).
    *  ConsumeOk completes the exchange via instantiateConsumer. */
   consumeGranted(grants: string[], producerByPeer: Map<string, string>): void {
+    this.grants = grants;
+    for (const [peer, pid] of producerByPeer) this.producerByPeer.set(peer, pid);
+    this.consumeGrantedNow();
+  }
+
+  private consumeGrantedNow(): void {
     if (!this.client) return;
-    for (const peer of grants) {
+    for (const peer of this.grants) {
       if (this.handles.has(peer)) continue; // already consuming
-      const producerId = producerByPeer.get(peer);
+      const producerId = this.producerByPeer.get(peer);
       if (!producerId) continue;
       this.pendingConsumes.set(producerId, peer);
       this.client.sendRaw({ type: "consume", producer_id: producerId });

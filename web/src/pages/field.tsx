@@ -35,11 +35,23 @@ export function FieldPage() {
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    ensureSession({ room, role: "field" });
+    const session = ensureSession({ room, role: "field" });
     const jwt = jwtFromQuery();
     if (jwt && !status.connected) {
       void connectSession(key, `${location.origin.replace(/^http/, "ws")}/ws`, jwt);
     }
+    // acceptance #2: consumed remote tracks attach to the audio pool — each
+    // handle gets an autoplay element (e2e measures RMS on these)
+    session.media.on((e) => {
+      if (e.kind !== "audio-opened") return;
+      const pool = document.getElementById("ts-audio-pool");
+      if (!pool) return;
+      const el = document.createElement("audio");
+      el.autoplay = true;
+      el.dataset.peer = e.peerId;
+      el.srcObject = new MediaStream([e.handle.track]);
+      pool.appendChild(el);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room]);
 

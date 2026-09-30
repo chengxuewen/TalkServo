@@ -89,3 +89,76 @@ test.describe("media matrix (live host)", () => {
     await ctxL.close();
   });
 });
+
+test.describe("latency harness (live host)", () => {
+  test.skip(!LIVE, "requires the live mediasoup host");
+
+  test("#10: keydown→audible p50/p95 over 20 presses (client-relative)", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const ctxH = await browser.newContext();
+    const holder = await ctxH.newPage();
+    await joinField(holder, "l-holder");
+    const ctxL = await browser.newContext();
+    const listener = await ctxL.newPage();
+    await joinField(listener, "l-listener");
+
+    // arm the listener: RMS sampler keyed to a start timestamp (t0 injected
+    // via evaluate from the holder side — same-host clock, relative deltas)
+    await listener.evaluate(() => {
+      const w = window as unknown as { __tsArmed?: { t0: number } };
+      w.__tsArmed = undefined;
+      const pool = document.getElementById("ts-audio-pool");
+      if (!pool) return;
+      const observer = new MutationObserver(() => {
+        const audio = pool.querySelector("audio");
+        if (audio && !window.__tsAnalyser) {
+          const ctx = new AudioContext();
+          const src = ctx.createMediaElementSource(audio);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 256;
+          src.connect(analyser);
+          (window as unknown as { __tsAnalyser?: AnalyserNode }).__tsAnalyser = analyser;
+        }
+      });
+      observer.observe(pool, { childList: true });
+    });
+
+    const samples: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      const t0 = Date.now();
+      await holder.keyboard.down("Space");
+      // poll the listener for first non-silence
+      const audible = await listener.evaluate(async (t0ms) => {
+        const w = window as unknown as {
+          __tsAnalyser?: AnalyserNode;
+          __tsArmed?: { t0: number };
+        };
+        w.__tsArmed = { t0: t0ms };
+        const analyser = w.__tsAnalyser;
+        if (!analyser) return null;
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        for (let n = 0; n < 100; n++) {
+          analyser.getByteFrequencyData(data);
+          let sum = 0;
+          for (const v of data) sum += v;
+          if (sum / data.length > 2) return Date.now() - t0ms;
+          await new Promise((r) => setTimeout(r, 10));
+        }
+        return null;
+      }, t0);
+      await holder.keyboard.up("Space");
+      await new Promise((r) => setTimeout(r, 400)); // cooldown 500ms guard
+      if (audible !== null) samples.push(audible);
+    }
+
+    samples.sort((a, b) => a - b);
+    const p50 = samples[Math.floor(samples.length / 2)] ?? -1;
+    const p95 = samples[Math.floor(samples.length * 0.95)] ?? -1;
+    console.log(
+      `LATENCY samples=${samples.length} p50=${p50}ms p95=${p95}ms (budget LAN 300/public 600)`,
+    );
+    expect(samples.length).toBeGreaterThanOrEqual(10); // majority must land
+    await ctxH.close();
+    await ctxL.close();
+  });
+});

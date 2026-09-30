@@ -81,6 +81,7 @@ export type ServerMessage =
     }
   | { type: "media_restart"; room: string; reason: string }
   | { type: "media_failed"; peer: string }
+  | { type: "producer_available"; peer: string; producer_id: unknown }
   | { type: "token_refresh"; jwt: string }
   | { type: "server_snapshot"; payload: ServerSnapshotPayload; generation: number }
   | { type: "error"; code: string; detail: string };

@@ -206,6 +206,12 @@ pub enum SignalingMessage {
     MediaFailed {
         peer: PeerId,
     },
+    /// Additive (PoC): a peer's producer is available for consumption —
+    /// listeners open their downlink against this id (pull model).
+    ProducerAvailable {
+        peer: PeerId,
+        producer_id: serde_json::Value,
+    },
     /// Proactive token-renewal push (modules/02 §1; timer lives server-side).
     TokenRefresh {
         jwt: String,

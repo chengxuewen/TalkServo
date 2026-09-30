@@ -473,14 +473,22 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             app.config.transport_guardrail,
                         )
                         .await;
-                        // R-F14 registry: ProduceOk pins producer→owner
-                        if let Some(SignalingMessage::ProduceOk { producer_id }) = replies.first() {
-                            state.note_producer(&from, producer_id.to_string());
-                        }
+                        // direct replies go to the producer FIRST (ordering
+                        // pin: owner learns its id before the room does)
                         if let Some(m) = state.members.get(&from) {
-                            for d in replies {
-                                let _ = m.sink.send(d);
+                            for d in &replies {
+                                let _ = m.sink.send(d.clone());
                             }
+                        }
+                        // R-F14 registry + pull-model availability announce
+                        // (additive wire): room consumes against this id
+                        if let Some(SignalingMessage::ProduceOk { producer_id }) = replies.first() {
+                            let producer_id = producer_id.clone();
+                            state.note_producer(&from, producer_id.to_string());
+                            state.broadcast(&SignalingMessage::ProducerAvailable {
+                                peer: from.clone(),
+                                producer_id,
+                            });
                         }
                         continue;
                     }
