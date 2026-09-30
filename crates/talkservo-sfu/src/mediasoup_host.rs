@@ -130,6 +130,8 @@ pub struct MediasoupSfu {
         Arc<RwLock<HashMap<(RoomId, PeerId), mediasoup::webrtc_transport::WebRtcTransport>>>,
     /// (room, peer) → producer (apply_floor diff target)
     producers: Arc<RwLock<HashMap<(RoomId, PeerId), mediasoup::producer::Producer>>>,
+    /// (room, peer, consumer_id) → live consumer (drop = close)
+    consumers: Arc<RwLock<HashMap<(RoomId, PeerId, String), mediasoup::consumer::Consumer>>>,
 }
 
 impl MediasoupSfu {
@@ -138,6 +140,7 @@ impl MediasoupSfu {
             supervisor,
             transports: Arc::new(RwLock::new(HashMap::new())),
             producers: Arc::new(RwLock::new(HashMap::new())),
+            consumers: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -245,16 +248,45 @@ impl Sfu for MediasoupSfu {
 
     async fn consume(
         &self,
-        _room: &RoomId,
-        _peer: &PeerId,
-        _producer_id: &ProducerId,
+        room: &RoomId,
+        peer: &PeerId,
+        producer_id: &ProducerId,
     ) -> Result<serde_json::Value, SfuError> {
-        // Downlinks need the client's device rtpCapabilities (mediasoup-client
-        // exchange) — lands with the W bring-up slice where the full handshake
-        // is testable. Honest pointer; no fake success.
-        Err(SfuError::Other(
-            "consume requires client rtpCapabilities exchange (live-host bring-up)".into(),
-        ))
+        // Server-side consume needs only the ROUTER caps (mediasoup builds the
+        // consumer against them); the client-side local instantiation uses
+        // mediasoup-client device caps — different concern, SDK's job.
+        let router = self.supervisor.router_for(room).await?;
+        let transport = {
+            let t = self.transports.read().await;
+            t.get(&(room.clone(), peer.clone()))
+                .cloned()
+                .ok_or_else(|| SfuError::Other("no transport for peer".into()))?
+        };
+        let producer_mid: mediasoup::producer::ProducerId = producer_id
+            .0
+            .parse()
+            .map_err(|e| sfu_err(e, "producer id"))?;
+        // Finalized → plain caps: the finalized form IS a valid RtpCapabilities
+        // superset; serde round-trip converts the newtype cleanly.
+        let caps_plain: mediasoup_types::rtp_parameters::RtpCapabilities =
+            serde_json::from_value(serde_json::to_value(router.rtp_capabilities()).map_err(
+                |e| sfu_err(e, "caps ser"),
+            )?)
+            .map_err(|e| sfu_err(e, "caps convert"))?;
+        let options =
+            mediasoup::consumer::ConsumerOptions::new(producer_mid, caps_plain);
+        let consumer = transport
+            .consume(options)
+            .await
+            .map_err(|e| sfu_err(e, "consume"))?;
+        let params = serde_json::to_value(consumer.rtp_parameters())
+            .map_err(|e| sfu_err(e, "consumer params ser"))?;
+        // keep the consumer alive (drop = close); registry for future pause
+        self.consumers
+            .write()
+            .await
+            .insert((room.clone(), peer.clone(), consumer.id().to_string()), consumer);
+        Ok(params)
     }
 
     async fn apply_floor(&self, room: &RoomId, state: &FloorState) {
@@ -290,6 +322,17 @@ impl Sfu for MediasoupSfu {
             .write()
             .await
             .remove(&(room.clone(), peer.clone()));
+        let stale: Vec<(RoomId, PeerId, String)> = self
+            .consumers
+            .read()
+            .await
+            .keys()
+            .filter(|(r, p, _)| r == room && p == peer)
+            .cloned()
+            .collect();
+        for key in stale {
+            let _ = self.consumers.write().await.remove(&key);
+        }
     }
 
     async fn media_activity(&self, room: &RoomId, peer: &PeerId) -> ActivityState {
@@ -299,6 +342,17 @@ impl Sfu for MediasoupSfu {
         match producers.get(&(room.clone(), peer.clone())) {
             Some(p) if !p.paused() => ActivityState::Active,
             _ => ActivityState::Silent,
+        }
+    }
+
+    async fn router_caps(&self, room: &RoomId) -> serde_json::Value {
+        // router_for spawns the worker on first use; a failure here is real
+        // (worker cannot start) — empty caps degrade gracefully and the error
+        // is visible at transport-create time which the client surfaces.
+        match self.supervisor.router_for(room).await {
+            Ok(router) => serde_json::to_value(router.rtp_capabilities())
+                .unwrap_or(serde_json::json!({"codecs": [], "headerExtensions": []})),
+            Err(_) => serde_json::json!({"codecs": [], "headerExtensions": []}),
         }
     }
 

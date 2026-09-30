@@ -368,10 +368,9 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                                 peer_id: peer.clone(),
                                 turn_creds: serde_json::json!({"uris": []}),
                             });
+                            let caps = media.router_caps(&state.id).await;
                             let _ = conn_sink.send(SignalingMessage::RouterCaps {
-                                media_codecs: serde_json::json!([
-                                    {"mimeType": "audio/opus", "channels": 1}
-                                ]),
+                                media_codecs: caps,
                             });
                             let delta = SignalingMessage::PeerJoined {
                                 info: state.members[&peer].info.clone(),

@@ -79,6 +79,9 @@ pub trait Sfu {
     /// E11 watchdog input: is `peer`'s uplink producing RTP right now?
     async fn media_activity(&self, room: &RoomId, peer: &PeerId) -> ActivityState;
 
+    /// Router RTP capabilities for the room (RouterCaps wire payload truth).
+    async fn router_caps(&self, room: &RoomId) -> serde_json::Value;
+
     /// Room reaped (idle TTL / admin): drop every media object for `room`.
     /// mediasoup: router cache entry (drop = close). Stub: room map entry.
     async fn destroy_room(&self, room: &RoomId);

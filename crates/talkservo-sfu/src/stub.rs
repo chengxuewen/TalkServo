@@ -237,6 +237,19 @@ impl Sfu for StubSfu {
         })
     }
 
+    async fn router_caps(&self, _room: &RoomId) -> serde_json::Value {
+        serde_json::json!({
+            "codecs": [{
+                "kind": "audio",
+                "mimeType": "audio/opus",
+                "clockRate": 48000,
+                "channels": 2,
+                "preferredPayloadType": 100
+            }],
+            "headerExtensions": []
+        })
+    }
+
     async fn destroy_room(&self, room: &RoomId) {
         self.with_state(|st| {
             st.rooms.remove(room.0.as_ref());

@@ -100,6 +100,10 @@ export class MediaManager {
   private producer: ProducerLike | null = null;
   private serverPaused = true; // server creates producers paused (D13)
   private handles = new Map<string, AudioHandleImpl>();
+  /** Consume{producer_id} → peer awaiting ConsumeOk (pull-model pairing). */
+  private pendingConsumes = new Map<string, string>();
+  /** Router caps from the server (device.load payload). */
+  routerCaps: unknown = null;
   private listeners = new Set<(e: MediaEvent) => void>();
   private stack: MediaStack;
 
@@ -120,6 +124,19 @@ export class MediaManager {
    *  drive handle release + gating truth. */
   attach(client: TalkServoClient): void {
     this.client = client;
+    // raw wire taps for the consume exchange (facade events don't carry these)
+    client.onMessage((msg) => {
+      if (msg.type === "router_caps") {
+        this.routerCaps = msg.media_codecs;
+      } else if (msg.type === "consume_ok") {
+        const pid = String(msg.producer_id);
+        const peer = this.pendingConsumes.get(pid);
+        if (peer) {
+          this.pendingConsumes.delete(pid);
+          void this.instantiateConsumer(peer, pid, msg.rtp_parameters);
+        }
+      }
+    });
     client.on((e) => {
       switch (e.kind) {
         case "state": {
@@ -176,6 +193,46 @@ export class MediaManager {
     this.emit({ kind: "audio-opened", peerId, handle: h });
     return h;
   }
+
+  /** Pull-model consume: request every granted peer's producer (J-step 7).
+   *  ConsumeOk completes the exchange via instantiateConsumer. */
+  consumeGranted(grants: string[], producerByPeer: Map<string, string>): void {
+    if (!this.client) return;
+    for (const peer of grants) {
+      if (this.handles.has(peer)) continue; // already consuming
+      const producerId = producerByPeer.get(peer);
+      if (!producerId) continue;
+      this.pendingConsumes.set(producerId, peer);
+      this.client.sendRaw({ type: "consume", producer_id: producerId });
+    }
+  }
+
+  /** Local mediasoup-client consumer instantiation (needs device.load'd caps
+   *  — the SDK consumer path; tests inject a fake RecvTransportLike). */
+  private async instantiateConsumer(
+    peerId: string,
+    producerId: string,
+    rtpParameters: unknown,
+  ): Promise<void> {
+    if (!this.recvFactory) return;
+    const recv = await this.recvFactory();
+    try {
+      await this.consume(
+        peerId,
+        producerId,
+        recv,
+        rtpParameters,
+      );
+    } catch {
+      this.pendingConsumes.set(producerId, peerId); // retry on next grant sweep
+    }
+  }
+
+  /** DI: recv transport factory (media slice wires mediasoup-client here). */
+  setRecvFactory(f: (() => Promise<RecvTransportLike>) | null): void {
+    this.recvFactory = f;
+  }
+  private recvFactory: (() => Promise<RecvTransportLike>) | null = null;
 
   /** Server told us our producer is (un)paused — the grant path. */
   setServerPaused(paused: boolean): void {

@@ -46,6 +46,13 @@ export class TalkServoClient {
     return () => this.listeners.delete(fn);
   }
 
+  /** Raw wire tap (media manager internal use: consume exchange pairing). */
+  onMessage(fn: (msg: ServerMessage) => void): () => void {
+    this.rawListeners.add(fn);
+    return () => this.rawListeners.delete(fn);
+  }
+  private rawListeners = new Set<(msg: ServerMessage) => void>();
+
   private emit(e: ClientEvent) {
     for (const fn of this.listeners) fn(e);
   }
@@ -112,7 +119,7 @@ export class TalkServoClient {
   private onSignal(e: SignalEvent) {
     switch (e.kind) {
       case "message":
-        this.onMessage(e.msg);
+        this.handleMessage(e.msg);
         return;
       case "open":
         // mirror keeps selfId across reconnects; request fresh truth (R1)
@@ -130,7 +137,8 @@ export class TalkServoClient {
     }
   }
 
-  private onMessage(msg: ServerMessage) {
+  private handleMessage(msg: ServerMessage) {
+    for (const fn of this.rawListeners) fn(msg);
     // TokenRefresh: cache for reconnect + surface (S-4)
     if (msg.type === "token_refresh") {
       this.signal?.updateToken(msg.jwt);
