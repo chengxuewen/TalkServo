@@ -121,6 +121,9 @@ impl Default for Supervisor {
     }
 }
 
+/// Live consumer registry key: (room, peer, consumer_id).
+type ConsumerKey = (RoomId, PeerId, String);
+
 /// The live host handed to the server task.
 #[derive(Clone)]
 pub struct MediasoupSfu {
@@ -131,7 +134,7 @@ pub struct MediasoupSfu {
     /// (room, peer) → producer (apply_floor diff target)
     producers: Arc<RwLock<HashMap<(RoomId, PeerId), mediasoup::producer::Producer>>>,
     /// (room, peer, consumer_id) → live consumer (drop = close)
-    consumers: Arc<RwLock<HashMap<(RoomId, PeerId, String), mediasoup::consumer::Consumer>>>,
+    consumers: Arc<RwLock<HashMap<ConsumerKey, mediasoup::consumer::Consumer>>>,
 }
 
 impl MediasoupSfu {
