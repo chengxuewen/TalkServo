@@ -56,3 +56,6 @@ None yet — this folder registers API/config/ops handbooks as product modules l
 | [research/internal/plan-review-p3.md](research/internal/plan-review-p3.md) | 2026-09-28 | plan-3 skeleton review: SUFFICIENT×5 notes | archived (frozen) |
 | [research/internal/plan-review-cross.md](research/internal/plan-review-cross.md) | 2026-09-28 | cross-chain: coherent, acceptance matrix 12/12 owned | archived (frozen) |
 | [research/internal/plan-review-consolidated.md](research/internal/plan-review-consolidated.md) | 2026-09-28 | merge: verdicts + fix routing (plan-1 blockers 4) | **actionable index** |
+| [research/internal/gap-review-rust.md](research/internal/gap-review-rust.md) | 2026-09-29 | rust lane: NEEDS×5 blocking (concurrency/lifecycle/gating) | archived (frozen) |
+| [research/internal/gap-review-sdk-web.md](research/internal/gap-review-sdk-web.md) | 2026-09-29 | sdk-web lane: NEEDS×1 blocking (StrictMode connect) | archived (frozen) |
+| [research/internal/gap-review-consolidated.md](research/internal/gap-review-consolidated.md) | 2026-09-29 | merge: 32→21 findings, fix-routed (plan-4 gate: 6) | **actionable index** |
