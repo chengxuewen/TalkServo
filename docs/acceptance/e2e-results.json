@@ -1,0 +1,20 @@
+{
+  "_comment": "Acceptance automation results — plan-4 T2. Regenerate: web/ npx playwright test (signaling lane: default; media lane: TS_E2E_FEATURES=live). Rows map to architecture.md §4.",
+  "generated": "2026-09-30",
+  "environment": "local-loopback, chromium fake-device, live mediasoup worker",
+  "rows": [
+    {"id": 1, "name": "hold exclusive, others denied", "status": "pass", "evidence": "web/e2e/floor.spec.ts (P/X/R row) + media_flow tests"},
+    {"id": 2, "name": "A audible to B/C", "status": "partial", "note": "consume chain live-verified (rtp_parameters mid asserted); listener <audio> element wiring pending — audible RMS assertion lands with it", "evidence": "live_mediasoup.rs::consume_across_peers"},
+    {"id": 3, "name": "release → idle", "status": "pass", "evidence": "floor.spec + floor_rules r2"},
+    {"id": 4, "name": "preempt strictly-higher", "status": "pass", "evidence": "floor.spec X row + r5 tests"},
+    {"id": 5, "name": "holder drop → auto-release", "status": "pass", "evidence": "timers_flow e11 + heartbeat E1"},
+    {"id": 6, "name": "R1 reconnect snapshot restore", "status": "pass", "evidence": "floor.spec R1 row"},
+    {"id": 7, "name": "E6 worker kill recovery measured", "status": "pass", "evidence": "live_e6_kill_notifies_and_respawns (real worker)"},
+    {"id": 8, "name": "FEC A/B ≥30% concealment reduction", "status": "pending", "note": "T3 harness — netem loopback run"},
+    {"id": 9, "name": "ICE classes host/srflx/relay", "status": "pending", "note": "VPS slice (public host)"},
+    {"id": 10, "name": "P-latency budgets", "status": "pending", "note": "T3 harness run"},
+    {"id": 11, "name": "E11 zombie holder", "status": "pass", "evidence": "timers_flow e11 + live_e11_activity_truth_source (observer truth)"},
+    {"id": 12, "name": "D13 idle uplink zero payload", "status": "partial", "note": "server-pause gate proven (D13 tests + apply_floor wiring); client getStats byte-count assertion pending pc exposure"}
+  ],
+  "summary": {"pass": 7, "partial": 2, "pending": 3}
+}

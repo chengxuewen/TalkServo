@@ -111,6 +111,11 @@ export class MediaManager {
     this.stack = opts.stack;
   }
 
+  /** The wired stack (session layer drives transports through it). */
+  stackRef(): MediaStack {
+    return this.stack;
+  }
+
   on(fn: (e: MediaEvent) => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
@@ -249,6 +254,10 @@ export class MediaManager {
     this.recvFactory = f;
   }
   private recvFactory: (() => Promise<RecvTransportLike>) | null = null;
+
+  /** getStats access for acceptance measurements (#12 byte proofs): the
+   *  real stack wires this to the underlying RTCPeerConnection. */
+  getStats: (() => Promise<unknown>) | null = null;
 
   /** Server told us our producer is (un)paused — the grant path. */
   setServerPaused(paused: boolean): void {

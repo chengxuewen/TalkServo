@@ -19,9 +19,14 @@ export default async function () {
   // carries the toolchain env (CC/LIBCLANG); plain `cargo` on PATH may be a
   // different build whose rust-embed folder resolution diverges.
   const PIXI = path.join(process.env.HOME ?? "", ".pixi", "bin", "pixi");
+  // live lane: sfu-mediasoup + embedded-web (pages served by the same binary)
+  const FEATURES =
+    process.env.TS_E2E_FEATURES === "live"
+      ? "embedded-web,sfu-mediasoup"
+      : (process.env.TS_E2E_FEATURES ?? "embedded-web,stub-media");
   const build = spawnSync(
     PIXI,
-    ["run", "cargo", "build", "-p", "talkservo-server", "--no-default-features", "--features", "embedded-web,stub-media"],
+    ["run", "cargo", "build", "-p", "talkservo-server", "--no-default-features", "--features", FEATURES],
     { cwd: REPO, stdio: "inherit" },
   );
   if (build.status !== 0) throw new Error(`cargo build failed: ${build.status}`);

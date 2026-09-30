@@ -164,6 +164,10 @@ export function FieldPage() {
       {/* audio cues (grant/deny/taken) via WebAudio beeps — iOS unlock on join */}
       <AudioCues a11y={a11y} connected={status.connected} mirror={mirror} selfId={status.selfId} />
 
+      {/* remote audio pool: one <audio autoplay> per consumed peer — the
+          media manager attaches tracks here (acceptance #2 audible proof) */}
+      <div id="ts-audio-pool" style={{ display: "none" }} />
+
       <Drawer title="Settings" open={drawerOpen} onClose={() => setDrawerOpen(false)} width={320}>
         <Space direction="vertical">
           <Text>Accessibility announcements</Text>

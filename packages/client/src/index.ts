@@ -108,6 +108,20 @@ export class TalkServoClient {
     this.send(msg);
   }
 
+  /** J-step 3: TransportCreate → resolves with TransportInfo. */
+  requestTransport(): Promise<{ ice: unknown; dtls: unknown; addrs: unknown }> {
+    return new Promise((resolve) => {
+      const off = this.onMessage((msg) => {
+        if (msg.type === "transport_info") {
+          off();
+          resolve({ ice: msg.ice, dtls: msg.dtls, addrs: msg.addrs });
+        }
+      });
+      this.send({ type: "transport_create" });
+      void off;
+    });
+  }
+
   get protocolVersion(): number {
     return PROTOCOL_VERSION;
   }
@@ -179,4 +193,5 @@ export class TalkServoClient {
 export * from "./types.js";
 export * from "./media.js";
 export type { LikeWebSocket, SignalOptions } from "./signal.js";
+export { MediasoupClientStack } from "./mediasoup-stack.js";
 export { initialMirror, type FloorMirror } from "./store.js";

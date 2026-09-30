@@ -5,6 +5,8 @@
 import { useSyncExternalStore } from "react";
 import {
   TalkServoClient,
+  MediaManager,
+  MediasoupClientStack,
   type ClientEvent,
   type FloorMirror,
   type Role,
@@ -13,6 +15,7 @@ import {
 
 export interface RoomSession {
   client: TalkServoClient;
+  media: MediaManager;
   mirror: FloorMirror;
   events: ClientEvent[];
   connected: boolean;
@@ -58,8 +61,10 @@ export function ensureSession(
   if (existing) return existing;
 
   const client = new TalkServoClient({ role, ...(wsFactory ? { wsFactory } : {}) });
+  const media = new MediaManager({ stack: new MediasoupClientStack() });
   const session: RoomSession = {
     client,
+    media,
     mirror: {
       mode: "hybrid",
       grants: [],
@@ -74,6 +79,7 @@ export function ensureSession(
     selfId: null,
     connectPromise: null,
   };
+  media.attach(client);
   client.on((e) => {
     switch (e.kind) {
       case "state":
@@ -112,7 +118,8 @@ export async function connectSession(
   if (s.connected) return;
   s.connectPromise = s.client
     .connect(url, jwt)
-    .then(() => {
+    .then(async () => {
+      await wireMedia(s);
       s.connectPromise = null;
     })
     .catch((err) => {
@@ -140,6 +147,32 @@ function notify(key: string) {
 function subscribe(fn: () => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
+}
+
+/** Media orchestration: device load + transports + produce/consume wiring.
+ *  Browser-only (mediasoup-stack); unit tests never hit this path. */
+async function wireMedia(s: RoomSession): Promise<void> {
+  if (typeof window === "undefined") return;
+  const stack = s.media.stackRef();
+  if (!stack) return;
+  try {
+    // RouterCaps arrived during the join burst — device loads from it
+    await stack.load(s.media.routerCaps ?? {});
+    // transports: TransportCreate → TransportInfo pairs ride the raw wire
+    const info = await s.client.requestTransport();
+    await stack.createSendTransport({ ice: info.ice, dtls: info.dtls });
+    await stack.createRecvTransport({ ice: info.ice, dtls: info.dtls });
+    // mic publish (paused server-side until granted — D13)
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const track = stream.getAudioTracks()[0];
+    if (track) await s.media.publishMic(track);
+    s.media.setRecvFactory(async () => {
+      if (!("createRecvTransport" in stack)) throw new Error("no recv");
+      return stack.createRecvTransport({ ice: info.ice, dtls: info.dtls });
+    });
+  } catch (err) {
+    console.warn("[talkservo] media setup failed (signaling still live):", err);
+  }
 }
 
 /** Live mirror snapshot for a session (re-renders on wire events). */

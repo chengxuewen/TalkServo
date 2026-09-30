@@ -27,26 +27,35 @@ interface AnyTransport {
  * via ProduceOk and the session layer reconciles (pending-produce map).
  */
 export class MediasoupClientStack implements MediaStack {
-  private device = new Device();
+  /** Lazy: constructing Device requires WebRTC (browser) — unit/jsdom
+   *  environments never reach load(), so defer the constructor. */
+  private device: Device | null = null;
   private sendTransport: AnyTransport | null = null;
   private recvTransport: AnyTransport | null = null;
 
+  private dev(): Device {
+    if (!this.device) this.device = new Device();
+    return this.device;
+  }
+
   async load(caps: unknown): Promise<void> {
-    if (!this.device.loaded) {
-      await this.device.load({ routerRtpCapabilities: caps as never });
+    const dev = this.dev();
+    if (!dev.loaded) {
+      await dev.load({ routerRtpCapabilities: caps as never });
     }
   }
 
   get loaded(): boolean {
-    return this.device.loaded;
+    return this.device?.loaded ?? false;
   }
 
   async createSendTransport(params: {
     ice: unknown;
     dtls: unknown;
   }): Promise<SendTransportLike> {
-    if (!this.device.loaded) throw new Error("device not loaded");
-    const t = this.device.createSendTransport({
+    const dev = this.dev();
+    if (!dev.loaded) throw new Error("device not loaded");
+    const t = this.dev().createSendTransport({
       iceParameters: params.ice as never,
       iceCandidates: [
         // server sends addrs:[] — synthesize a host candidate (fake-device
@@ -73,8 +82,9 @@ export class MediasoupClientStack implements MediaStack {
     ice: unknown;
     dtls: unknown;
   }): Promise<RecvTransportLike> {
-    if (!this.device.loaded) throw new Error("device not loaded");
-    const t = this.device.createRecvTransport({
+    const dev = this.dev();
+    if (!dev.loaded) throw new Error("device not loaded");
+    const t = this.dev().createRecvTransport({
       iceParameters: params.ice as never,
       iceCandidates: [],
       dtlsParameters: params.dtls as never,
