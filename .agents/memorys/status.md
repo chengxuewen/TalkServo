@@ -1,6 +1,6 @@
 # TalkServo Status
 
-**Generated**: 2026-09-29 | Decisions: 16 entries | Phase: plan-3 web+SDK LANDED (live mediasoup host done; consume/e2e-browser = next slice) | Branch: main
+**Generated**: 2026-09-30 | Decisions: 16 entries | Phase: plan-4 local slice LANDED (full-duplex live audio verified end-to-end: dir-split transports, 89ms keydown→flow latency, audible+latency+signaling e2e green; VPS slice T4-T5 pending host) | Branch: main
 
 > TalkServo is a sister project of MediaServo (same RTC domain). Engineering lessons are accumulated from scratch;
 > MediaServo's historical ledgers live in its own repository under `.agents/memorys/` — they are not migrated here and must not impersonate this project's history.

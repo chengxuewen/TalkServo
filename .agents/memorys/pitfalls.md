@@ -37,3 +37,18 @@
 - **Root cause**: citation strings treated as trustworthy metadata rather than claims; lead never joined spec-ids to canonical titles during dossier write.
 - **Solution**: for any external standard/RFC/section id an artifact cites, verify title (datatracker/curl) before commit; corrections to frozen dossiers go in a new dated file (done: architecture-review-media.md M-9), never back-write.
 - **Verification**: `grep -rhoP 'RFC \d{4}' docs/reference/research/ | sort -u` then spot-check titles via https://datatracker.ietf.org/doc/rfcNNNN/.
+## PIT-5: JSON-string wire ids read via Display embed quotes — three separate denials from one pattern (2026-09-30)
+- **Symptom**: consume requests permanently denied; producer registry never matched consume ids on the live path (stub tests masked it — only the deny branch had coverage).
+- **Root cause**: `serde_json::Value` variants carrying string ids were read with `.to_string()` (Display → `"id"` WITH quotes) in three places (Consume gate, ProduceOk registry note, media.rs consume) while registries stored bare ids.
+- **Solution**: `value.as_str().unwrap_or_default()` everywhere a wire JSON string feeds an id comparison; added an ALLOWED-path stub test next to the deny one.
+- **Verification**: `grep -rn "\.to_string()" crates/talkservo-server/src/ | grep -i "producer_id\|pid"` returns no Value-typed hits; live e2e consume flows (audible row) pass.
+## PIT-6: mediasoup transports need a direction dimension — single-slot registries silently overwrite (2026-09-30)
+- **Symptom**: producer score stayed empty (zero RTP uplink) even though both browser transports showed "connected"; audio only flowed one way or not at all.
+- **Root cause**: server kept one transport per (room, peer); the recv transport overwrote the send one, so produce() landed on the wrong transport. E2E masked it for weeks because produce/announce/consume all "succeeded" as wire operations.
+- **Solution**: wire carries `TransportCreate{dir}` / `TransportConnect{dir}` (additive, default "send"); transports keyed (room, peer, dir); producers bind to send, consumers to recv; peer_left cleans both.
+- **Verification**: live e2e `holder audible` row passes with byte-growth assertion; producer score reaches 10 after resume.
+## PIT-7: 0.0.0.0-bind + announced-address produced dead UDP candidates on this host (2026-09-30)
+- **Symptom**: browser ICE stuck "connecting" forever; manual STUN to the worker port timed out; no error anywhere.
+- **Root cause**: ListenInfo ip=0.0.0.0 with announced_address=Some(127.0.0.1) did not produce working sockets here (environment-specific mediasoup behavior).
+- **Solution**: dev/e2e default binds 127.0.0.1 directly (dialable candidate, no translation); TS_ANNOUNCED_IP env switches to 0.0.0.0+announced for real deploys.
+- **Verification**: `TS_E2E_FEATURES=live npx playwright test --grep "holder audible"` passes; transport connectionState reaches "connected" in the e2e log.
