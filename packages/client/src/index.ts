@@ -122,6 +122,28 @@ export class TalkServoClient {
     });
   }
 
+  /** J-step 6: Produce → resolves with the server's producer id. */
+  produce(rtpParameters: unknown): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const off = this.onMessage((msg) => {
+        if (msg.type === "produce_ok") {
+          off();
+          resolve(String(msg.producer_id));
+        } else if (msg.type === "error") {
+          off();
+          reject(new Error(`${msg.code}: ${msg.detail}`));
+        }
+      });
+      this.send({ type: "produce", rtp_parameters: rtpParameters });
+      void off;
+    });
+  }
+
+  /** J-step 5: TransportConnect. */
+  connectTransport(dtls: unknown): void {
+    this.send({ type: "transport_connect", dtls });
+  }
+
   get protocolVersion(): number {
     return PROTOCOL_VERSION;
   }

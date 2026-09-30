@@ -33,10 +33,10 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1790753994823211488,
+        "generation": 1790757312261142292,
         "peers": [
           {
-            "connected_since_ms": 1790753994823,
+            "connected_since_ms": 1790757312261,
             "id": "chief",
             "role": "dispatch"
           }
@@ -47,16 +47,16 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1790753994823211488,
+        "generation": 1790757312261142292,
         "payload": {
-          "generation": 1790753994823211488,
+          "generation": 1790757312261142292,
           "grants": [],
           "mode": "hybrid",
           "muted": [],
           "payload": "dispatch",
           "peers": [
             {
-              "connected_since_ms": 1790753994823,
+              "connected_since_ms": 1790757312261,
               "id": "chief",
               "role": "dispatch"
             }
@@ -98,15 +98,15 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1790753994823211488,
+        "generation": 1790757312261142292,
         "peers": [
           {
-            "connected_since_ms": 1790753994823,
+            "connected_since_ms": 1790757312261,
             "id": "chief",
             "role": "dispatch"
           },
           {
-            "connected_since_ms": 1790753995166,
+            "connected_since_ms": 1790757312608,
             "id": "alpha",
             "role": "field"
           }
@@ -117,21 +117,21 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1790753994823211488,
+        "generation": 1790757312261142292,
         "payload": {
-          "generation": 1790753994823211488,
+          "generation": 1790757312261142292,
           "grants": [],
           "mode": "hybrid",
           "muted": [],
           "payload": "field",
           "peers": [
             {
-              "connected_since_ms": 1790753994823,
+              "connected_since_ms": 1790757312261,
               "id": "chief",
               "role": "dispatch"
             },
             {
-              "connected_since_ms": 1790753995166,
+              "connected_since_ms": 1790757312608,
               "id": "alpha",
               "role": "field"
             }
@@ -143,9 +143,9 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1790753994823211488,
+        "generation": 1790757312261142292,
         "info": {
-          "connected_since_ms": 1790753995166,
+          "connected_since_ms": 1790757312608,
           "id": "alpha",
           "role": "field"
         },
@@ -155,21 +155,21 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1790753994823211489,
+        "generation": 1790757312261142293,
         "payload": {
-          "generation": 1790753994823211489,
+          "generation": 1790757312261142293,
           "grants": [],
           "mode": "exclusive",
           "muted": [],
           "payload": "dispatch",
           "peers": [
             {
-              "connected_since_ms": 1790753994823,
+              "connected_since_ms": 1790757312261,
               "id": "chief",
               "role": "dispatch"
             },
             {
-              "connected_since_ms": 1790753995166,
+              "connected_since_ms": 1790757312608,
               "id": "alpha",
               "role": "field"
             }
@@ -182,21 +182,21 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1790753994823211489,
+        "generation": 1790757312261142293,
         "payload": {
-          "generation": 1790753994823211489,
+          "generation": 1790757312261142293,
           "grants": [],
           "mode": "exclusive",
           "muted": [],
           "payload": "field",
           "peers": [
             {
-              "connected_since_ms": 1790753994823,
+              "connected_since_ms": 1790757312261,
               "id": "chief",
               "role": "dispatch"
             },
             {
-              "connected_since_ms": 1790753995166,
+              "connected_since_ms": 1790757312608,
               "id": "alpha",
               "role": "field"
             }
@@ -208,7 +208,7 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1790753994823211490,
+        "generation": 1790757312261142294,
         "grants": [
           "alpha"
         ],
@@ -218,7 +218,7 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1790753994823211490,
+        "generation": 1790757312261142294,
         "grants": [
           "alpha"
         ],
@@ -229,14 +229,14 @@
       "from": "dispatcher",
       "msg": {
         "by": "chief",
-        "generation": 1790753994823211491,
+        "generation": 1790757312261142295,
         "type": "floor_taken"
       }
     },
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1790753994823211491,
+        "generation": 1790757312261142295,
         "grants": [
           "chief"
         ],
@@ -247,14 +247,14 @@
       "from": "alpha",
       "msg": {
         "by": "chief",
-        "generation": 1790753994823211491,
+        "generation": 1790757312261142295,
         "type": "floor_taken"
       }
     },
     {
       "from": "alpha",
       "msg": {
-        "generation": 1790753994823211491,
+        "generation": 1790757312261142295,
         "grants": [
           "chief"
         ],
@@ -264,7 +264,7 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1790753994823211492,
+        "generation": 1790757312261142296,
         "reason": null,
         "type": "floor_idle"
       }
@@ -272,7 +272,7 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1790753994823211492,
+        "generation": 1790757312261142296,
         "reason": null,
         "type": "floor_idle"
       }
@@ -280,27 +280,55 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1790753994823211492,
+        "generation": 1790757312261142296,
         "payload": {
-          "generation": 1790753994823211492,
+          "generation": 1790757312261142296,
           "grants": [],
           "mode": "exclusive",
           "muted": [],
           "payload": "field",
           "peers": [
             {
-              "connected_since_ms": 1790753994823,
+              "connected_since_ms": 1790757312261,
               "id": "chief",
               "role": "dispatch"
             },
             {
-              "connected_since_ms": 1790753995166,
+              "connected_since_ms": 1790757312608,
               "id": "alpha",
               "role": "field"
             }
           ]
         },
         "type": "server_snapshot"
+      }
+    },
+    {
+      "from": "dispatcher",
+      "msg": {
+        "addrs": [],
+        "dtls": {
+          "fingerprint": "stub"
+        },
+        "ice": {
+          "ufrag": "stub-chief"
+        },
+        "type": "transport_info"
+      }
+    },
+    {
+      "from": "dispatcher",
+      "msg": {
+        "producer_id": "prod-chief-1",
+        "type": "produce_ok"
+      }
+    },
+    {
+      "from": "dispatcher",
+      "msg": {
+        "peer": "chief",
+        "producer_id": "prod-chief-1",
+        "type": "producer_available"
       }
     }
   ],

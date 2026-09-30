@@ -93,6 +93,10 @@ export interface MediaManagerOptions {
   stack: MediaStack;
 }
 
+function producerIdValue(id: string): unknown {
+  return id;
+}
+
 /** Owns the send track + per-peer consumer handles; reacts to floor events. */
 export class MediaManager {
   private client: TalkServoClient | null = null;
@@ -104,6 +108,20 @@ export class MediaManager {
   private pendingConsumes = new Map<string, string>();
   /** Router caps from the server (device.load payload). */
   routerCaps: unknown = null;
+
+  /** Resolves when RouterCaps lands (join burst races media setup).
+   *  Polls: the caps write happens on the raw wire tap, not the event stream. */
+  waitForCaps(timeoutMs = 5000): Promise<unknown> {
+    const start = Date.now();
+    return new Promise((resolve, reject) => {
+      const poll = () => {
+        if (this.routerCaps !== null) return resolve(this.routerCaps);
+        if (Date.now() - start > timeoutMs) return reject(new Error("router_caps timeout"));
+        setTimeout(poll, 50);
+      };
+      poll();
+    });
+  }
   private listeners = new Set<(e: MediaEvent) => void>();
   private stack: MediaStack;
 
@@ -132,11 +150,18 @@ export class MediaManager {
     // raw wire taps for the consume exchange (facade events don't carry these)
     client.onMessage((msg) => {
       if (msg.type === "router_caps") {
+        console.log("[talkservo] router_caps captured:", JSON.stringify(msg.media_codecs).slice(0, 120));
         this.routerCaps = msg.media_codecs;
       } else if (msg.type === "producer_available") {
-        // pull model: remember the mapping; the grant sweep consumes
+        // pull model: LISTENING needs no grant — D13 gates the SPEAKER's
+        // uplink, not listeners' downlinks. Every announced producer is
+        // consumable by room members (server re-checks the gate).
         this.producerByPeer.set(msg.peer, String(msg.producer_id));
-        this.consumeGrantedNow();
+        if (!this.handles.has(msg.peer)) {
+          const pid = String(msg.producer_id);
+          this.pendingConsumes.set(pid, msg.peer);
+          this.client?.sendRaw({ type: "consume", producer_id: producerIdValue(pid) });
+        }
       } else if (msg.type === "consume_ok") {
         const pid = String(msg.producer_id);
         const peer = this.pendingConsumes.get(pid);
@@ -154,8 +179,10 @@ export class MediaManager {
           for (const peer of [...this.handles.keys()]) {
             if (!granted.has(peer)) this.releasePeer(peer);
           }
-          // new grants trigger the consume sweep (announcement may precede)
-          this.grants = e.mirror.grants;
+          // any state change re-runs the listen sweep: consume_denied earlier
+          // (holder not yet granted) retries once the holder IS granted —
+          // listening needs no own grant (D13 gates the uplink, not downlinks)
+          this.grants = [...this.producerByPeer.keys()];
           this.consumeGrantedNow();
           return;
         }
@@ -176,13 +203,29 @@ export class MediaManager {
   async publishMic(track: MediaStreamTrack): Promise<void> {
     if (!this.client) throw new Error("attach() first");
     this.micTrack = track;
-    // PoC transport creation rides the signal channel; the send transport is
-    // created on demand by the full stack — here we only pin codec options and
-    // truth state. The transport/produce exchange is exercised via sendRaw.
-    this.client.sendRaw({ type: "transport_create" });
-    this.serverPaused = true;
+    // Full J-step 6 (was a stub that only pinged transport_create — measured:
+    // the server never saw a producer and D13 had nothing to gate):
+    // the SESSION wires sendMic (produce ride via facade.produce pairing).
+    if (!this.sendMic) {
+      this.serverPaused = true;
+      this.emitMicTruth();
+      return;
+    }
+    try {
+      const producerId = await this.sendMic(track);
+      this.producerByPeer.set(this.client.state.selfId ?? "self", producerId);
+    } catch (e) {
+      console.warn("[talkservo] mic produce failed:", e);
+    }
+    this.serverPaused = true; // created paused (D13); grant resumes server-side
     this.emitMicTruth();
   }
+
+  /** Session-provided produce ride: track → mediasoup produce → server id. */
+  setSendMic(f: ((track: MediaStreamTrack) => Promise<string>) | null): void {
+    this.sendMic = f;
+  }
+  private sendMic: ((track: MediaStreamTrack) => Promise<string>) | null = null;
 
   /** Consume a remote producer into an AudioHandle (J-step 7). */
   async consume(
@@ -219,9 +262,17 @@ export class MediaManager {
     this.consumeGrantedNow();
   }
 
+  /** Keep self in sync — self-produce means no self-consume. */
+  private pruneSelfHandle(): void {
+    const self = this.client?.state.selfId;
+    if (self && this.handles.has(self)) this.releasePeer(self);
+  }
+
   private consumeGrantedNow(): void {
+    const self = this.client?.state.selfId;
     if (!this.client) return;
-    for (const peer of this.grants) {
+    for (const peer of this.producerByPeer.keys()) {
+      if (peer === self) continue; // never consume yourself
       if (this.handles.has(peer)) continue; // already consuming
       const producerId = this.producerByPeer.get(peer);
       if (!producerId) continue;

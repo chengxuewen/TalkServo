@@ -424,6 +424,16 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             });
                             let snap = state.snapshot_for(&peer);
                             let _ = conn_sink.send(snap);
+                            // late-joiner catch-up: announce every EXISTING
+                            // producer so the newcomer can consume (measured:
+                            // announcements broadcast at produce time miss
+                            // peers who join afterwards)
+                            for (owner, producer_id) in state.producers_list() {
+                                let _ = conn_sink.send(SignalingMessage::ProducerAvailable {
+                                    peer: owner.clone(),
+                                    producer_id: serde_json::json!(producer_id),
+                                });
+                            }
                             let (_wire_tx, wire_rx) = mpsc::channel(64);
                             let _ = reply.send(Ok(wire_rx));
                         }
@@ -464,6 +474,13 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                                 continue;
                             }
                         }
+                        // modules/05 media-plane events (transport_create/
+                        // produce_ok/transport_fail) with full room/peer/gen
+                        let media_event = match &msg {
+                            SignalingMessage::TransportCreate => Some(obs::Event::TransportCreate),
+                            SignalingMessage::Produce { .. } => Some(obs::Event::ProduceOk),
+                            _ => None,
+                        };
                         let replies = crate::media::handle_media_message(
                             media.as_ref(),
                             &state.id,
@@ -473,6 +490,15 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             app.config.transport_guardrail,
                         )
                         .await;
+                        if let Some(ev) = media_event {
+                            obs::event(
+                                state.id.0.as_ref(),
+                                from.0.as_ref(),
+                                state.floor.generation(),
+                                ev,
+                                serde_json::json!({}),
+                            );
+                        }
                         // direct replies go to the producer FIRST (ordering
                         // pin: owner learns its id before the room does)
                         if let Some(m) = state.members.get(&from) {

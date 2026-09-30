@@ -19,6 +19,7 @@ pub struct MediaCtx {
 
 /// Route one media wire message through the sfu host.
 /// Returns direct replies for the requester.
+#[allow(clippy::too_many_arguments)]
 pub async fn handle_media_message<M: Sfu + Sync + 'static>(
     media: &M,
     room: &RoomId,
@@ -75,8 +76,11 @@ pub async fn handle_media_message<M: Sfu + Sync + 'static>(
             }
         }
         SignalingMessage::Consume { producer_id } => {
+            // wire producer_id is a JSON string value — as_str(), not
+            // to_string() (which would embed the quotes)
+            let pid_str = producer_id.as_str().unwrap_or_default().to_string();
             match media
-                .consume(room, from, &ProducerId(producer_id.to_string()))
+                .consume(room, from, &ProducerId(pid_str))
                 .await
             {
                 Ok((consumer_id, params)) => vec![SignalingMessage::ConsumeOk {

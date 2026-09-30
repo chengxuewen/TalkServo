@@ -80,10 +80,14 @@ export function ensureSession(
     connectPromise: null,
   };
   media.attach(client);
-  client.on((e) => {
-    switch (e.kind) {
-      case "state":
-        session.mirror = e.mirror;
+    if (typeof window !== "undefined") {
+      // e2e diagnostics: last session per role:room key
+      (window as unknown as { __tsSessions?: Map<string, RoomSession> }).__tsSessions = sessions;
+    }
+    client.on((e) => {
+      switch (e.kind) {
+        case "state":
+          session.mirror = e.mirror;
         break;
       case "connected":
         session.connected = true;
@@ -156,22 +160,36 @@ async function wireMedia(s: RoomSession): Promise<void> {
   const stack = s.media.stackRef();
   if (!stack) return;
   try {
-    // RouterCaps arrived during the join burst — device loads from it
-    await stack.load(s.media.routerCaps ?? {});
+    // RouterCaps races the join burst — WAIT for it (measured: connecting
+    // immediately read {} because the burst hadn't been processed yet)
+    const caps = await s.media.waitForCaps();
+    await stack.load(caps);
     // transports: TransportCreate → TransportInfo pairs ride the raw wire
     const info = await s.client.requestTransport();
+    // J-step 5/6 ride the signal channel via the stack's adapters
+    // wire shape: server expects {dtlsParameters} (RemoteParameters camelCase)
+    (stack as unknown as { sendConnect: (d: unknown) => void }).sendConnect =
+      (d: unknown) => s.client.connectTransport({ dtlsParameters: d });
+    (stack as unknown as { sendProduce: (r: unknown) => Promise<string> }).sendProduce =
+      (r: unknown) => s.client.produce(r);
     await stack.createSendTransport({ ice: info.ice, dtls: info.dtls });
     await stack.createRecvTransport({ ice: info.ice, dtls: info.dtls });
     // mic publish (paused server-side until granted — D13)
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const track = stream.getAudioTracks()[0];
+    // produce ride: mediasoup send transport → facade.produce pairing
+    const sendT = await stack.createSendTransport({ ice: info.ice, dtls: info.dtls });
+    s.media.setSendMic(async (t) => {
+      const handle = await sendT.produce({ track: t });
+      return handle.id;
+    });
     if (track) await s.media.publishMic(track);
     s.media.setRecvFactory(async () => {
       if (!("createRecvTransport" in stack)) throw new Error("no recv");
       return stack.createRecvTransport({ ice: info.ice, dtls: info.dtls });
     });
   } catch (err) {
-    console.warn("[talkservo] media setup failed (signaling still live):", err);
+    console.warn("[talkservo] media setup failed:", err, (err as Error)?.stack);
   }
 }
 

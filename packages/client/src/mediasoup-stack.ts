@@ -33,6 +33,12 @@ export class MediasoupClientStack implements MediaStack {
   private sendTransport: AnyTransport | null = null;
   private recvTransport: AnyTransport | null = null;
 
+  /** Signal adapters (session wires these to the facade) — the J-steps 5/6
+   *  ride the wire; without them the server never learns of the transport
+   *  or the producer (measured: announcements never fired without this). */
+  sendConnect: (dtls: unknown) => void = () => {};
+  sendProduce: (rtpParameters: unknown) => Promise<string> = async () => "";
+
   private dev(): Device {
     if (!this.device) this.device = new Device();
     return this.device;
@@ -41,8 +47,16 @@ export class MediasoupClientStack implements MediaStack {
   async load(caps: unknown): Promise<void> {
     const dev = this.dev();
     if (!dev.loaded) {
-      await dev.load({ routerRtpCapabilities: caps as never });
+      try {
+        await dev.load({ routerRtpCapabilities: caps as never });
+      } catch (e) {
+        console.warn("[talkservo-stack] device.load failed:", (e as Error).message,
+          "caps:", JSON.stringify(caps).slice(0, 400));
+        throw e;
+      }
     }
+    console.log("[talkservo-stack] device loaded, audio capable:",
+      JSON.stringify(dev.rtpCapabilities?.codecs?.map((c) => (c as { mimeType?: string }).mimeType) ?? []));
   }
 
   get loaded(): boolean {
@@ -56,6 +70,9 @@ export class MediasoupClientStack implements MediaStack {
     const dev = this.dev();
     if (!dev.loaded) throw new Error("device not loaded");
     const t = this.dev().createSendTransport({
+      // 3.18 requires a caller-supplied transport id (local handle; the wire
+      // TransportInfo carries no id — the DTLS/ICE params are the substance)
+      id: `ts-send-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       iceParameters: params.ice as never,
       iceCandidates: [
         // server sends addrs:[] — synthesize a host candidate (fake-device
@@ -72,8 +89,23 @@ export class MediasoupClientStack implements MediaStack {
       ],
       dtlsParameters: params.dtls as never,
     } as never) as unknown as AnyTransport;
-    t.on("connect", (_p, callback) => callback());
-    t.on("produce", (_p, callback) => callback({ id: `pending-${Date.now()}` }));
+    t.on("connect", ({ dtlsParameters }: { dtlsParameters: unknown }, callback: () => void) => {
+      // J-step 5: tell the server (it completes the server-side transport)
+      this.sendConnect(dtlsParameters);
+      callback();
+    });
+    t.on("produce", async ({ rtpParameters }, callback, errback) => {
+      // J-step 6: server produces (paused, D13); ProduceOk carries the id
+      try {
+        console.log("[talkservo-stack] produce event → signal ride");
+        const id = await this.sendProduce(rtpParameters);
+        console.log("[talkservo-stack] produce ride resolved:", id);
+        callback({ id });
+      } catch (e) {
+        console.warn("[talkservo-stack] produce ride failed:", e);
+        errback(e as Error);
+      }
+    });
     this.sendTransport = t;
     return wrapSend(t);
   }
@@ -85,6 +117,7 @@ export class MediasoupClientStack implements MediaStack {
     const dev = this.dev();
     if (!dev.loaded) throw new Error("device not loaded");
     const t = this.dev().createRecvTransport({
+      id: `ts-recv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       iceParameters: params.ice as never,
       iceCandidates: [],
       dtlsParameters: params.dtls as never,

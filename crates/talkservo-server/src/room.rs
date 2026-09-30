@@ -261,6 +261,14 @@ impl RoomState {
                 })
     }
 
+    /// Snapshot of the producer registry (late-joiner announcements).
+    pub fn producers_list(&self) -> Vec<(PeerId, String)> {
+        self.producers_by_peer
+            .iter()
+            .map(|(p, pid)| (p.clone(), pid.clone()))
+            .collect()
+    }
+
     /// Record a produced producer id for its owner (ProduceOk path).
     pub fn note_producer(&mut self, peer: &PeerId, producer_id: String) {
         self.producers_by_peer.insert(peer.clone(), producer_id);

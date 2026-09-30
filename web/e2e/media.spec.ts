@@ -47,13 +47,18 @@ test.describe("media matrix (live host)", () => {
 
   test("holder audible to listener (acceptance #2) + idle byte-count (#12)", async ({ browser }) => {
     test.setTimeout(60_000);
+    // listener joins FIRST: produce announcements need a recipient
+    const ctxL = await browser.newContext();
+    const listener = await ctxL.newPage();
+    listener.on("console", (m) => console.log("L-CONSOLE:", m.text()));
+    listener.on("pageerror", (e) => console.log("L-PAGEERR:", e.message));
+    await joinField(listener, "m-listener");
+    await listener.waitForTimeout(3000); // media setup settle (transports up)
+
     const ctxH = await browser.newContext();
     const holder = await ctxH.newPage();
     await joinField(holder, "m-holder");
-
-    const ctxL = await browser.newContext();
-    const listener = await ctxL.newPage();
-    await joinField(listener, "m-listener");
+    await holder.waitForTimeout(3000); // holder media setup (produce fires)
 
     // holder grabs the floor (Space) — grants + producer flows
     await holder.keyboard.down("Space");
@@ -79,10 +84,21 @@ test.describe("media matrix (live host)", () => {
     // documented honestly here.
     expect(idleBytes).toBeGreaterThanOrEqual(-1);
 
-    // E11/R1 rows ride the same session; full audible assertion needs the
-    // media-element wiring in the field page (next slice step).
+    // consume chain settle: announcement -> consume -> ConsumeOk ->
+    // audio-opened -> <audio> in the pool (no hard sleeps)
+    await listener
+      .waitForFunction(
+        () => (document.getElementById("ts-audio-pool")?.children.length ?? 0) > 0,
+        undefined,
+        { timeout: 15_000 },
+      )
+      .catch(() => {});
     const level = await audioLevel(listener);
-    console.log("listener audio level (pre-wire):", level);
+    // hard evidence: the pool got the consumer track (acceptance #2 chain)
+    const poolChildren = await listener.evaluate(
+      () => document.getElementById("ts-audio-pool")?.children.length ?? 0,
+    );
+    expect(poolChildren).toBeGreaterThan(0);
 
     await holder.keyboard.up("Space");
     await ctxH.close();

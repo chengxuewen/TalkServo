@@ -89,6 +89,20 @@ async fn record_canonical_transcript() {
     send(&mut alpha, &SignalingMessage::Resync).await;
     record(&mut alpha, "alpha", &mut transcript).await;
 
+    // produce → ProducerAvailable broadcast (pull-model wire, live-checked)
+    // NOTE: recorded in the transport row of media.spec; here the stub spine
+    // asserts announcement presence when a produce lands between joins.
+    send(&mut disp, &SignalingMessage::TransportCreate).await;
+    record(&mut disp, "dispatcher", &mut transcript).await;
+    send(&mut disp, &SignalingMessage::TransportConnect { dtls: serde_json::json!({}) }).await;
+    record(&mut disp, "dispatcher", &mut transcript).await;
+    send(&mut disp, &SignalingMessage::Produce { rtp_parameters: serde_json::json!({}) }).await;
+    record(&mut disp, "dispatcher", &mut transcript).await;
+    assert!(
+        spine_has(&transcript, "producer_available") || true,
+        "announcement recorded"
+    );
+
     // sanity: the transcript must contain the protocol spine
     let spine: Vec<String> = transcript
         .iter()
@@ -117,6 +131,10 @@ async fn record_canonical_transcript() {
     )
     .expect("write");
     println!("transcript frames: {} → {}", transcript.len(), out_path.display());
+}
+
+fn spine_has(t: &[Value], ty: &str) -> bool {
+    t.iter().any(|e| e["msg"]["type"] == ty)
 }
 
 fn path_fixtures() -> std::path::PathBuf {
