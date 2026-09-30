@@ -79,6 +79,10 @@ pub trait Sfu {
     /// E11 watchdog input: is `peer`'s uplink producing RTP right now?
     async fn media_activity(&self, room: &RoomId, peer: &PeerId) -> ActivityState;
 
+    /// Room reaped (idle TTL / admin): drop every media object for `room`.
+    /// mediasoup: router cache entry (drop = close). Stub: room map entry.
+    async fn destroy_room(&self, room: &RoomId);
+
     /// E6 test hook: kill the underlying worker to exercise the W-sequence.
     /// Stub: no-op. Mediasoup: hard-kills the child (supervisor rebuilds).
     async fn kill_worker(&self);

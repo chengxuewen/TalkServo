@@ -237,6 +237,14 @@ impl Sfu for StubSfu {
         })
     }
 
+    async fn destroy_room(&self, room: &RoomId) {
+        self.with_state(|st| {
+            st.rooms.remove(room.0.as_ref());
+            st.activity.remove(room.0.as_ref());
+            st.transport_count.remove(room.0.as_ref());
+        });
+    }
+
     async fn kill_worker(&self) {
         self.with_state(|st| st.kills += 1);
     }

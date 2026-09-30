@@ -29,6 +29,9 @@ pub struct RoomState {
     pub limits: FloorLimits,
     /// Last FloorRequest time per peer (cooldown gate).
     pub last_request: HashMap<PeerId, Instant>,
+    /// Armed when the room becomes empty (idle-TTL reaper, D16/CM-1);
+    /// disarmed by the next Join.
+    empty_since: Option<Instant>,
 }
 
 impl RoomState {
@@ -44,6 +47,28 @@ impl RoomState {
                 max_queue,
             },
             last_request: HashMap::new(),
+            empty_since: None, // a new room has its creator en route
+        }
+    }
+
+    /// Reaper probe: no members at all?
+    pub fn is_empty(&self) -> bool {
+        self.members.is_empty()
+    }
+
+    /// Armed empty-since clock (None while members exist or not yet ticked).
+    pub fn empty_since(&self) -> Option<Instant> {
+        self.empty_since
+    }
+
+    /// Arm/disarm the empty clock (called by the IdleTick sweep).
+    pub fn track_empty(&mut self) {
+        if self.members.is_empty() {
+            if self.empty_since.is_none() {
+                self.empty_since = Some(Instant::now());
+            }
+        } else {
+            self.empty_since = None;
         }
     }
 
@@ -212,6 +237,7 @@ impl RoomState {
                 sink,
             },
         );
+        self.empty_since = None; // occupied again — reaper stands down
         Ok(())
     }
 

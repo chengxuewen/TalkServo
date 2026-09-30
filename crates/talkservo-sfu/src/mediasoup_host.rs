@@ -96,6 +96,12 @@ impl Supervisor {
         Ok(router)
     }
 
+    /// Room reaped: drop the cached router (drop = close under the 0.24
+    /// ownership model — closing the Router closes its transports/producers).
+    pub async fn drop_router(&self, room: &RoomId) {
+        let _ = self.inner.routers.write().await.remove(room);
+    }
+
     /// E6/W-sequence: kill the worker child (drop = close under the 0.24
     /// ownership model), clear cached routers, and notify the server. There is
     /// no public exit EVENT in this crate version — the notification fires
@@ -294,6 +300,10 @@ impl Sfu for MediasoupSfu {
             Some(p) if !p.paused() => ActivityState::Active,
             _ => ActivityState::Silent,
         }
+    }
+
+    async fn destroy_room(&self, room: &RoomId) {
+        self.supervisor.drop_router(room).await;
     }
 
     async fn kill_worker(&self) {

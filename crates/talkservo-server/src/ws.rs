@@ -44,6 +44,8 @@ pub enum RoomCommand {
     MaxHoldTick,
     /// TokenRefresh sweep tick (re-signs tokens near expiry).
     RefreshTick,
+    /// Room-idle sweep tick (D16/CM-1: empty room past TTL → reap).
+    IdleTick,
 }
 
 pub async fn ws_handler(
@@ -250,7 +252,8 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                         break;
                     }
                     RoomCommand::Join { .. } | RoomCommand::WatchdogTick
-                    | RoomCommand::MaxHoldTick | RoomCommand::RefreshTick => {}
+                    | RoomCommand::MaxHoldTick | RoomCommand::RefreshTick
+                    | RoomCommand::IdleTick => {}
                 }
             }
         }
@@ -301,19 +304,26 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
             ));
             // tokio intervals fire the FIRST tick immediately — skip it so the
             // room doesn't get timer commands before any member exists
+            // idle sweep: fine-grained enough to respect TTL within 30s
+            let mut idle = tokio::time::interval(std::time::Duration::from_secs(
+                cfg.room_idle_ttl_s.min(30),
+            ));
             watchdog.tick().await;
             maxhold.tick().await;
             refresh.tick().await;
+            idle.tick().await;
             loop {
                 tokio::select! {
                     _ = watchdog.tick() => { if tx.send(RoomCommand::WatchdogTick).await.is_err() { break; } }
                     _ = maxhold.tick() => { if tx.send(RoomCommand::MaxHoldTick).await.is_err() { break; } }
                     _ = refresh.tick() => { if tx.send(RoomCommand::RefreshTick).await.is_err() { break; } }
+                    _ = idle.tick() => { if tx.send(RoomCommand::IdleTick).await.is_err() { break; } }
                 }
             }
         });
     }
 
+    let tx_probe = tx.clone(); // channel-identity guard for the reaper
     tokio::spawn(async move {
         let mut state = RoomState::new(
             room_id.clone(),
@@ -323,6 +333,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
         let media = app.media.clone();
         let mut media_ctx = crate::media::MediaCtx::default();
         let cfg_media_grace_ms = app.config.floor_media_grace_ms;
+        let cfg_room_idle_ttl_s = app.config.room_idle_ttl_s;
         let refresh_secret = app.config.jwt_secret.clone();
         let refresh_ttl_s = app.config.jwt_ttl_s;
         let mut watch = crate::timers::WatchState::default();
@@ -423,6 +434,41 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                         for d in direct {
                             let _ = m.sink.send(d);
                         }
+                    }
+                }
+                RoomCommand::IdleTick => {
+                    // D16/CM-1: empty room past ROOM_IDLE_TTL_S → reap.
+                    state.track_empty(); // arm on first empty sight, disarm on join
+                    if !state.is_empty() {
+                        continue;
+                    }
+                    let empty_since = match state.empty_since() {
+                        Some(t) => t,
+                        None => continue, // empty but clock not armed yet
+                    };
+                    let ttl = std::time::Duration::from_secs(cfg_room_idle_ttl_s);
+                    if empty_since.elapsed() >= ttl {
+                        obs::event(
+                            state.id.0.as_ref(),
+                            "-",
+                            state.floor.generation(),
+                            obs::Event::Leave, // closed vocab; reason field disambiguates
+                            serde_json::json!({"reason": "room_idle_ttl_reaped"}),
+                        );
+                        media.destroy_room(&state.id).await;
+                        // registry removal guarded by channel identity — never
+                        // delete a successor room spawned after our death
+                        let mut rooms = app.rooms.lock().await;
+                        if rooms
+                            .get(&state.id)
+                            .is_some_and(|existing| existing.same_channel(&tx_probe))
+                        {
+                            rooms.remove(&state.id);
+                        }
+                        drop(rooms);
+                        drop(tx_probe);
+                        return; // task ends (tx stays owned by the closure —
+                                // its drop closes the channel for the registry)
                     }
                 }
                 RoomCommand::WatchdogTick => {
