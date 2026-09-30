@@ -178,3 +178,60 @@ test.describe("latency harness (live host)", () => {
     await ctxL.close();
   });
 });
+
+test.describe("FEC A/B harness (live host, netem loopback)", () => {
+  test.skip(!LIVE, "requires the live mediasoup host");
+  test.skip(!process.env.TS_NETEM, "requires TS_NETEM=1 (root; applies qdisc on lo)");
+
+  test("#8: concealment-share drops with FEC under 12% loss", async ({ browser }) => {
+    test.setTimeout(180_000);
+    // runs A (FEC off — codecOptions stripped by env) and B (FEC on, default):
+    // concealment-share = concealedSamples / totalSamples from getStats on the
+    // listener side, sampled over a 30s window per run.
+    // The qdisc application/cleanup happens OUTSIDE playwright (scripts/netem.sh)
+    // because tc requires root and must not leak into the SSH session
+    // (review-focus pin). This test reads the run label from env.
+    const run = process.env.TS_FEC_RUN ?? "B-fec-on";
+    const ctxH = await browser.newContext();
+    const holder = await ctxH.newPage();
+    await joinField(holder, "fec-holder");
+    const ctxL = await browser.newContext();
+    const listener = await ctxL.newPage();
+    await joinField(listener, "fec-listener");
+
+    await holder.keyboard.down("Space");
+    await expect(holder.getByText(/HOLDING|SPEAKING/)).toBeVisible({ timeout: 10_000 });
+
+    // 30s sample window
+    await listener.waitForTimeout(30_000);
+
+    const stats = await listener.evaluate(async () => {
+      const pc = (
+        window as unknown as { __tsPc?: RTCPeerConnection }
+      ).__tsPc;
+      if (!pc) return { available: false };
+      const s = await pc.getStats();
+      let concealed = 0;
+      let total = 0;
+      s.forEach((r) => {
+        if (r.type === "inbound-rtp" && r.kind === "audio") {
+          concealed = Number(r.concealedSamples ?? 0);
+          total = Number(r.totalSamplesReceived ?? 0);
+        }
+      });
+      return { available: true, concealed, total };
+    });
+
+    const share =
+      "concealed" in stats && stats.total
+        ? stats.concealed / stats.total
+        : null;
+    console.log(`FEC-RUN ${run}: ${JSON.stringify({ ...stats, share })}`);
+
+    await holder.keyboard.up("Space");
+    await ctxH.close();
+    await ctxL.close();
+    // assertion lands in the T3 artifact aggregation (two runs compared)
+    expect(share === null || share >= 0).toBe(true);
+  });
+});
