@@ -25,46 +25,13 @@ async fn main() {
     let media_handle: std::sync::Arc<talkservo_sfu::StubSfu> =
         std::sync::Arc::new(talkservo_sfu::StubSfu::new());
     #[cfg(not(feature = "stub-media"))]
-    let media_handle: std::sync::Arc<talkservo_sfu::MediasoupSfu> = {
-        let supervisor = std::sync::Arc::new(talkservo_sfu::Supervisor::new());
-        // W-sequence step 2: worker death → MediaRestart fanout per live room.
-        // (E6 measures recovery via media_recovery_ms, modules/05 §Obs.)
-        let mut restarts = supervisor.restart_rx();
-        let rooms_for_restart = app_state.rooms.clone();
-        tokio::spawn(async move {
-            let mut exited_at: Option<std::time::Instant> = None;
-            loop {
-                // half-open sweep: worker death is announced by kill_worker's
-                // notification; mark time, then the NEXT notification (respawn)
-                // closes the measurement
-                if restarts.recv().await.is_err() {
-                    break; // supervisor gone
-                }
-                let now = std::time::Instant::now();
-                let t0 = exited_at.unwrap_or(now);
-                let recovery_ms = now.duration_since(t0).as_millis() as u64;
-                // fanout MediaRestart to every live room + log recovery
-                let rooms = rooms_for_restart.lock().await;
-                for (room_id, tx) in rooms.iter() {
-                    let _ = tx.send(talkservo_server::ws::RoomCommand::Wire {
-                        from: talkservo_core::ids::PeerId::from("system"),
-                        msg: talkservo_core::wire::SignalingMessage::MediaRestart {
-                            room: room_id.clone(),
-                            reason: "worker rebuild".into(),
-                        },
-                    });
-                }
-                drop(rooms);
-                tracing::info!(
-                    event = "media_restart_done",
-                    ms = recovery_ms,
-                    "media_recovery_ms measured"
-                );
-                exited_at = None;
-            }
-        });
-        std::sync::Arc::new(talkservo_sfu::MediasoupSfu::new(supervisor))
-    };
+    let supervisor_handle: std::sync::Arc<talkservo_sfu::Supervisor> =
+        std::sync::Arc::new(talkservo_sfu::Supervisor::new());
+    #[cfg(not(feature = "stub-media"))]
+    let media_handle: std::sync::Arc<talkservo_sfu::MediasoupSfu> =
+        std::sync::Arc::new(talkservo_sfu::MediasoupSfu::new(Arc::clone(
+            &supervisor_handle,
+        )));
     tracing::info!(backend = media_handle.backend(), version = VERSION, "talkservo-server starting");
 
     let app_state = Arc::new(ws::App {
@@ -72,6 +39,38 @@ async fn main() {
         rooms: tokio::sync::Mutex::new(HashMap::new()),
         media: media_handle,
     });
+
+    // W-sequence step 2 (live host only): worker death → MediaRestart fanout
+    // to every live room (media_recovery_ms reads the media_restart_done logs;
+    // modules/05 §Obs). The 0.24 model notifies synchronously from kill —
+    // the recovery measurement is the fanout latency itself.
+    #[cfg(not(feature = "stub-media"))]
+    {
+        let rooms_registry = Arc::clone(&app_state);
+        let mut restarts = supervisor_handle.restart_rx();
+        tokio::spawn(async move {
+            while let Ok(note) = restarts.recv().await {
+                let rooms = rooms_registry.rooms.lock().await;
+                for (room_id, tx) in rooms.iter() {
+                    let _ = tx
+                        .send(talkservo_server::ws::RoomCommand::Wire {
+                            from: talkservo_core::ids::PeerId::from("system"),
+                            msg: talkservo_core::wire::SignalingMessage::MediaRestart {
+                                room: room_id.clone(),
+                                reason: note.reason.clone(),
+                            },
+                        })
+                        .await;
+                }
+                tracing::info!(
+                    event = "media_restart_done",
+                    reason = %note.reason,
+                    rooms = rooms.len(),
+                    "media restart fanned out"
+                );
+            }
+        });
+    }
 
     let app = axum::Router::new()
         .route("/healthz", axum::routing::get(healthz))
