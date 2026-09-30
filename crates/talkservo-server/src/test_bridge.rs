@@ -29,7 +29,7 @@ pub fn build_router(state: Arc<AppState>) -> axum::Router {
     let app = {
         use axum::routing::get;
         app.route("/", get(crate::embed::index))
-            .route("/*path", get(crate::embed::asset))
+            .route("/{*path}", get(crate::embed::asset))
     };
     app.with_state(state)
 }

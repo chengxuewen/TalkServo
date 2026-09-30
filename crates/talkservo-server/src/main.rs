@@ -78,7 +78,7 @@ async fn main() {
     #[cfg(feature = "embedded-web")]
     let app = app
         .route("/", axum::routing::get(talkservo_server::embed::index))
-        .route("/*path", axum::routing::get(talkservo_server::embed::asset));
+        .route("/{*path}", axum::routing::get(talkservo_server::embed::asset));
     let app = app.with_state(app_state);
 
     let bind = std::env::var("TS_BIND").unwrap_or_else(|_| "0.0.0.0:8080".into());

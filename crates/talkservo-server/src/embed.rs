@@ -30,6 +30,12 @@ pub async fn index() -> Response {
     serve("index.html")
 }
 
+/// SPA fallback: known asset extensions 404; anything else serves index.html
+/// (client routing owns /d/:room, /f/:room).
 pub async fn asset(axum::extract::Path(path): axum::extract::Path<String>) -> Response {
+    let is_asset = path.contains('.') || path.starts_with("assets/");
+    if !is_asset {
+        return serve("index.html");
+    }
     serve(&path)
 }

@@ -218,6 +218,16 @@ impl RoomState {
                 }
                 self.broadcast(&m);
             }
+            // Mode transitions can be silent in core (empty→empty emit nothing)
+            // — clients still need the new mode. Role-scoped snapshots are the
+            // canonical state carrier (R1 mechanism); reuse it here.
+            if matches!(ev, FloorEvent::ModeChange { .. }) {
+                for peer in self.members.keys() {
+                    if let Some(m) = self.members.get(peer) {
+                        let _ = m.sink.send(self.snapshot_for(peer));
+                    }
+                }
+            }
         }
         direct
     }
