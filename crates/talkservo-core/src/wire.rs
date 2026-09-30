@@ -123,9 +123,16 @@ pub enum SignalingMessage {
         peer: PeerId,
         on: bool,
     },
-    TransportCreate,
+    TransportCreate {
+        /// "send" | "recv" — the server keeps one transport per direction
+        /// (additive: absent = "send" for v1 clients).
+        #[serde(default)]
+        dir: Option<String>,
+    },
     TransportConnect {
         dtls: serde_json::Value,
+        #[serde(default)]
+        dir: Option<String>,
     },
     Produce {
         rtp_parameters: serde_json::Value,

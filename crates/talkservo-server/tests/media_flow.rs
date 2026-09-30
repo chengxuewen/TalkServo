@@ -75,11 +75,11 @@ async fn transport_create_connect_produce_flow() {
     join_and_drain(&mut a, &srv, "peer-a", talkservo_core::wire::Role::Field).await;
 
     // J-step 3: TransportCreate → TransportInfo
-    send_json(&mut a, &SignalingMessage::TransportCreate).await;
+    send_json(&mut a, &SignalingMessage::TransportCreate { dir: None }).await;
     assert!(matches!(recv_msg(&mut a).await, SignalingMessage::TransportInfo { .. }));
 
     // J-step 5: connect
-    send_json(&mut a, &SignalingMessage::TransportConnect { dtls: serde_json::json!({}) }).await;
+    send_json(&mut a, &SignalingMessage::TransportConnect { dtls: serde_json::json!({}), dir: None }).await;
     // no reply on success
 
     // J-step 6: Produce → ProduceOk
@@ -118,12 +118,12 @@ async fn transport_guardrail_capacity_reject() {
     // fill the room's guardrail via direct transport-count seeding is not
     // exposed — drive it: 50 creates through the real path (default guardrail)
     for i in 0..50 {
-        send_json(&mut a, &SignalingMessage::TransportCreate).await;
+        send_json(&mut a, &SignalingMessage::TransportCreate { dir: None }).await;
         let m = recv_msg(&mut a).await;
         assert!(matches!(m, SignalingMessage::TransportInfo { .. }), "create {i} failed");
     }
     // 51st → media_capacity
-    send_json(&mut a, &SignalingMessage::TransportCreate).await;
+    send_json(&mut a, &SignalingMessage::TransportCreate { dir: None }).await;
     match recv_msg(&mut a).await {
         SignalingMessage::Error { code, .. } => assert_eq!(code, "media_capacity"),
         other => panic!("expected media_capacity, got {other:?}"),
@@ -138,7 +138,7 @@ async fn e4_transport_timeout_emits_media_failed() {
 
     // script E4: next transport for peer-d fails
     srv.media.fail_next_transport(&talkservo_core::ids::PeerId::from("peer-d"));
-    send_json(&mut a, &SignalingMessage::TransportCreate).await;
+    send_json(&mut a, &SignalingMessage::TransportCreate { dir: None }).await;
     // first response: MediaFailed broadcast (to self, sole member)
     let m = recv_msg(&mut a).await;
     assert!(matches!(m, SignalingMessage::MediaFailed { .. }), "got {m:?}");
@@ -180,7 +180,7 @@ async fn r_f16_peer_left_media_cascade() {
     join_and_drain(&mut a, &srv, "leaver", talkservo_core::wire::Role::Field).await;
 
     // create a transport so the stub holds media state for this peer
-    send_json(&mut a, &SignalingMessage::TransportCreate).await;
+    send_json(&mut a, &SignalingMessage::TransportCreate { dir: None }).await;
     let _ = recv_msg(&mut a).await; // TransportInfo
 
     srv.media.clear_calls();
@@ -206,9 +206,9 @@ async fn r_f14_consume_of_ungranted_producer_denied() {
     join_and_drain(&mut b, &srv, "eaves", talkservo_core::wire::Role::Field).await;
 
     // holder transport up + produce (no floor request — grants stay empty)
-    send_json(&mut a, &SignalingMessage::TransportCreate).await;
+    send_json(&mut a, &SignalingMessage::TransportCreate { dir: None }).await;
     let _ = recv_msg(&mut a).await; // TransportInfo
-    send_json(&mut a, &SignalingMessage::TransportConnect { dtls: serde_json::json!({}) }).await;
+    send_json(&mut a, &SignalingMessage::TransportConnect { dtls: serde_json::json!({}), dir: None }).await;
     send_json(&mut a, &SignalingMessage::Produce { rtp_parameters: serde_json::json!({}) }).await;
     let mut producer_id: Option<String> = None;
     for _ in 0..4 {

@@ -40,6 +40,7 @@ pub trait Sfu {
         &self,
         room: &RoomId,
         peer: &PeerId,
+        dir: &str,
     ) -> Result<TransportInfo, SfuError>;
 
     /// Complete DTLS handshake (J-step 5).
@@ -47,6 +48,7 @@ pub trait Sfu {
         &self,
         room: &RoomId,
         peer: &PeerId,
+        dir: &str,
         dtls: serde_json::Value,
     ) -> Result<(), SfuError>;
 

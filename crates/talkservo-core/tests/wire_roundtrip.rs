@@ -41,9 +41,10 @@ fn client_to_server_variants_roundtrip() {
             peer: pid("p1"),
             on: true,
         },
-        SignalingMessage::TransportCreate,
+        SignalingMessage::TransportCreate { dir: None },
         SignalingMessage::TransportConnect {
             dtls: serde_json::json!({"fingerprint": "ab:cd"}),
+            dir: None,
         },
         SignalingMessage::Produce {
             rtp_parameters: serde_json::json!({"codecs": []}),
@@ -189,7 +190,7 @@ fn all_tags_are_snake_case() {
             priority: 1,
             preempt: false,
         }, "floor_request"),
-        (SignalingMessage::TransportCreate, "transport_create"),
+        (SignalingMessage::TransportCreate { dir: None }, "transport_create"),
         (SignalingMessage::MediaRestart {
             room: RoomId::from("r"),
             reason: String::new(),

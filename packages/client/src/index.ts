@@ -109,7 +109,7 @@ export class TalkServoClient {
   }
 
   /** J-step 3: TransportCreate → resolves with TransportInfo. */
-  requestTransport(): Promise<{ ice: unknown; dtls: unknown; addrs: unknown }> {
+  requestTransport(dir: "send" | "recv" = "send"): Promise<{ ice: unknown; dtls: unknown; addrs: unknown }> {
     return new Promise((resolve) => {
       const off = this.onMessage((msg) => {
         if (msg.type === "transport_info") {
@@ -117,7 +117,7 @@ export class TalkServoClient {
           resolve({ ice: msg.ice, dtls: msg.dtls, addrs: msg.addrs });
         }
       });
-      this.send({ type: "transport_create" });
+      this.send({ type: "transport_create", dir });
       void off;
     });
   }
@@ -140,8 +140,8 @@ export class TalkServoClient {
   }
 
   /** J-step 5: TransportConnect. */
-  connectTransport(dtls: unknown): void {
-    this.send({ type: "transport_connect", dtls });
+  connectTransport(dtls: unknown, dir: "send" | "recv" = "send"): void {
+    this.send({ type: "transport_connect", dtls, dir });
   }
 
   get protocolVersion(): number {

@@ -37,6 +37,8 @@ export class MediasoupClientStack implements MediaStack {
    *  ride the wire; without them the server never learns of the transport
    *  or the producer (measured: announcements never fired without this). */
   sendConnect: (dtls: unknown) => void = () => {};
+  /** recv transport's connect rides its own adapter (server keys by dir). */
+  sendConnectRecv: (dtls: unknown) => void = () => {};
   sendProduce: (rtpParameters: unknown) => Promise<string> = async () => "";
 
   private dev(): Device {
@@ -65,6 +67,7 @@ export class MediasoupClientStack implements MediaStack {
 
   async createSendTransport(params: {
     ice: unknown;
+    addrs: unknown;
     dtls: unknown;
   }): Promise<SendTransportLike> {
     const dev = this.dev();
@@ -74,21 +77,12 @@ export class MediasoupClientStack implements MediaStack {
       // TransportInfo carries no id — the DTLS/ICE params are the substance)
       id: `ts-send-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       iceParameters: params.ice as never,
-      iceCandidates: [
-        // server sends addrs:[] — synthesize a host candidate (fake-device
-        // e2e runs loopback where host candidates suffice)
-        {
-          foundation: "host",
-          ip: "127.0.0.1",
-          address: "127.0.0.1",
-          port: 0,
-          priority: 1,
-          protocol: "udp",
-          type: "host",
-        },
-      ],
+      // wire addrs: server ICE candidates (mediasoup ice_candidates dump)
+      iceCandidates: params.addrs as never,
       dtlsParameters: params.dtls as never,
     } as never) as unknown as AnyTransport;
+    recordIce("send", t);
+    (window as unknown as { __tsSendT?: unknown }).__tsSendT = t;
     t.on("connect", ({ dtlsParameters }: { dtlsParameters: unknown }, callback: () => void) => {
       // J-step 5: tell the server (it completes the server-side transport)
       this.sendConnect(dtlsParameters);
@@ -112,6 +106,7 @@ export class MediasoupClientStack implements MediaStack {
 
   async createRecvTransport(params: {
     ice: unknown;
+    addrs: unknown;
     dtls: unknown;
   }): Promise<RecvTransportLike> {
     const dev = this.dev();
@@ -119,10 +114,17 @@ export class MediasoupClientStack implements MediaStack {
     const t = this.dev().createRecvTransport({
       id: `ts-recv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       iceParameters: params.ice as never,
-      iceCandidates: [],
+      iceCandidates: params.addrs as never,
       dtlsParameters: params.dtls as never,
     } as never) as unknown as AnyTransport;
-    t.on("connect", (_p, callback) => callback());
+    recordIce("recv", t);
+    (window as unknown as { __tsRecvT?: unknown }).__tsRecvT = t;
+    t.on("connect", ({ dtlsParameters }: { dtlsParameters: unknown }, callback: () => void) => {
+      // server-side transport must ALSO connect (no dtls → no SRTCP → the
+      // consumer track stays silent — measured); recv keys by dir
+      this.sendConnectRecv(dtlsParameters);
+      callback();
+    });
     this.recvTransport = t;
     return wrapRecv(t);
   }
@@ -130,6 +132,17 @@ export class MediasoupClientStack implements MediaStack {
   get recv(): AnyTransport | null {
     return this.recvTransport;
   }
+}
+
+/** E2E diagnostics: connection state transitions land on window.__tsIce. */
+function recordIce(name: string, t: AnyTransport): void {
+  if (typeof window === "undefined") return;
+  const w = window as unknown as { __tsIce?: unknown[] };
+  w.__tsIce ??= [];
+  const anyT = t as unknown as { on(e: string, f: () => void): void; readonly connectionState: string };
+  anyT.on("connectionstatechange", () => {
+    w.__tsIce?.push({ t: name, s: anyT.connectionState });
+  });
 }
 
 function wrapSend(t: AnyTransport): SendTransportLike {

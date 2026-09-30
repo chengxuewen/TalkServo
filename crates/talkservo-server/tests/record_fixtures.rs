@@ -92,9 +92,9 @@ async fn record_canonical_transcript() {
     // produce → ProducerAvailable broadcast (pull-model wire, live-checked)
     // NOTE: recorded in the transport row of media.spec; here the stub spine
     // asserts announcement presence when a produce lands between joins.
-    send(&mut disp, &SignalingMessage::TransportCreate).await;
+    send(&mut disp, &SignalingMessage::TransportCreate { dir: None }).await;
     record(&mut disp, "dispatcher", &mut transcript).await;
-    send(&mut disp, &SignalingMessage::TransportConnect { dtls: serde_json::json!({}) }).await;
+    send(&mut disp, &SignalingMessage::TransportConnect { dtls: serde_json::json!({}), dir: None }).await;
     record(&mut disp, "dispatcher", &mut transcript).await;
     send(&mut disp, &SignalingMessage::Produce { rtp_parameters: serde_json::json!({}) }).await;
     record(&mut disp, "dispatcher", &mut transcript).await;

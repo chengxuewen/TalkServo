@@ -54,8 +54,8 @@ export type ClientMessage =
   | { type: "floor_release" }
   | { type: "mode_change"; mode: FloorMode }
   | { type: "mute_set"; peer: string; on: boolean }
-  | { type: "transport_create" }
-  | { type: "transport_connect"; dtls: unknown }
+  | { type: "transport_create"; dir?: "send" | "recv" }
+  | { type: "transport_connect"; dtls: unknown; dir?: "send" | "recv" }
   | { type: "produce"; rtp_parameters: unknown }
   | { type: "consume"; producer_id: unknown }
   | { type: "resync" };

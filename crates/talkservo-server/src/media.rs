@@ -13,7 +13,7 @@ use talkservo_sfu::{ProducerId, Sfu, SfuError};
 #[derive(Default)]
 pub struct MediaCtx {
     pub transport_counts: HashMap<RoomId, usize>,
-    pub dtls_connected: HashSet<(String, String)>,
+    pub dtls_connected: HashSet<(String, String, String)>,
 }
 
 
@@ -29,7 +29,8 @@ pub async fn handle_media_message<M: Sfu + Sync + 'static>(
     guardrail: usize,
 ) -> Vec<SignalingMessage> {
     match msg {
-        SignalingMessage::TransportCreate => {
+        SignalingMessage::TransportCreate { dir } => {
+            let dir = dir.as_deref().unwrap_or("send");
             let count = ctx.transport_counts.entry(room.clone()).or_insert(0);
             if *count >= guardrail {
                 return vec![SignalingMessage::Error {
@@ -37,7 +38,7 @@ pub async fn handle_media_message<M: Sfu + Sync + 'static>(
                     detail: format!("transport guardrail {guardrail} reached"),
                 }];
             }
-            match media.create_transport(room, from).await {
+            match media.create_transport(room, from, dir).await {
                 Ok(t) => {
                     *count += 1;
                     vec![SignalingMessage::TransportInfo {
@@ -49,20 +50,21 @@ pub async fn handle_media_message<M: Sfu + Sync + 'static>(
                 Err(e) => media_error(e, from),
             }
         }
-        SignalingMessage::TransportConnect { dtls } => {
+        SignalingMessage::TransportConnect { dtls, dir } => {
+            let dir = dir.as_deref().unwrap_or("send");
             ctx.dtls_connected
-                .insert((room.to_string(), from.to_string()));
-            match media.connect_transport(room, from, dtls.clone()).await {
+                .insert((room.to_string(), from.to_string(), dir.to_string()));
+            match media.connect_transport(room, from, dir, dtls.clone()).await {
                 Ok(()) => vec![],
                 Err(e) => {
                     ctx.dtls_connected
-                        .remove(&(room.to_string(), from.to_string()));
+                        .remove(&(room.to_string(), from.to_string(), dir.to_string()));
                     media_error(e, from)
                 }
             }
         }
         SignalingMessage::Produce { rtp_parameters } => {
-            if !ctx.dtls_connected.contains(&(room.to_string(), from.to_string())) {
+            if !ctx.dtls_connected.contains(&(room.to_string(), from.to_string(), "send".to_string())) {
                 return vec![SignalingMessage::Error {
                     code: "bad_order".into(),
                     detail: "Produce before TransportConnect".into(),

@@ -26,6 +26,10 @@ pub struct Supervisor {
     inner: Arc<SupervisorInner>,
 }
 
+/// (room, peer, dir) → live WebRtcTransport (dir: "send" | "recv").
+type TransportMap =
+    Arc<RwLock<HashMap<(RoomId, PeerId, String), mediasoup::webrtc_transport::WebRtcTransport>>>;
+
 struct SupervisorInner {
     worker: Mutex<Option<mediasoup::worker::Worker>>,
     manager: mediasoup::worker_manager::WorkerManager,
@@ -64,6 +68,11 @@ impl Supervisor {
             return Ok(w.clone());
         }
         let mut settings = mediasoup::worker::WorkerSettings::default();
+        if std::env::var("TS_WORKER_DEBUG").is_ok() {
+            use mediasoup::worker::{WorkerLogLevel as L, WorkerLogTag as T};
+            settings.log_level = L::Debug;
+            settings.log_tags = vec![T::Rtp, T::Ice, T::Dtls, T::Srtp];
+        }
         // RTC UDP range per config (modules/06); the host plumbing narrows it
         // in production — PoC keeps the 40000-40100 default via env passthrough.
         settings.rtc_port_range =
@@ -165,8 +174,7 @@ type ConsumerKey = (RoomId, PeerId, String);
 pub struct MediasoupSfu {
     supervisor: Arc<Supervisor>,
     /// (room, peer) → transport
-    transports:
-        Arc<RwLock<HashMap<(RoomId, PeerId), mediasoup::webrtc_transport::WebRtcTransport>>>,
+    transports: TransportMap,
     /// (room, peer) → producer (apply_floor diff target)
     producers: Arc<RwLock<HashMap<(RoomId, PeerId), mediasoup::producer::Producer>>>,
     /// (room, peer, consumer_id) → live consumer (drop = close)
@@ -197,15 +205,21 @@ impl Sfu for MediasoupSfu {
         &self,
         room: &RoomId,
         peer: &PeerId,
+        dir: &str,
     ) -> Result<TransportInfo, SfuError> {
         let router = self.supervisor.router_for(room).await?;
+        // Listen 127.0.0.1 by default (dev/e2e loopback — real bindable IP,
+        // candidate is dialable with no announced translation); deploy sets
+        // TS_ANNOUNCED_IP to switch to 0.0.0.0-bind + announced public IP.
+        let (bind_ip, announced) = match std::env::var("TS_ANNOUNCED_IP") {
+            Ok(ip) => ("0.0.0.0".parse::<std::net::IpAddr>().map_err(|e| sfu_err(e, "ip"))?, Some(ip)),
+            Err(_) => ("127.0.0.1".parse::<std::net::IpAddr>().map_err(|e| sfu_err(e, "ip"))?, None),
+        };
         let listen = mediasoup::webrtc_transport::WebRtcTransportListenInfos::new(
             mediasoup::prelude::ListenInfo {
                 protocol: mediasoup::prelude::Protocol::Udp,
-                ip: "0.0.0.0"
-                    .parse::<std::net::IpAddr>()
-                    .map_err(|e| sfu_err(e, "ip"))?,
-                announced_address: None,
+                ip: bind_ip,
+                announced_address: announced,
                 expose_internal_ip: false,
                 port: None,
                 port_range: None,
@@ -220,17 +234,21 @@ impl Sfu for MediasoupSfu {
             .await
             .map_err(|e| sfu_err(e, "transport create"))?;
 
+        // real ICE candidates: without them the client has nothing to send
+        // STUN binding requests to (addrs:[] measured = zero RTP flow)
+        let addrs = serde_json::to_value(transport.ice_candidates())
+            .map_err(|e| sfu_err(e, "ice candidates ser"))?;
         let info = TransportInfo {
             ice: serde_json::to_value(transport.ice_parameters())
                 .map_err(|e| sfu_err(e, "ice ser"))?,
             dtls: serde_json::to_value(transport.dtls_parameters())
                 .map_err(|e| sfu_err(e, "dtls ser"))?,
-            addrs: serde_json::json!([]),
+            addrs,
         };
         self.transports
             .write()
             .await
-            .insert((room.clone(), peer.clone()), transport);
+            .insert((room.clone(), peer.clone(), dir.to_string()), transport);
         Ok(info)
     }
 
@@ -238,11 +256,12 @@ impl Sfu for MediasoupSfu {
         &self,
         room: &RoomId,
         peer: &PeerId,
+        dir: &str,
         dtls: serde_json::Value,
     ) -> Result<(), SfuError> {
         let transport = {
             let t = self.transports.read().await;
-            t.get(&(room.clone(), peer.clone()))
+            t.get(&(room.clone(), peer.clone(), dir.to_string()))
                 .cloned()
                 .ok_or_else(|| SfuError::Other("no transport for peer".into()))?
         };
@@ -260,11 +279,12 @@ impl Sfu for MediasoupSfu {
         peer: &PeerId,
         rtp_parameters: serde_json::Value,
     ) -> Result<ProducerId, SfuError> {
+        // producers ride the SEND transport (uplink RTP); consumers the recv
         let transport = {
             let t = self.transports.read().await;
-            t.get(&(room.clone(), peer.clone()))
+            t.get(&(room.clone(), peer.clone(), "send".to_string()))
                 .cloned()
-                .ok_or_else(|| SfuError::Other("no transport for peer".into()))?
+                .ok_or_else(|| SfuError::Other("no recv transport for peer".into()))?
         };
         let params: mediasoup_types::rtp_parameters::RtpParameters =
             serde_json::from_value(rtp_parameters).map_err(|e| sfu_err(e, "rtp parameters"))?;
@@ -295,11 +315,12 @@ impl Sfu for MediasoupSfu {
         // consumer against them); the client-side local instantiation uses
         // mediasoup-client device caps — different concern, SDK's job.
         let router = self.supervisor.router_for(room).await?;
+        // consumers ride the RECV transport
         let transport = {
             let t = self.transports.read().await;
-            t.get(&(room.clone(), peer.clone()))
+            t.get(&(room.clone(), peer.clone(), "recv".to_string()))
                 .cloned()
-                .ok_or_else(|| SfuError::Other("no transport for peer".into()))?
+                .ok_or_else(|| SfuError::Other("no recv transport for peer".into()))?
         };
         let producer_mid: mediasoup::producer::ProducerId = producer_id
             .0
@@ -357,11 +378,11 @@ impl Sfu for MediasoupSfu {
             .write()
             .await
             .remove(&(room.clone(), peer.clone()));
-        let _ = self
-            .transports
-            .write()
-            .await
-            .remove(&(room.clone(), peer.clone()));
+        {
+            let mut t = self.transports.write().await;
+            t.remove(&(room.clone(), peer.clone(), "send".to_string()));
+            t.remove(&(room.clone(), peer.clone(), "recv".to_string()));
+        }
         let stale: Vec<(RoomId, PeerId, String)> = self
             .consumers
             .read()
@@ -473,7 +494,7 @@ mod tests {
         let sfu = MediasoupSfu::new(sup);
         let room = RoomId::from("t-room");
         let peer = PeerId::from("t-peer");
-        let info = sfu.create_transport(&room, &peer).await.expect("transport");
+        let info = sfu.create_transport(&room, &peer, "send").await.expect("transport");
         assert!(info.ice.get("usernameIsEqual").is_none()); // shape probe — real fields exist
         assert!(info.ice.is_object());
         assert_eq!(sfu.backend(), "mediasoup");

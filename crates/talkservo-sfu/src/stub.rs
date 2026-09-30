@@ -83,6 +83,7 @@ impl Sfu for StubSfu {
         &self,
         room: &RoomId,
         peer: &PeerId,
+        _dir: &str,
     ) -> Result<TransportInfo, SfuError> {
         self.with_state(|st| {
             if st.fail_transport.iter().any(|p| p == &*peer.0) {
@@ -113,6 +114,7 @@ impl Sfu for StubSfu {
         &self,
         room: &RoomId,
         peer: &PeerId,
+        _dir: &str,
         _dtls: serde_json::Value,
     ) -> Result<(), SfuError> {
         self.with_state(|st| {
@@ -289,9 +291,9 @@ mod tests {
         let room = rid("r1");
         let (a, b) = (pid("a"), pid("b"));
 
-        sfu.create_transport(&room, &a).await_or_block().expect("ta");
-        sfu.create_transport(&room, &b).await_or_block().expect("tb");
-        sfu.connect_transport(&room, &a, serde_json::json!({}))
+        sfu.create_transport(&room, &a, "send").await_or_block().expect("ta");
+        sfu.create_transport(&room, &b, "send").await_or_block().expect("tb");
+        sfu.connect_transport(&room, &a, "send", serde_json::json!({}))
             .await_or_block()
             .expect("connect");
         let prod = sfu
@@ -339,14 +341,14 @@ mod tests {
         // E10: transport count bookkeeping
         sfu.set_transport_count(&room, 50);
         smol_block(async {
-            let r = sfu.create_transport(&room, &pid("zz")).await;
+            let r = sfu.create_transport(&room, &pid("zz"), "send").await;
             assert!(r.is_ok(), "stub does not enforce guardrail — server does");
         });
 
         // E4: scripted transport failure
         sfu.fail_next_transport(&pid("e4"));
         smol_block(async {
-            let r = sfu.create_transport(&room, &pid("e4")).await;
+            let r = sfu.create_transport(&room, &pid("e4"), "send").await;
             assert!(matches!(r, Err(SfuError::TransportTimeout { .. })));
         });
     }

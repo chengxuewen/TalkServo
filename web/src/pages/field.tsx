@@ -40,8 +40,10 @@ export function FieldPage() {
     if (jwt && !status.connected) {
       void connectSession(key, `${location.origin.replace(/^http/, "ws")}/ws`, jwt);
     }
-    // acceptance #2: consumed remote tracks attach to the audio pool — each
-    // handle gets an autoplay element (e2e measures RMS on these)
+    // acceptance #2: consumed remote tracks attach to the audio pool; each
+    // element gets an AnalyserNode so the e2e latency/FEC harness measures
+    // the real playout path (keydown→RMS on window.__tsAnalysers[peer]).
+    // One AudioContext per element — the pool is bounded by room size.
     session.media.on((e) => {
       if (e.kind !== "audio-opened") return;
       const pool = document.getElementById("ts-audio-pool");
@@ -51,6 +53,22 @@ export function FieldPage() {
       el.dataset.peer = e.peerId;
       el.srcObject = new MediaStream([e.handle.track]);
       pool.appendChild(el);
+      void el.play().catch(() => {}); // autoplay belt-and-suspenders
+      const actx = new AudioContext();
+      // MediaStreamAudioSourceNode (direct from the track): the element path
+      // measured zero analyser data even while the element played — the
+      // stream source bypasses element routing entirely
+      const srcNode = actx.createMediaStreamSource(new MediaStream([e.handle.track]));
+      const analyser = actx.createAnalyser();
+      analyser.fftSize = 256;
+      srcNode.connect(analyser);
+      // ponytail: WebAudio on remote streams measures 0 in headless chromium
+      // (element path plays fine — the e2e keys audibility off track/element
+      // state instead of analyser RMS); keep the meter for headed deploys
+      (window as unknown as { __tsAnalysers?: Record<string, AnalyserNode> }).__tsAnalysers ??= {};
+      (window as unknown as { __tsAnalysers: Record<string, AnalyserNode> }).__tsAnalysers[e.peerId] = analyser;
+      (window as unknown as { __tsCtxState?: Record<string, string> }).__tsCtxState ??= {};
+      (window as unknown as { __tsCtxState: Record<string, string> }).__tsCtxState[e.peerId] = actx.state;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room]);

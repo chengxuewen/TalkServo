@@ -55,7 +55,7 @@ export default async function () {
   process.env.TS_URL = `http://127.0.0.1:${PORT}`;
   process.env.TS_E2E_SECRET = SECRET;
   return async () => {
-    server?.kill();
+    if (!process.env.TS_E2E_KEEP) server?.kill();
   };
 }
 

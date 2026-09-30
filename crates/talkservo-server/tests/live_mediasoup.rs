@@ -15,12 +15,12 @@ async fn live_backend_creates_real_transport() {
     let room = RoomId::from("live-room");
     let peer = PeerId::from("live-peer");
     // real mediasoup worker spawns; a WebRtcTransport is created for real
-    let info = sfu.create_transport(&room, &peer).await.expect("live transport");
+    let info = sfu.create_transport(&room, &peer, "send").await.expect("live transport");
     assert!(info.ice.is_object(), "ice parameters must be an object");
     assert!(info.dtls.is_object(), "dtls parameters must be an object");
 
     // second create for the same peer replaces (no leak) — behavior pin
-    let _ = sfu.create_transport(&room, &peer).await.expect("second");
+    let _ = sfu.create_transport(&room, &peer, "send").await.expect("second");
 
     // peer_left cascade drops the media objects (drop = close)
     sfu.peer_left(&room, &peer).await;
@@ -32,14 +32,14 @@ async fn live_worker_e6_kill_notifies_and_respawns() {
     let mut restarts = sup.restart_rx();
     let sfu = talkservo_sfu::MediasoupSfu::new(sup.clone());
     let room = RoomId::from("e6-room");
-    let _ = sfu.create_transport(&room, &PeerId::from("e6-peer")).await.expect("transport");
+    let _ = sfu.create_transport(&room, &PeerId::from("e6-peer"), "send").await.expect("transport");
 
     sup.kill_worker().await;
     let note = restarts.recv().await.expect("restart notification");
     assert!(note.reason.contains("exited"));
 
     // supervisor respawns on next use
-    let _ = sfu.create_transport(&room, &PeerId::from("after")).await.expect("respawned");
+    let _ = sfu.create_transport(&room, &PeerId::from("after"), "send").await.expect("respawned");
 }
 
 #[tokio::test]
@@ -50,8 +50,8 @@ async fn live_consume_across_peers() {
     let (a, b) = (PeerId::from("producer"), PeerId::from("listener"));
 
     // both peers get transports
-    let _info_a = sfu.create_transport(&room, &a).await.expect("transport a");
-    let _info_b = sfu.create_transport(&room, &b).await.expect("transport b");
+    let _info_a = sfu.create_transport(&room, &a, "send").await.expect("transport a");
+    let _info_b = sfu.create_transport(&room, &b, "recv").await.expect("recv transport b");
 
     // router caps (truth consumed by clients for device.load)
     let caps = sfu.router_caps(&room).await;
@@ -96,7 +96,7 @@ async fn live_e11_activity_truth_source() {
     let room = RoomId::from("e11-room");
     let peer = PeerId::from("mic");
 
-    let _transport = sfu.create_transport(&room, &peer).await.expect("transport");
+    let _transport = sfu.create_transport(&room, &peer, "send").await.expect("transport");
     let rtp = serde_json::json!({
         "mid": "0",
         "codecs": [{
@@ -145,7 +145,7 @@ async fn live_produce_announces_on_wire() {
     let sfu = talkservo_sfu::MediasoupSfu::new(sup);
     let room = RoomId::from("announce-room");
     let peer = PeerId::from("announcer");
-    let _t = sfu.create_transport(&room, &peer).await.expect("transport");
+    let _t = sfu.create_transport(&room, &peer, "send").await.expect("transport");
     let rtp = serde_json::json!({
         "mid": "0",
         "codecs": [{"mimeType": "audio/opus", "payloadType": 100, "clockRate": 48000,

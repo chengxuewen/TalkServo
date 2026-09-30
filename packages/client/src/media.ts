@@ -20,10 +20,12 @@ export interface MediaStack {
   load(caps: unknown): Promise<void>;
   createSendTransport(params: {
     ice: unknown;
+    addrs: unknown;
     dtls: unknown;
   }): Promise<SendTransportLike>;
   createRecvTransport(params: {
     ice: unknown;
+    addrs: unknown;
     dtls: unknown;
   }): Promise<RecvTransportLike>;
 }

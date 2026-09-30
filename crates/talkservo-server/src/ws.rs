@@ -453,7 +453,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                     // media-plane messages route through the sfu host
                     if matches!(
                         msg,
-                        SignalingMessage::TransportCreate
+                        SignalingMessage::TransportCreate { .. }
                             | SignalingMessage::TransportConnect { .. }
                             | SignalingMessage::Produce { .. }
                             | SignalingMessage::Consume { .. }
@@ -462,8 +462,11 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                         // the target producer must belong to a GRANTED peer
                         // (floor confidentiality; guessed ids get nothing)
                         if let SignalingMessage::Consume { producer_id } = &msg {
-                            let pid = producer_id.to_string();
-                            let allowed = state.producer_owner_granted(&pid);
+                            // JSON string value — as_str(), not to_string()
+                            // (which embeds the quotes; gate would be a
+                            // permanent deny — measured on live)
+                            let pid = producer_id.as_str().unwrap_or_default();
+                            let allowed = state.producer_owner_granted(pid);
                             if !allowed {
                                 if let Some(m) = state.members.get(&from) {
                                     let _ = m.sink.send(SignalingMessage::Error {
@@ -477,7 +480,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                         // modules/05 media-plane events (transport_create/
                         // produce_ok/transport_fail) with full room/peer/gen
                         let media_event = match &msg {
-                            SignalingMessage::TransportCreate => Some(obs::Event::TransportCreate),
+                            SignalingMessage::TransportCreate { .. } => Some(obs::Event::TransportCreate),
                             SignalingMessage::Produce { .. } => Some(obs::Event::ProduceOk),
                             _ => None,
                         };
@@ -509,11 +512,14 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                         // R-F14 registry + pull-model availability announce
                         // (additive wire): room consumes against this id
                         if let Some(SignalingMessage::ProduceOk { producer_id }) = replies.first() {
-                            let producer_id = producer_id.clone();
-                            state.note_producer(&from, producer_id.to_string());
+                            // JSON string value — as_str() (to_string embeds
+                            // the quotes; registry then never matches the
+                            // bare id in consume requests — permanent deny)
+                            let pid_bare = producer_id.as_str().unwrap_or_default().to_string();
+                            state.note_producer(&from, pid_bare);
                             state.broadcast(&SignalingMessage::ProducerAvailable {
                                 peer: from.clone(),
-                                producer_id,
+                                producer_id: producer_id.clone(),
                             });
                         }
                         continue;
