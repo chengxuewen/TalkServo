@@ -116,6 +116,7 @@ fn server_to_client_variants_roundtrip() {
         },
         SignalingMessage::ConsumeOk {
             producer_id: serde_json::json!("prod-1"),
+            consumer_id: serde_json::json!("cons-1"),
             rtp_parameters: serde_json::json!({}),
         },
         SignalingMessage::MediaRestart {

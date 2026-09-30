@@ -192,6 +192,9 @@ pub enum SignalingMessage {
     },
     ConsumeOk {
         producer_id: serde_json::Value,
+        /// Server-created consumer id — mediasoup-client's local
+        /// `transport.consume()` needs it (additive evolution, modules/02 §4).
+        consumer_id: serde_json::Value,
         rtp_parameters: serde_json::Value,
     },
     /// SFU recovery completed (modules/04 R1).

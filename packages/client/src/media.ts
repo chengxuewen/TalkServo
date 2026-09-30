@@ -133,7 +133,7 @@ export class MediaManager {
         const peer = this.pendingConsumes.get(pid);
         if (peer) {
           this.pendingConsumes.delete(pid);
-          void this.instantiateConsumer(peer, pid, msg.rtp_parameters);
+          void this.instantiateConsumer(peer, pid, msg.rtp_parameters, msg.consumer_id);
         }
       }
     });
@@ -213,19 +213,35 @@ export class MediaManager {
     peerId: string,
     producerId: string,
     rtpParameters: unknown,
+    consumerId: unknown,
   ): Promise<void> {
     if (!this.recvFactory) return;
     const recv = await this.recvFactory();
     try {
-      await this.consume(
+      await this.consumeSpec(
         peerId,
-        producerId,
+        { id: String(consumerId), producerId, kind: "audio", rtpParameters },
         recv,
-        rtpParameters,
       );
     } catch {
       this.pendingConsumes.set(producerId, peerId); // retry on next grant sweep
     }
+  }
+
+  /** Spec-driven consume (server-created consumer local instantiation). */
+  async consumeSpec(
+    peerId: string,
+    spec: { id: string; producerId: string; kind: string; rtpParameters: unknown },
+    recv: RecvTransportLike,
+  ): Promise<AudioHandle> {
+    const consumer = await recv.consume(spec);
+    const existing = this.handles.get(peerId);
+    if (existing && !existing.released) existing.release();
+
+    const h = new AudioHandleImpl(peerId, consumer.track, consumer);
+    this.handles.set(peerId, h);
+    this.emit({ kind: "audio-opened", peerId, handle: h });
+    return h;
   }
 
   /** DI: recv transport factory (media slice wires mediasoup-client here). */

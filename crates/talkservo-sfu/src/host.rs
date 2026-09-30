@@ -60,12 +60,14 @@ pub trait Sfu {
     ) -> Result<ProducerId, SfuError>;
 
     /// Open a downlink for `peer` consuming `producer_id` (J-step 7 client side).
+    /// Returns `(consumer_id, rtp_parameters)` — the client's local
+    /// mediasoup-client consume needs BOTH (ConsumeOk carries both).
     async fn consume(
         &self,
         room: &RoomId,
         peer: &PeerId,
         producer_id: &ProducerId,
-    ) -> Result<serde_json::Value, SfuError>;
+    ) -> Result<(String, serde_json::Value), SfuError>;
 
     /// Reconcile media with arbitration state — idempotent diff:
     /// resume granted holders' producers + matching consumers, pause the rest

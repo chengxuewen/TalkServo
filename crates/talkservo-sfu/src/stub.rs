@@ -161,7 +161,7 @@ impl Sfu for StubSfu {
         room: &RoomId,
         peer: &PeerId,
         producer_id: &ProducerId,
-    ) -> Result<serde_json::Value, SfuError> {
+    ) -> Result<(String, serde_json::Value), SfuError> {
         self.with_state(|st| {
             st.calls.push(Call::Consume {
                 room: room.to_string(),
@@ -174,11 +174,15 @@ impl Sfu for StubSfu {
                 .or_default()
                 .entry(peer.to_string())
                 .or_default();
-            mp.consumers.insert(producer_id.0.clone(), true);
-            Ok(serde_json::json!({
-                "producerId": producer_id.0,
-                "rtpParameters": {"codecs": [], "headerExtensions": []}
-            }))
+            let consumer_id = format!("cons-{}-{}", peer, mp.consumers.len() + 1);
+            mp.consumers.insert(consumer_id.clone(), true);
+            Ok((
+                consumer_id,
+                serde_json::json!({
+                    "producerId": producer_id.0,
+                    "rtpParameters": {"codecs": [], "headerExtensions": []}
+                }),
+            ))
         })
     }
 

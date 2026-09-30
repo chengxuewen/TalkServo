@@ -73,7 +73,12 @@ export type ServerMessage =
   | { type: "floor_idle"; generation: number; reason: string | null }
   | { type: "transport_info"; ice: unknown; dtls: unknown; addrs: unknown }
   | { type: "produce_ok"; producer_id: unknown }
-  | { type: "consume_ok"; producer_id: unknown; rtp_parameters: unknown }
+  | {
+      type: "consume_ok";
+      producer_id: unknown;
+      consumer_id: unknown;
+      rtp_parameters: unknown;
+    }
   | { type: "media_restart"; room: string; reason: string }
   | { type: "media_failed"; peer: string }
   | { type: "token_refresh"; jwt: string }

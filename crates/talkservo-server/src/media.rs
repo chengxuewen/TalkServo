@@ -79,8 +79,9 @@ pub async fn handle_media_message<M: Sfu + Sync + 'static>(
                 .consume(room, from, &ProducerId(producer_id.to_string()))
                 .await
             {
-                Ok(params) => vec![SignalingMessage::ConsumeOk {
+                Ok((consumer_id, params)) => vec![SignalingMessage::ConsumeOk {
                     producer_id: producer_id.clone(),
+                    consumer_id: serde_json::json!(consumer_id),
                     rtp_parameters: params,
                 }],
                 Err(e) => media_error(e, from),

@@ -62,6 +62,7 @@ describe("consume exchange", () => {
     ws.serverPush({
       type: "consume_ok",
       producer_id: "prod-speaker",
+      consumer_id: "cons-1",
       rtp_parameters: { codecs: [] },
     });
     await new Promise((r) => setTimeout(r, 10));
@@ -73,7 +74,7 @@ describe("consume exchange", () => {
     const { c, ws } = connected();
     const mm = new MediaManager({ stack: {} as MediaStack });
     mm.attach(c);
-    ws.serverPush({ type: "consume_ok", producer_id: "ghost", rtp_parameters: {} });
+    ws.serverPush({ type: "consume_ok", producer_id: "ghost", consumer_id: "c0", rtp_parameters: {} });
     expect(mm.handleCount).toBe(0);
   });
 });

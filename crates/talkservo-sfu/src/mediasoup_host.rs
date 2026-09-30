@@ -290,7 +290,7 @@ impl Sfu for MediasoupSfu {
         room: &RoomId,
         peer: &PeerId,
         producer_id: &ProducerId,
-    ) -> Result<serde_json::Value, SfuError> {
+    ) -> Result<(String, serde_json::Value), SfuError> {
         // Server-side consume needs only the ROUTER caps (mediasoup builds the
         // consumer against them); the client-side local instantiation uses
         // mediasoup-client device caps — different concern, SDK's job.
@@ -318,6 +318,7 @@ impl Sfu for MediasoupSfu {
             .consume(options)
             .await
             .map_err(|e| sfu_err(e, "consume"))?;
+        let consumer_id = consumer.id().to_string();
         let params = serde_json::to_value(consumer.rtp_parameters())
             .map_err(|e| sfu_err(e, "consumer params ser"))?;
         // keep the consumer alive (drop = close); registry for future pause
@@ -325,7 +326,7 @@ impl Sfu for MediasoupSfu {
             .write()
             .await
             .insert((room.clone(), peer.clone(), consumer.id().to_string()), consumer);
-        Ok(params)
+        Ok((consumer_id, params))
     }
 
     async fn apply_floor(&self, room: &RoomId, state: &FloorState) {
