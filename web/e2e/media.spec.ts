@@ -253,11 +253,11 @@ test.describe("FEC A/B harness (live host, netem)", () => {
     const runArm = async (label: string, fec: boolean) => {
       const ctxL = await browser.newContext();
       const listener = await ctxL.newPage();
-      await joinField(listener, `${r}-listener`);
+      await joinField(listener, `${label}-listener`);
       await listener.waitForTimeout(3000);
       const ctxH = await browser.newContext();
       const holder = await ctxH.newPage();
-      const url = urlFor(`${r}-holder`) + (fec ? "" : "&fec=off");
+      const url = urlFor(`${label}-holder`) + (fec ? "" : "&fec=off");
       await holder.goto(url);
       await expect(holder.getByText("connected")).toBeVisible({ timeout: 15_000 });
       await holder.waitForTimeout(3000);

@@ -17,7 +17,10 @@ case "${1:-}" in
     ;;
   media)
     tc qdisc add dev lo root handle 1: prio
-    tc qdisc add dev lo parent 1:2 handle 20: netem delay 40ms 10ms loss 12%
+    # loss-only by design: chromium counts LATE packets into concealedSamples
+    # — adding delay contaminated the A/B ratio (measured: 19.9% concealment
+    # at 12% loss). #8 isolates FEC recovery; latency is #10's job.
+    tc qdisc add dev lo parent 1:2 handle 20: netem loss 12%
     # protocol=UDP(17) at IP proto field; L4 src port u16 mask 0xff00 value
     # 0xa000 at offset 20 == 40960-41215 (server media ports -> client leg)
     tc filter add dev lo parent 1: protocol ip prio 1 u32 \
