@@ -141,18 +141,31 @@ pub fn init_instance(dir: &Path, server_bin: &Path) -> std::io::Result<Vec<Strin
     }
 
     let caddyfile = abs.join("etc/Caddyfile");
-    let caddy = which("caddy").or_else(|| {
-        let in_bin = abs.join("bin/caddy");
-        in_bin.is_file().then_some(in_bin)
-    });
-    if caddy.is_some() && !caddyfile.exists() {
+    if !caddyfile.exists() {
         std::fs::write(
             &caddyfile,
-            "# talkservo LAN self-signed scaffold (plan-6): regenerate per deploy/Caddyfile\n\
-             # openssl req recipe in docs/modules/06; enable block once certs exist:\n\
-             # https://:8443 {\n#     tls etc/lan-cert.pem etc/lan-key.pem\n#     reverse_proxy 127.0.0.1:8080\n# }\n",
+            "# talkservo LAN TLS front (plan-6/D17): generate certs, then uncomment.\n\
+# openssl req -x509 -newkey rsa:2048 -keyout etc/lan-key.pem -out etc/lan-cert.pem \\\n\
+#   -days 365 -nodes -subj \"/CN=talkservo.test\" \\\n\
+#   -addext \"subjectAltName=DNS:talkservo.test,IP:<LAN-IP>\"\n\
+# https://talkservo.test:8443 {\n#     tls etc/lan-cert.pem etc/lan-key.pem\n#     reverse_proxy 127.0.0.1:8080\n# }\n",
         )?;
-        log.push("etc/Caddyfile scaffolded (caddy found; enable block after certs)".into());
+        log.push("etc/Caddyfile scaffolded (add certs + uncomment to enable TLS)".into());
+    }
+    // caddy joins the cluster ONLY when actually usable: binary resolvable
+    // AND real certs staged — an all-comment config would crash caddy and
+    // fail `start` for the whole cluster
+    let certs = abs.join("etc/lan-cert.pem").is_file() && abs.join("etc/lan-key.pem").is_file();
+    let caddy = if certs {
+        which("caddy").or_else(|| {
+            let in_bin = abs.join("bin/caddy");
+            in_bin.is_file().then_some(in_bin)
+        })
+    } else {
+        None
+    };
+    if caddy.is_some() {
+        log.push("caddy in cluster (certs present)".into());
     }
 
     let oxfile = abs.join("run/oxfile.toml");
@@ -193,7 +206,7 @@ pub fn discover_oxmgr(dir: &Path) -> Option<PathBuf> {
 fn which(bin: &str) -> Option<PathBuf> {
     std::env::var("PATH")
         .ok()?
-        .split(std::path::MAIN_SEPARATOR)
+        .split(':') // PATH entries are colon-separated (NOT MAIN_SEPARATOR)
         .find_map(|p| {
             let cand = PathBuf::from(p).join(bin);
             cand.is_file().then_some(cand)
@@ -377,6 +390,27 @@ mod tests {
         assert_eq!(c.rtc_port_min, 40960);
         assert_eq!(c.public_base.as_deref(), Some("https://192.168.1.9:8443"));
         unsafe { std::env::remove_var("TS_JWT_SECRET") };
+    }
+
+    #[test]
+    fn caddy_joins_cluster_only_with_certs() {
+        let base = std::env::temp_dir().join(format!("ts-caddy-{}", std::process::id()));
+        // no certs -> scaffold present, single app
+        std::fs::create_dir_all(base.join("etc")).unwrap();
+        init_instance(&base, std::path::Path::new("/bin/x")).unwrap();
+        let ox = std::fs::read_to_string(base.join("run/oxfile.toml")).unwrap();
+        assert_eq!(ox.matches("[[apps]]").count(), 1, "no certs => server-only cluster");
+        assert!(base.join("etc/Caddyfile").is_file(), "scaffold always written");
+        // certs + caddy on PATH -> second app renders (PATH probe hits our test exe dir trick: copy /bin/sh as caddy)
+        std::fs::write(base.join("etc/lan-cert.pem"), b"x").unwrap();
+        std::fs::write(base.join("etc/lan-key.pem"), b"x").unwrap();
+        std::fs::create_dir_all(base.join("bin")).unwrap();
+        std::fs::copy("/bin/sh", base.join("bin/caddy")).unwrap();
+        std::fs::remove_file(base.join("run/oxfile.toml")).unwrap();
+        init_instance(&base, std::path::Path::new("/bin/x")).unwrap();
+        let ox2 = std::fs::read_to_string(base.join("run/oxfile.toml")).unwrap();
+        assert!(ox2.contains(WEB_APP), "certs+binary => caddy app rendered:\n{ox2}");
+        std::fs::remove_dir_all(&base).ok();
     }
 
     #[test]
