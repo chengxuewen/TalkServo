@@ -21,6 +21,9 @@ axum.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "sync", "time"] }
 serde.workspace = true
 serde_json.workspace = true
+# D19: YAML instance config. sister-proven 0.9 (EOL upstream — pinned,
+# audit-gated; migrate to a maintained parser if cargo-deny flags it).
+serde_yaml = "0.9"
 jsonwebtoken.workspace = true
 hmac.workspace = true
 sha1.workspace = true
