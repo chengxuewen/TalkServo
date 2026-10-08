@@ -251,7 +251,6 @@ test.describe("FEC A/B harness (live host, netem)", () => {
     // invoking (env passthrough in global-setup) so the E11 watchdog does
     // not down the fake speaker mid-window.
     const runArm = async (label: string, fec: boolean) => {
-      const r = label;
       const ctxL = await browser.newContext();
       const listener = await ctxL.newPage();
       await joinField(listener, `${r}-listener`);

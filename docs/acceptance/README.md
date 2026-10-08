@@ -8,7 +8,7 @@ playwright test` (media+latency, live worker).
 |------|---------|--------|
 | e2e-results.json | 12-row acceptance registry (per-row status + evidence) | regenerated per run |
 | latency.json | keydown→audible p50/p95 (client-relative) | **measured: p50=89ms** (LAN budget 300) — harness `TS_E2E_FEATURES=live npx playwright test --grep "latency harness"` |
-| fec-ab.json | concealment-share A(off)/B(on) under 12% netem | pending — TS_NETEM=1 + scripts/netem.sh |
+| fec-ab.json | concealment-share A(off)/B(on) under 12% netem | **measured** 2026-09-30 (22.7% @ loopback two-hop cascade; VPS T5 single-leg decides the ≥30% line) — rerun: `TS_NETEM=1 NO_RTP_WATCHDOG_MS=600000 TS_E2E_FEATURES=live npx playwright test --grep "#8"` |
 | SIGNOFF.md | final 12-item table with evidence links | VPS slice |
 
 ## Current status (2026-09-30, local slice)
