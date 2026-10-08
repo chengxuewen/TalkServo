@@ -6,8 +6,9 @@
 #
 # usage: ./talkservo.sh <cmd> [args]
 #   build   [--lane stub|live] [--debug]   cargo build the lane, stage out/<lane>/bin
+#   build:deploy [--lane ...] [--prefix DIR]  build then deploy, one step (sister D266 shape)
 #   package [--lane stub|live]             -> dist/talkservo-server-<ver>.tar.gz (versioned top dir)
-#   deploy  --prefix DIR [--lane ...]      assemble instance: bin/ + init (idempotent, never rotates secrets)
+#   deploy  [--prefix DIR] [--lane ...]    assemble instance: bin/ + init (default prefix out/<lane>; idempotent, never rotates secrets)
 #   up|down [service...]                   docker compose pass-through (server + coturn)
 #   run     [--lane stub]                  foreground dev server (thin pixi passthrough)
 #   doctor                                 toolchain + vendored-oxmgr presence report
@@ -20,7 +21,7 @@ OXMGR_VER="v0.5.0"
 
 ver() { sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1; }
 
-usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; }
 
 # pixi activation (mediaservo.sh shape: command -v then ~/.pixi/bin; -h skips)
 ensure_pixi() {
@@ -109,14 +110,21 @@ cmd_deploy() {
         --lane) LANE="$2"; shift 2 ;;
         *) shift ;;
     esac; done
-    [ -n "$prefix" ] || { echo "deploy: --prefix DIR required" >&2; exit 1; }
+    # default prefix = the staged delivery tree itself (sister convention:
+    # out/<target> doubles as the instance dir); explicit --prefix elsewhere
+    [ -n "$prefix" ] || prefix="out/$LANE"
     [ -x "out/$LANE/bin/talkservo-server" ] || { echo "build lane $LANE first"; exit 1; }
     ensure_oxmgr
     [ -e "$prefix" ] && { [ -d "$prefix" ] || { echo "$prefix exists and is not a dir"; exit 1; }; }
     mkdir -p "$prefix/bin"
-    cp -f "out/$LANE/bin/talkservo-server" "$prefix/bin/"
+    # same-path short-circuit: default prefix stages IN out/<lane> — never self-cp
+    if [ "$(readlink -f "out/$LANE/bin/talkservo-server")" != "$(readlink -f "$prefix/bin/talkservo-server")" ]; then
+        cp -f "out/$LANE/bin/talkservo-server" "$prefix/bin/"
+    fi
     local ox; ox="$(command -v oxmgr || true)"
-    [ -n "$ox" ] && cp -f "$ox" "$prefix/bin/oxmgr"
+    if [ -n "$ox" ] && [ "$(readlink -f "$ox")" != "$(readlink -f "$prefix/bin/oxmgr")" ]; then
+        cp -f "$ox" "$prefix/bin/oxmgr"
+    fi
     # init is idempotent: existing identity/etc/run files are preserved
     "$prefix/bin/talkservo-server" init "$prefix"
     echo "deployed: $prefix — $prefix/bin/talkservo-server start $prefix"
@@ -140,6 +148,7 @@ case "${1:--h}" in
     -h|--help|help) usage ;;
     version) echo "talkservo $(ver)" ;;
     build) shift; cmd_build "$@" ;;
+    build:deploy) shift; cmd_build "$@"; cmd_deploy "$@" ;;
     package) shift; cmd_package "$@" ;;
     deploy) shift; cmd_deploy "$@" ;;
     up|down) shift; ensure_pixi; "$PIXI_BIN" exec -- docker compose -f docker/compose.yml "$1" ${2:+--} ${@:2} ;;
