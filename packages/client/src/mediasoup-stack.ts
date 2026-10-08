@@ -89,6 +89,8 @@ export class MediasoupClientStack implements MediaStack {
       callback();
     });
     t.on("produce", async ({ rtpParameters }, callback, errback) => {
+      const codecs = (rtpParameters as { codecs?: Record<string, unknown>[] }).codecs ?? [];
+      console.log("[FEC-DIAG] codec:", JSON.stringify(codecs[0]?.parameters ?? {}));
       // J-step 6: server produces (paused, D13); ProduceOk carries the id
       try {
         console.log("[talkservo-stack] produce event → signal ride");
