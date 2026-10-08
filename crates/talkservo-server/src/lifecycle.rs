@@ -139,16 +139,14 @@ pub fn init_instance(dir: &Path, server_bin: &Path) -> std::io::Result<Vec<Strin
         let in_bin = abs.join("bin/caddy");
         in_bin.is_file().then_some(in_bin)
     });
-    if !caddyfile.exists() {
-        if let Some(_) = &caddy {
-            std::fs::write(
-                &caddyfile,
-                "# LAN self-signed (plan-6): regenerate per 3rdparty docs in deploy/Caddyfile\n\
-                 # openssl req recipe in docs/modules/06; uncomment when certs exist:\n\
-                 # https://:8443 {\n#     tls etc/lan-cert.pem etc/lan-key.pem\n#     reverse_proxy 127.0.0.1:8080\n# }\n",
-            )?;
-            log.push("etc/Caddyfile scaffolded (caddy found; enable block after certs)".into());
-        }
+    if caddy.is_some() && !caddyfile.exists() {
+        std::fs::write(
+            &caddyfile,
+            "# talkservo LAN self-signed scaffold (plan-6): regenerate per deploy/Caddyfile\n\
+             # openssl req recipe in docs/modules/06; enable block once certs exist:\n\
+             # https://:8443 {\n#     tls etc/lan-cert.pem etc/lan-key.pem\n#     reverse_proxy 127.0.0.1:8080\n# }\n",
+        )?;
+        log.push("etc/Caddyfile scaffolded (caddy found; enable block after certs)".into());
     }
 
     let oxfile = abs.join("run/oxfile.toml");
@@ -199,7 +197,7 @@ pub fn oxmgr_forward(dir: &Path, args: &[&str]) -> i32 {
     }
     let mut cmd = std::process::Command::new(ox);
     cmd.args(args);
-    if args.iter().any(|a| *a == "apply") {
+    if args.contains(&"apply") {
         cmd.arg(&oxfile);
     } else {
         cmd.arg("--namespace").arg(NAMESPACE);

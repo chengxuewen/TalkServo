@@ -15,10 +15,124 @@ async fn healthz() -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::json!({ "ok": true, "version": VERSION }))
 }
 
+const USAGE: &str = "usage: talkservo-server <init|start|stop|restart|status|logs|monit|ps|run|version> [<dir>]  (instance dir default .server/)
+  init <dir>              assemble an instance dir: etc/server.yaml + identity/env (0600, idempotent secrets) + run/oxfile.toml
+  start|stop|restart <dir>  drive the process cluster via oxmgr (shipped by the deploy package / PATH)
+  status <dir>            healthz probe (exit 0 healthy / 2 not running)
+  logs|monit|ps <dir> [args...]  oxmgr pass-through
+  run [--config path]     foreground/daemon direct start — systemd/compose tracks untouched (env > yaml > defaults)
+  version | -h";
+
 #[tokio::main]
 async fn main() {
     obs::init_tracing();
-    let config = config::Config::from_env();
+    // ---- D19 facade dispatch (run / legacy flags fall through to server mode) ----
+    {
+        let argv: Vec<String> = std::env::args().skip(1).collect();
+        let sub = argv.first().map(|s| s.as_str()).unwrap_or("run");
+        let dir = std::path::PathBuf::from(argv.get(1).cloned().unwrap_or_else(|| ".server".into()));
+        let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("talkservo-server"));
+        let code = match sub {
+            "init" => {
+                let dir = std::path::PathBuf::from(argv.get(1).cloned().unwrap_or_else(|| ".server".into()));
+                match crate_ok(talkservo_server::lifecycle::init_instance(&dir, &exe)) {
+                    Ok(lines) => {
+                        for l in lines {
+                            println!("init: {l}");
+                        }
+                        0
+                    }
+                    Err(e) => {
+                        eprintln!("init failed: {e}");
+                        1
+                    }
+                }
+            }
+            "start" => talkservo_server::lifecycle::oxmgr_forward(&dir, &["apply"]),
+            "stop" => talkservo_server::lifecycle::oxmgr_forward(&dir, &["stop"]),
+            "restart" => {
+                talkservo_server::lifecycle::oxmgr_forward(&dir, &["stop"]);
+                talkservo_server::lifecycle::oxmgr_forward(&dir, &["apply"])
+            }
+            "status" => {
+                let bind = std::fs::read_to_string(dir.join("identity/env"))
+                    .ok()
+                    .and_then(|t| {
+                        t.lines()
+                            .find_map(|l| l.strip_prefix("TS_BIND="))
+                            .map(str::to_string)
+                    })
+                    .unwrap_or_else(|| "127.0.0.1:8080".into());
+                if talkservo_server::lifecycle::probe_healthz(&bind, std::time::Duration::from_millis(800)) {
+                    println!("status: healthy ({bind})");
+                    0
+                } else {
+                    println!("status: NOT running (bind {bind})");
+                    2
+                }
+            }
+            "logs" | "monit" | "ps" => {
+                let rest: Vec<&str> = argv.iter().skip(2).map(String::as_str).collect();
+                let mut args: Vec<&str> = vec![sub];
+                args.extend(rest);
+                talkservo_server::lifecycle::oxmgr_forward(&dir, &args)
+            }
+            "version" => {
+                println!("talkservo-server {VERSION}");
+                0
+            }
+            "-h" | "--help" | "help" => {
+                println!("{USAGE}");
+                0
+            }
+            "run" => {
+                // server mode: --config <path> → YAML overlay, else pure env
+                let cfg_arg = argv
+                    .iter()
+                    .position(|a| a == "--config")
+                    .and_then(|i| argv.get(i + 1))
+                    .cloned();
+                let config = match cfg_arg {
+                    Some(p) => config::Config::load_yaml(std::path::Path::new(&p))
+                        .unwrap_or_else(|e| {
+                            eprintln!("FATAL: {e}");
+                            std::process::exit(1);
+                        }),
+                    None => config::Config::from_env(),
+                };
+                serve(config).await;
+                return;
+            }
+            other => {
+                // legacy flags straight through (--config kept working)
+                let _ = other;
+                let config = if argv.iter().any(|a| a == "--config") {
+                    let p = argv
+                        .iter()
+                        .position(|a| a == "--config")
+                        .and_then(|i| argv.get(i + 1))
+                        .expect("--config needs a value");
+                    config::Config::load_yaml(std::path::Path::new(p))
+                        .unwrap_or_else(|e| {
+                            eprintln!("FATAL: {e}");
+                            std::process::exit(1);
+                        })
+                } else {
+                    config::Config::from_env()
+                };
+                serve(config).await;
+                return;
+            }
+        };
+        std::process::exit(code);
+    }
+}
+
+fn crate_ok<T, E: std::fmt::Display>(r: Result<T, E>) -> Result<T, String> {
+    r.map_err(|e| e.to_string())
+}
+
+async fn serve(config: config::Config) {
 
     // SFU backend: exactly one (feature-gated; stub under stub-media).
     #[cfg(feature = "stub-media")]

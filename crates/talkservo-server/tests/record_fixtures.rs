@@ -12,7 +12,6 @@
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use std::sync::Arc;
 use talkservo_core::wire::SignalingMessage;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
