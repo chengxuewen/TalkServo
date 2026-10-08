@@ -125,13 +125,14 @@ pub enum SignalingMessage {
     },
     TransportCreate {
         /// "send" | "recv" — the server keeps one transport per direction
-        /// (additive: absent = "send" for v1 clients).
-        #[serde(default)]
+        /// (additive: absent = "send" for v1 clients; never serialized null
+        /// — wire stays lean for old peers).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         dir: Option<String>,
     },
     TransportConnect {
         dtls: serde_json::Value,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         dir: Option<String>,
     },
     Produce {

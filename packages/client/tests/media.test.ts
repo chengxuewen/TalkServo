@@ -51,8 +51,8 @@ describe("mic truth (D16 dual gate)", () => {
   });
 });
 
-describe("AudioHandle lifecycle (S-1/#2)", () => {
-  it("release on revoke: peer leaving grants closes the consumer", async () => {
+describe("AudioHandle lifecycle (D13 pause/resume diff)", () => {
+  it("grant-exit KEEPS the handle; owner leaving the room releases it", async () => {
     const { c, ws } = connectedClient();
     const mm = new MediaManager({ stack: {} as MediaStack });
     mm.attach(c);
@@ -75,9 +75,22 @@ describe("AudioHandle lifecycle (S-1/#2)", () => {
     };
     await mm.consume("speaker", "prod-1", recv, {});
     expect(mm.handleCount).toBe(1);
+    // speaker is a real room member (owner present — handle is retainable)
+    ws.serverPush({
+      type: "peer_list",
+      peers: [{ id: "speaker", name: "speaker", role: "field", speaking: false }],
+      generation: 3,
+    });
 
-    // server revokes: grants drop the peer → handle released
-    ws.serverPush({ type: "floor_idle", generation: 3, reason: null });
+    // holder releases the floor: the downlink handle SURVIVES — D13 pins
+    // consumers created-once riding the server pause/resume diff (track
+    // mute/unmute); releasing on grant-exit rebuilt consumers per press
+    // (measured 600-1500ms keydown->flow, budget 300ms)
+    ws.serverPush({ type: "floor_idle", generation: 4, reason: null });
+    expect(released).toEqual([]);
+    expect(mm.handleCount).toBe(1);
+    // owner gone from the roster: the producer can never resume — release
+    ws.serverPush({ type: "peer_list", peers: [], generation: 5 });
     expect(released).toEqual(["speaker"]);
     expect(mm.handleCount).toBe(0); // released handles removed from pool view
   });

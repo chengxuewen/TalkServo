@@ -168,6 +168,27 @@ async function wireMedia(s: RoomSession): Promise<void> {
     // send and recv are SEPARATE server-side transports: one TransportCreate
     // each (sharing one TransportInfo means both client transports dial the
     // same ICE ufrag/port — the second one never connects, measured)
+    // #9 ICE matrix: Welcome turn_creds -> iceServers; ?ice=relay forces the
+    // relay transport policy (self-test knob, same URL pattern as ?fec=off)
+    const creds = s.client.turnCreds as {
+      uris?: string[];
+      username?: string;
+      credential?: string;
+    };
+    const iceServers: unknown[] = [];
+    for (const uri of creds.uris ?? []) {
+      iceServers.push(
+        creds.username && creds.credential
+          ? { urls: uri, username: creds.username, credential: creds.credential }
+          : { urls: uri },
+      );
+    }
+    const iceTransportPolicy =
+      new URLSearchParams(location.search).get("ice") === "relay" ? "relay" : "all";
+    const iceOpts =
+      iceServers.length > 0
+        ? { iceServers, iceTransportPolicy: iceTransportPolicy as "all" | "relay" }
+        : {};
     const info = await s.client.requestTransport("send");
     // J-step 5/6 ride the signal channel via the stack's adapters
     // wire shape: server expects {dtlsParameters} (RemoteParameters camelCase)
@@ -183,15 +204,21 @@ async function wireMedia(s: RoomSession): Promise<void> {
     // produce ride: mediasoup send transport → facade.produce pairing
     (window as unknown as { __tsAddrs?: unknown }).__tsAddrs = info.addrs;
     const infoRecv = await s.client.requestTransport("recv");
-    const sendT = await stack.createSendTransport({ ice: info.ice, addrs: info.addrs, dtls: info.dtls });
+    const sendT = await stack.createSendTransport({ ice: info.ice, addrs: info.addrs, dtls: info.dtls, ...iceOpts });
     s.media.setSendMic(async (t) => {
       const handle = await sendT.produce({ track: t });
       return handle.id;
     });
     if (track) await s.media.publishMic(track);
+    // ONE recv transport per peer — consumers share it. Measured: creating a
+    // fresh transport per consume (announce-direct + grant-sweep = 2x) made
+    // the second connect() hit the same server transport -> mediasoup
+    // "connect() already called" (500).
+    let recvPromise: Promise<Awaited<ReturnType<typeof stack.createRecvTransport>>> | null = null;
     s.media.setRecvFactory(async () => {
       if (!("createRecvTransport" in stack)) throw new Error("no recv");
-      return stack.createRecvTransport({ ice: infoRecv.ice, addrs: infoRecv.addrs, dtls: infoRecv.dtls });
+      recvPromise ??= stack.createRecvTransport({ ice: infoRecv.ice, addrs: infoRecv.addrs, dtls: infoRecv.dtls, ...iceOpts });
+      return recvPromise;
     });
   } catch (err) {
     console.warn("[talkservo] media setup failed:", err, (err as Error)?.stack);

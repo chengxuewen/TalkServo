@@ -13,60 +13,6 @@
       }
     },
     {
-      "from": "dispatcher",
-      "msg": {
-        "media_codecs": {
-          "codecs": [
-            {
-              "channels": 2,
-              "clockRate": 48000,
-              "kind": "audio",
-              "mimeType": "audio/opus",
-              "preferredPayloadType": 100
-            }
-          ],
-          "headerExtensions": []
-        },
-        "type": "router_caps"
-      }
-    },
-    {
-      "from": "dispatcher",
-      "msg": {
-        "generation": 1791424647471386572,
-        "peers": [
-          {
-            "connected_since_ms": 1791424647471,
-            "id": "chief",
-            "role": "dispatch"
-          }
-        ],
-        "type": "peer_list"
-      }
-    },
-    {
-      "from": "dispatcher",
-      "msg": {
-        "generation": 1791424647471386572,
-        "payload": {
-          "generation": 1791424647471386572,
-          "grants": [],
-          "mode": "hybrid",
-          "muted": [],
-          "payload": "dispatch",
-          "peers": [
-            {
-              "connected_since_ms": 1791424647471,
-              "id": "chief",
-              "role": "dispatch"
-            }
-          ],
-          "queue": []
-        },
-        "type": "server_snapshot"
-      }
-    },
-    {
       "from": "alpha",
       "msg": {
         "peer_id": "alpha",
@@ -78,6 +24,99 @@
       }
     },
     {
+      "from": "dispatcher",
+      "msg": {
+        "media_codecs": {
+          "codecs": [
+            {
+              "channels": 2,
+              "clockRate": 48000,
+              "kind": "audio",
+              "mimeType": "audio/opus",
+              "preferredPayloadType": 100
+            }
+          ],
+          "headerExtensions": []
+        },
+        "type": "router_caps"
+      }
+    },
+    {
+      "from": "dispatcher",
+      "msg": {
+        "generation": 1791432658025509034,
+        "peers": [
+          {
+            "connected_since_ms": 1791432658025,
+            "id": "chief",
+            "role": "dispatch"
+          }
+        ],
+        "type": "peer_list"
+      }
+    },
+    {
+      "from": "dispatcher",
+      "msg": {
+        "generation": 1791432658025509034,
+        "payload": {
+          "generation": 1791432658025509034,
+          "grants": [],
+          "mode": "hybrid",
+          "muted": [],
+          "payload": "dispatch",
+          "peers": [
+            {
+              "connected_since_ms": 1791432658025,
+              "id": "chief",
+              "role": "dispatch"
+            }
+          ],
+          "queue": []
+        },
+        "type": "server_snapshot"
+      }
+    },
+    {
+      "from": "dispatcher",
+      "msg": {
+        "generation": 1791432658025509034,
+        "info": {
+          "connected_since_ms": 1791432662275,
+          "id": "alpha",
+          "role": "field"
+        },
+        "type": "peer_joined"
+      }
+    },
+    {
+      "from": "dispatcher",
+      "msg": {
+        "generation": 1791432658025509035,
+        "payload": {
+          "generation": 1791432658025509035,
+          "grants": [],
+          "mode": "exclusive",
+          "muted": [],
+          "payload": "dispatch",
+          "peers": [
+            {
+              "connected_since_ms": 1791432658025,
+              "id": "chief",
+              "role": "dispatch"
+            },
+            {
+              "connected_since_ms": 1791432662275,
+              "id": "alpha",
+              "role": "field"
+            }
+          ],
+          "queue": []
+        },
+        "type": "server_snapshot"
+      }
+    },
+    {
       "from": "alpha",
       "msg": {
         "media_codecs": {
@@ -98,17 +137,17 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1791424647471386572,
+        "generation": 1791432658025509034,
         "peers": [
           {
-            "connected_since_ms": 1791424647815,
-            "id": "alpha",
-            "role": "field"
-          },
-          {
-            "connected_since_ms": 1791424647471,
+            "connected_since_ms": 1791432658025,
             "id": "chief",
             "role": "dispatch"
+          },
+          {
+            "connected_since_ms": 1791432662275,
+            "id": "alpha",
+            "role": "field"
           }
         ],
         "type": "peer_list"
@@ -117,23 +156,23 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1791424647471386572,
+        "generation": 1791432658025509034,
         "payload": {
-          "generation": 1791424647471386572,
+          "generation": 1791432658025509034,
           "grants": [],
           "mode": "hybrid",
           "muted": [],
           "payload": "field",
           "peers": [
             {
-              "connected_since_ms": 1791424647815,
-              "id": "alpha",
-              "role": "field"
-            },
-            {
-              "connected_since_ms": 1791424647471,
+              "connected_since_ms": 1791432658025,
               "id": "chief",
               "role": "dispatch"
+            },
+            {
+              "connected_since_ms": 1791432662275,
+              "id": "alpha",
+              "role": "field"
             }
           ]
         },
@@ -141,64 +180,25 @@
       }
     },
     {
-      "from": "dispatcher",
-      "msg": {
-        "generation": 1791424647471386572,
-        "info": {
-          "connected_since_ms": 1791424647815,
-          "id": "alpha",
-          "role": "field"
-        },
-        "type": "peer_joined"
-      }
-    },
-    {
-      "from": "dispatcher",
-      "msg": {
-        "generation": 1791424647471386573,
-        "payload": {
-          "generation": 1791424647471386573,
-          "grants": [],
-          "mode": "exclusive",
-          "muted": [],
-          "payload": "dispatch",
-          "peers": [
-            {
-              "connected_since_ms": 1791424647815,
-              "id": "alpha",
-              "role": "field"
-            },
-            {
-              "connected_since_ms": 1791424647471,
-              "id": "chief",
-              "role": "dispatch"
-            }
-          ],
-          "queue": []
-        },
-        "type": "server_snapshot"
-      }
-    },
-    {
       "from": "alpha",
       "msg": {
-        "generation": 1791424647471386573,
+        "generation": 1791432658025509035,
         "payload": {
-          "generation": 1791424647471386573,
+          "generation": 1791432658025509035,
           "grants": [],
           "mode": "exclusive",
           "muted": [],
           "payload": "field",
           "peers": [
             {
-              "connected_since_ms": 1791424647815,
-              "id": "alpha",
-              "role": "field"
-            },
-            {
-              "connected_since_ms": 1791424647471,
+              "connected_since_ms": 1791432658025,
               "id": "chief",
               "role": "dispatch"
+            },
+            {
+              "connected_since_ms": 1791432662275,
+              "id": "alpha",
+              "role": "field"
             }
           ]
         },
@@ -208,7 +208,7 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1791424647471386574,
+        "generation": 1791432658025509036,
         "grants": [
           "alpha"
         ],
@@ -218,7 +218,7 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1791424647471386574,
+        "generation": 1791432658025509036,
         "grants": [
           "alpha"
         ],
@@ -229,14 +229,14 @@
       "from": "dispatcher",
       "msg": {
         "by": "chief",
-        "generation": 1791424647471386575,
+        "generation": 1791432658025509037,
         "type": "floor_taken"
       }
     },
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1791424647471386575,
+        "generation": 1791432658025509037,
         "grants": [
           "chief"
         ],
@@ -247,14 +247,14 @@
       "from": "alpha",
       "msg": {
         "by": "chief",
-        "generation": 1791424647471386575,
+        "generation": 1791432658025509037,
         "type": "floor_taken"
       }
     },
     {
       "from": "alpha",
       "msg": {
-        "generation": 1791424647471386575,
+        "generation": 1791432658025509037,
         "grants": [
           "chief"
         ],
@@ -264,7 +264,7 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1791424647471386576,
+        "generation": 1791432658025509038,
         "reason": null,
         "type": "floor_idle"
       }
@@ -272,7 +272,7 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1791424647471386576,
+        "generation": 1791432658025509038,
         "reason": null,
         "type": "floor_idle"
       }
@@ -280,23 +280,23 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1791424647471386576,
+        "generation": 1791432658025509038,
         "payload": {
-          "generation": 1791424647471386576,
+          "generation": 1791432658025509038,
           "grants": [],
           "mode": "exclusive",
           "muted": [],
           "payload": "field",
           "peers": [
             {
-              "connected_since_ms": 1791424647815,
-              "id": "alpha",
-              "role": "field"
-            },
-            {
-              "connected_since_ms": 1791424647471,
+              "connected_since_ms": 1791432658025,
               "id": "chief",
               "role": "dispatch"
+            },
+            {
+              "connected_since_ms": 1791432662275,
+              "id": "alpha",
+              "role": "field"
             }
           ]
         },
@@ -314,21 +314,6 @@
           "ufrag": "stub-chief"
         },
         "type": "transport_info"
-      }
-    },
-    {
-      "from": "dispatcher",
-      "msg": {
-        "producer_id": "prod-chief-1",
-        "type": "produce_ok"
-      }
-    },
-    {
-      "from": "dispatcher",
-      "msg": {
-        "peer": "chief",
-        "producer_id": "prod-chief-1",
-        "type": "producer_available"
       }
     }
   ],

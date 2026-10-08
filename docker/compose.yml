@@ -39,8 +39,35 @@ services:
     restart: unless-stopped
 
   coturn:
+    # command-args mode (the stock image never auto-loads docker/coturn.yml;
+    # compose interpolates TURN_SECRET here — the .yml stays for standalone
+    # systemd hosts)
     image: coturn/coturn:latest
     network_mode: host
-    environment:
-      TURN_SECRET: ${TURN_SECRET:?set TURN_SECRET in the env file}
+    command:
+      # the image's binary is turnserver (entrypoint is `turnserver` —
+      # overriding with `coturn` exits 127)
+      - turnserver
+      - -c
+      - /dev/null
+      - --listening-port=3478
+      # masquerade: XOR-MAPPED-ADDRESS returns TEST-NET-3 (RFC5737 doc range)
+      # instead of the box's own IP — on a single LAN host srflx would
+      # otherwise equal host and Chrome dedups it (srflx candidate vanishes).
+      # PROVES the STUN path end-to-end; the srflx pair never gets selected
+      # (unreachable by design) — host leg still carries audio.
+      - --relay-ip=192.168.2.127
+      - --external-ip=203.0.113.77/192.168.2.127
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET}
+      - --realm=talkservo
+      - --min-port=40000
+      - --max-port=40100
+      - --fingerprint
+      # dev/e2e only: the SFU sits on loopback peers (production deploys the
+      # real network posture — modules/06). coturn bans RFC1918/loopback
+      # peers by default and forwards nothing (measured rp=0).
+      - --allow-loopback-peers
+      - --log-file=stdout
+      - -v
     restart: unless-stopped

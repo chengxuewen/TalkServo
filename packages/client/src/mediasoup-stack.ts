@@ -69,6 +69,8 @@ export class MediasoupClientStack implements MediaStack {
     ice: unknown;
     addrs: unknown;
     dtls: unknown;
+    iceServers?: unknown[];
+    iceTransportPolicy?: "all" | "relay";
   }): Promise<SendTransportLike> {
     const dev = this.dev();
     if (!dev.loaded) throw new Error("device not loaded");
@@ -80,6 +82,8 @@ export class MediasoupClientStack implements MediaStack {
       // wire addrs: server ICE candidates (mediasoup ice_candidates dump)
       iceCandidates: params.addrs as never,
       dtlsParameters: params.dtls as never,
+      iceServers: params.iceServers as never,
+      iceTransportPolicy: params.iceTransportPolicy ?? "all",
     } as never) as unknown as AnyTransport;
     recordIce("send", t);
     (window as unknown as { __tsSendT?: unknown }).__tsSendT = t;
@@ -108,6 +112,8 @@ export class MediasoupClientStack implements MediaStack {
     ice: unknown;
     addrs: unknown;
     dtls: unknown;
+    iceServers?: unknown[];
+    iceTransportPolicy?: "all" | "relay";
   }): Promise<RecvTransportLike> {
     const dev = this.dev();
     if (!dev.loaded) throw new Error("device not loaded");
@@ -116,6 +122,8 @@ export class MediasoupClientStack implements MediaStack {
       iceParameters: params.ice as never,
       iceCandidates: params.addrs as never,
       dtlsParameters: params.dtls as never,
+      iceServers: params.iceServers as never,
+      iceTransportPolicy: params.iceTransportPolicy ?? "all",
     } as never) as unknown as AnyTransport;
     recordIce("recv", t);
     (window as unknown as { __tsRecvT?: unknown }).__tsRecvT = t;

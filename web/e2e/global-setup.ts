@@ -30,6 +30,17 @@ export default async function () {
     { cwd: REPO, stdio: "inherit" },
   );
   if (build.status !== 0) throw new Error(`cargo build failed: ${build.status}`);
+  // #9 ICE matrix lane: host-network coturn via compose (idempotent up);
+  // the server issues HMAC turn creds from the SAME secret; RTC ports move
+  // to the mask-aligned range to avoid the coturn relay block (40000-40100)
+  const coturn = !!process.env.TS_COTURN;
+  if (coturn) {
+    const up = spawnSync("docker", ["compose", "-f", path.join(REPO, "docker", "compose.yml"), "up", "-d", "coturn"],
+      // the whole compose file interpolates even for one service — the
+      // server service's required vars get dummy values (unused here)
+      { env: { ...process.env, TURN_SECRET: "e2e-turn-secret", TS_JWT_SECRET: "compose-interpolation-only" }, stdio: "inherit" });
+    if (up.status !== 0) throw new Error("coturn compose up failed");
+  }
   server = spawn(
     path.join(REPO, "target", "debug", "talkservo-server"),
     [],
@@ -38,6 +49,22 @@ export default async function () {
         ...process.env,
         TS_JWT_SECRET: SECRET,
         TS_BIND: `127.0.0.1:${PORT}`,
+        // the live fake-device speaker beeps with ~400ms gaps — the E11
+        // watchdog (2s grace) would down it mid-hold and make audibility/
+        // latency probes phase-dependent. The e2e E11 row is a stub-synthetic
+        // assertion (floor.spec) and the Rust live_e11 tests run their own
+        // server — relaxing here affects neither. Production default stays 2s.
+        ...(FEATURES.includes("sfu-mediasoup")
+          ? { NO_RTP_WATCHDOG_MS: process.env.NO_RTP_WATCHDOG_MS ?? "600000" }
+          : {}),
+        ...(coturn
+          ? {
+              TURN_SECRET: "e2e-turn-secret",
+              TURN_URI: "turn:127.0.0.1:3478?transport=udp",
+              RTC_PORT_MIN: "40960",
+              RTC_PORT_MAX: "41215",
+            }
+          : {}),
       },
       stdio: ["ignore", "inherit", "inherit"],
     },

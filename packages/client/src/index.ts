@@ -144,6 +144,12 @@ export class TalkServoClient {
     this.send({ type: "transport_connect", dtls, dir });
   }
 
+  /** TURN/STUN credentials from Welcome (empty object when TURN is off). */
+  get turnCreds(): unknown {
+    return this._turnCreds;
+  }
+  private _turnCreds: unknown = {};
+
   get protocolVersion(): number {
     return PROTOCOL_VERSION;
   }
@@ -190,6 +196,7 @@ export class TalkServoClient {
 
     switch (msg.type) {
       case "welcome":
+        this._turnCreds = msg.turn_creds;
         this.emit({ kind: "connected", selfId: msg.peer_id });
         // first snapshot request after welcome (server already sends one, but
         // an explicit resync is harmless and repairs late-join races)

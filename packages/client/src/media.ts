@@ -22,11 +22,15 @@ export interface MediaStack {
     ice: unknown;
     addrs: unknown;
     dtls: unknown;
+    iceServers?: unknown[];
+    iceTransportPolicy?: "all" | "relay";
   }): Promise<SendTransportLike>;
   createRecvTransport(params: {
     ice: unknown;
     addrs: unknown;
     dtls: unknown;
+    iceServers?: unknown[];
+    iceTransportPolicy?: "all" | "relay";
   }): Promise<RecvTransportLike>;
 }
 
@@ -176,10 +180,14 @@ export class MediaManager {
     client.on((e) => {
       switch (e.kind) {
         case "state": {
-          // releases: peers that left the grant set lose their handles (S-1)
-          const granted = new Set(e.mirror.grants);
+          // D13 pin (correcting the S-1 plan-3 wording): consumers are
+          // created ONCE per producer and ride the server pause/resume diff
+          // (track mute/unmute) — releasing on grant-exit forced a full
+          // consumer rebuild per press (measured 600-1500ms keydown->flow).
+          // Handles release only when the producer's owner is gone.
+          const inRoom = new Set(e.mirror.peers.map((p) => p.id));
           for (const peer of [...this.handles.keys()]) {
-            if (!granted.has(peer)) this.releasePeer(peer);
+            if (!inRoom.has(peer)) this.releasePeer(peer);
           }
           // any state change re-runs the listen sweep: consume_denied earlier
           // (holder not yet granted) retries once the holder IS granted —
