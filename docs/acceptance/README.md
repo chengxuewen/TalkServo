@@ -11,6 +11,14 @@ playwright test` (media+latency, live worker).
 | fec-ab.json | concealment-share A(off)/B(on) under 12% netem | pending — TS_NETEM=1 + scripts/netem.sh |
 | SIGNOFF.md | final 12-item table with evidence links | VPS slice |
 
+## Current status (2026-09-30, local slice)
+
+12 items per architecture.md §4: **10 pass / 2 pending**.
+Pending: #8 (FEC A/B — netem root console run, harness green in dry-run),
+#9 (ICE classes host/srflx/relay — public VPS, slice T4-T5).
+Notable measurements: keydown→audible p50 = **89 ms** (LAN budget 300);
+audible verified by inbound-RTP byte growth on the listener recv transport.
+
 Caveats: loopback rows marked `local-loopback` (WS collateral acceptable —
 TCP retransmits; veth upgrade path for clean isolation at sign-off). E11
 watchdog × fake-device beep gaps down the speaker ~2s into every hold — the
