@@ -58,4 +58,5 @@ All design docs already live in `docs/modules/01-09` (C2 tiering).
 | [plans/2026-09-28-plan2-server-sfu.md](plans/2026-09-28-plan2-server-sfu.md) | signaling server + SFU host | skeleton (expand at execution) |
 | [plans/2026-09-28-plan3-web-client-sdk.md](plans/2026-09-28-plan3-web-client-sdk.md) | packages/client + web SPA | **EXECUTED 2026-09-29** (T1-T4 done; e2e browser-gated) |
 | [plans/2026-09-28-plan4-deployment-acceptance.md](plans/2026-09-28-plan4-deployment-acceptance.md) | public deployment + 12-item acceptance | skeleton |
-| [plans/2026-10-08-plan5-admin-surface.md](plans/2026-10-08-plan5-admin-surface.md) | admin minimal surface (/admin/api + /a console) per D18 | **skeleton (start S1)** |
+| [plans/2026-10-08-plan5-admin-surface.md](plans/2026-10-08-plan5-admin-surface.md) | admin minimal surface (/admin/api + /a console) per D18 | **EXECUTED 2026-10-08** (S0/S1/S2; e2e 4/4 incl. click-through) |
+| [plans/2026-10-08-plan6-tooling-ship-shell.md](plans/2026-10-08-plan6-tooling-ship-shell.md) | ship tooling: talkservo.sh + oxmgr instance facade + YAML config (D19) | skeleton (T1-T4, awaiting approval) |
