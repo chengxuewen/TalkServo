@@ -102,7 +102,13 @@ fn gen_secret() -> String {
 /// entrypoint bootstrap semantics). Fresh: 0600 identity/env with generated
 /// TS_JWT_SECRET/TS_ADMIN_SECRET (+ empty TURN_SECRET slot for the operator).
 pub fn init_instance(dir: &Path, server_bin: &Path) -> std::io::Result<Vec<String>> {
-    let abs = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+    // create FIRST, then canonicalize: canonicalize on a not-yet-existing
+    // relative dir silently fell back to the raw relative path, and oxmgr
+    // then resolved relative log paths against the relative cwd (measured:
+    // ".server/run/.server/run/logs" from a bare `init` with no dir arg)
+    std::fs::create_dir_all(dir)?;
+    let abs = dir.canonicalize()
+        .map_err(|e| std::io::Error::other(format!("resolve {}: {e}", dir.display())))?;
     let mut log = Vec::new();
     std::fs::create_dir_all(abs.join("etc"))?;
     std::fs::create_dir_all(abs.join("run/logs"))?;
@@ -170,6 +176,16 @@ pub fn discover_oxmgr(dir: &Path) -> Option<PathBuf> {
     let in_dir = dir.join("bin/oxmgr");
     if in_dir.is_file() {
         return Some(in_dir);
+    }
+    // sibling of the running server binary — deployed trees ship
+    // bin/{talkservo-server,oxmgr}; operators invoke from inside bin/ or
+    // any cwd (measured: `monit` from out/live/bin missed the adjacent oxmgr)
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(sib) = exe.parent().map(|d| d.join("oxmgr")) {
+            if sib.is_file() {
+                return Some(sib);
+            }
+        }
     }
     which("oxmgr")
 }
@@ -361,6 +377,29 @@ mod tests {
         assert_eq!(c.rtc_port_min, 40960);
         assert_eq!(c.public_base.as_deref(), Some("https://192.168.1.9:8443"));
         unsafe { std::env::remove_var("TS_JWT_SECRET") };
+    }
+
+    #[test]
+    fn init_relative_fresh_dir_renders_absolute_oxfile() {
+        // the exact shape that broke: relative non-existent dir (bare
+        // `init`) must NOT leak relative cwd/log paths into the oxfile
+        let tmp = std::env::temp_dir().join(format!("ts-rel-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let prev = std::env::current_dir().unwrap();
+        unsafe { std::env::set_current_dir(&tmp).unwrap() };
+        let r = init_instance(std::path::Path::new(".server"), std::path::Path::new("/bin/x"));
+        unsafe { std::env::set_current_dir(&prev).unwrap() };
+        let log = r.unwrap();
+        assert!(log.iter().any(|l| l.contains("oxfile.toml created")));
+        let ox = std::fs::read_to_string(tmp.join(".server/run/oxfile.toml")).unwrap();
+        assert!(ox.contains(&format!("cwd = \"{}\"", tmp.join(".server").to_string_lossy())), "oxfile cwd must be absolute:\n{ox}");
+        assert!(!ox.contains(".server/run/.server"), "no doubled relative paths:\n{ox}");
+        // logs paths start with the absolute instance dir
+        for line in ox.lines().filter(|l| l.contains("run/logs/")) {
+            let val = line.split('"').nth(1).unwrap_or_default();
+            assert!(val.starts_with('/') && val.starts_with(tmp.to_str().unwrap()), "relative log path: {line}");
+        }
+        std::fs::remove_dir_all(&tmp).ok();
     }
 
     #[test]
