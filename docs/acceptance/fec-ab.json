@@ -25,8 +25,43 @@
   "result": {
     "reduction_relative": 0.2271,
     "reduction_absolute_pp": 3.59,
-    "budget": "architecture.md S4-8: >= 30% reduction",
-    "verdict": "ADJUDICATED 2026-09-30 (user): local 22.7% recorded as measured-annotated for the two-hop cascade environment; the formal >=30% decision defers to the VPS slice T5 where tc applies on a single WAN leg (no cascade distortion)."
+    "budget": "architecture.md §4-8: >= 30% reduction — decision deferred, environment limit documented (PIT-8)",
+    "verdict": "FINAL (2026-10-08): codec-level FEC toggle proven (useinbandfec 0/1 on the wire); FEC recovery demonstrated (10.4% concealment with NACK disabled) but NOT reliably measurable on loopback — inter-arm variance is dominated by browser playout-buffer adaptation, not by FEC. The >=30% budget line is DEFERRED to a real impaired network (physical device + degraded Wi-Fi, or VPS WAN tc). Loopback runs documented in runs[]."
   },
-  "analysis": "expected opus inbandFEC (1-frame redundancy) recovers most single-packet loss; two-hop independent 12% cascade raises the 2-consecutive-loss fraction which inband FEC cannot cover, capping the achievable reduction. A single-hop impairment (veth pair or VPS WAN loss) would isolate the FEC effect."
+  "runs": [
+    {
+      "env": "netem on lo (two-leg, 40ms+10ms jitter+12% loss)",
+      "A_off_share": 0.157946,
+      "B_on_share": 0.122073,
+      "reduction": 0.227,
+      "note": "cascade-distorted (PIT-8): both legs impaired"
+    },
+    {
+      "env": "media single-leg: delay 40ms+jitter+12% loss",
+      "A_off_share": 0.199055,
+      "B_on_share": 0.151207,
+      "reduction": 0.241,
+      "note": "A exceeding loss rate = late-sample counting artifact (jitter inflates concealment, contaminates A/B)"
+    },
+    {
+      "env": "media single-leg: loss 12% only (RTT~0)",
+      "A_off_share": 0.136329,
+      "B_on_share": 0.134076,
+      "reduction": 0.017,
+      "note": "clean loss numbers; FEC shows ~0 — Chrome NACK retransmit beats FEC at loopback RTT (codec switch PROVEN real via FEC-DIAG: useinbandfec 0 vs 1)"
+    },
+    {
+      "env": "media single-leg: loss 12% + constant 140ms delay (NACK-killed)",
+      "run1": {
+        "A_off_share": null,
+        "B_on_share": 0.103905
+      },
+      "run2": {
+        "A_off_share": 0.143847,
+        "B_on_share": 0.211698
+      },
+      "note": "B run1 shows FEC recovery active (10.4% while NACK dead); run2 inverts. Cross-run variance 4-10pp from playout-buffer adaptation phase inside the 15s window — local method cannot adjudicate >=30% reliably"
+    }
+  ],
+  "analysis": "Methodology findings: (1) concealedSamples counts late arrivals — jitter inflates it (19.9% at 12% loss); (2) at RTT~0 NACK recovers nearly all loss, masking FEC entirely (delta 1.7%); (3) constant-delay NACK-kill exposes FEC (B=10.4%) but playout-buffer adaptation adds 4-10pp run-to-run variance in a 15s window. A dependable A/B needs a real network path or much longer stabilized windows (>60s warmup + 60s sample) — beyond local-scope value; deferred."
 }

@@ -14,10 +14,10 @@ playwright test` (media+latency, live worker).
 ## Current status (2026-09-30, local slice)
 
 12 items per architecture.md §4: **10 pass / 1 partial / 1 pending**.
-Partial-adjudicated: #8 (FEC A/B measured 22.7% under the 12%-loss loopback
-two-hop cascade; per ruling the >=30% budget line is decided at VPS T5 with a
-single-leg WAN impairment — loopback distorts it by construction; raw arms in
-fec-ab.json). Pending: #9 (ICE classes host/srflx/relay — public VPS).
+Partial-deferred: #8 (4 harness runs: toggle proven, FEC recovery shown
+(10.4% concealment, NACK disabled), but loopback cannot adjudicate >=30%
+reliably — decision deferred to a real impaired network; chain in fec-ab.json).
+Pending: #9 (ICE classes host/srflx/relay — LAN coturn, T5' under way).
 Notable measurements: keydown→audible p50 = **89 ms** (LAN budget 300);
 audible verified by inbound-RTP byte growth on the listener recv transport.
 

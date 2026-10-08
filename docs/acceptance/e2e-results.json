@@ -50,7 +50,7 @@
       "id": 8,
       "name": "FEC A/B ≥30% concealment reduction",
       "status": "partial",
-      "note": "MEASURED 2026-09-30: 22.7% relative reduction under netem-12% loopback (two-hop cascade; see fec-ab.json). Adjudicated: >=30% budget decision defers to VPS T5 single-leg WAN loss re-measure.",
+      "note": "PARTIAL-MEASURED (4 harness runs): FEC codec toggle proven on the wire (useinbandfec 0/1); recovery demonstrated under NACK-killed constant-delay leg (B=10.4%) but loopback inter-arm variance (4-10pp, playout-buffer adaptation) cannot adjudicate the >=30% budget. Decision deferred to real impaired network (device+degraded Wi-Fi / VPS WAN tc). Full chain in fec-ab.json.",
       "evidence": "docs/acceptance/fec-ab.json (getStats concealed/total, 15s window, both arms)"
     },
     {

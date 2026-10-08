@@ -257,7 +257,6 @@ test.describe("FEC A/B harness (live host, netem)", () => {
       await listener.waitForTimeout(3000);
       const ctxH = await browser.newContext();
       const holder = await ctxH.newPage();
-      holder.on("console", (m) => { if (m.text().includes("FEC-DIAG")) console.log(`${label} ${m.text()}`); });
       const url = urlFor(`${label}-holder`) + (fec ? "" : "&fec=off");
       await holder.goto(url);
       await expect(holder.getByText("connected")).toBeVisible({ timeout: 15_000 });
