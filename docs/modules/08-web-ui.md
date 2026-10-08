@@ -23,11 +23,42 @@ SPA is a THIN VIEW over `packages/client` (D14) — views + theming + input hand
 | parity/lite (8) | tally viz, HTT, per-line mute, cues, roster status, keybind UX, deny feedback, single-transmit control |
 | differentiator (1) | grant-queue strip (no surveyed product exposes arbitration state) |
 | hard browser gaps (2) | OS-global hotkeys — resolved on desktop by the D10 Electron shell; background/lockscreen receive on mobile — owned by the D8 native SDK track ("native-only acceptance #1") |
-| deliberate deferrals | multi-line monitoring / room tree (Alpha; PoC = dispatcher-assigned single room), GPS/SOS workflow, SIP/radio gateway, recording, text chat, admin console surfaces |
+| deliberate deferrals | multi-line monitoring / room tree (Alpha; PoC = dispatcher-assigned single room), GPS/SOS workflow, SIP/radio gateway, recording, text chat — admin: minimal Monitor/Tokens surface pulled forward (D18, §Admin surface), full admin console stays Alpha |
 
 ## Desktop shell (D10, 2026-09-28)
 
 First-party desktop dispatcher = **Electron shell wrapping `web/` unchanged**: renderer runs the same SPA with embedded Chromium WebRTC (behavior parity with browser acceptance; Discord desktop is the working precedent); main process contributes OS integration only — `globalShortcut` (closes hard gap #5; `register()` returns false when the accelerator is occupied — surface the conflict in settings, review C-4), tray, autostart, `backgroundThrottling:false` hidden-window receive. Shell mechanics (C-7): `requestSingleInstanceLock()`; `render-process-gone → reload()` + R-sequence recovery; Linux auto-update format (AppImage/deb + feed) = Alpha decision; SPA must not gate media on `visibilitychange` (Electron ≥28). No Rust client code in the desktop path; no new UI stack. Tauri evaluated and rejected on WebView media fragmentation; costs accepted (~90 MB, Chromium CVE following, electron-updater in scope). Target: Alpha after PoC web slice; field-agent mobile stays on the D8 native-SDK track.
+
+## Admin surface (PoC-tail, D18)
+
+Minimal admin for LAN operators: **live floor Monitor + token issuance** — the two surfaces the admin dossier §3 flagged PoC-candidate. Out-of-band REST + the same SPA gains `/a`; zero additions to the signaling wire, zero media-plane change; fail-closed (`TS_ADMIN_SECRET` unset ⇒ 503).
+
+**Server** (`crates/talkservo-server/src/admin.rs`): `GET /admin/api/overview` (rooms/peers/uptime/backend), `GET /admin/api/rooms` (per-room mode, holders, queue length, peers, quiet flags — read via read-only `RoomCommand::AdminInspect(oneshot)` aggregated over the room-task actors, no shared-state restructure), `POST /admin/api/tokens` `{sub,room,role,ttl_s}` → `{jwt, field_url, dispatch_url}` (wraps the existing auth issue). Auth: admin JWT `aud:"admin"`, separate `TS_ADMIN_SECRET` (MediaServo D196 dual-token rule, verbatim); bootstrap = `scripts/issue-admin-token.sh`; 401 without token / wrong audience / wrong secret, no leak.
+
+**Web** (`web/src/pages/admin.tsx`, route `/a`): dark AntD Layout + Sider (Monitor | Tokens). Monitor = overview stat cards + rooms table (red tally ring on the holder, reuse `.tally-ring`; 3s poll — AdminEvent WS push is the Alpha upgrade path, endpoint shapes stay compatible). Tokens = issue form → copy-ready join links. Gate card first-run: paste admin JWT (sessionStorage only). No new dependencies.
+
+```text
+Monitor                              Tokens
+┌──────────┬──────────────────┐     ┌──────────┬──────────────────┐
+│▸ Monitor │ Rooms 3 Peers 11 │     │  Monitor │ subject[__] room │
+│  Tokens  │ Up 4:12 SFU live │     │ ▸ Tokens │ [__] role[▾] ttl │
+│          │──────────────────│     │          │──[ Issue ]───────│
+│          │ Room  Peers Floor │     │          │ field   …?jwt= ⧉ │
+│          │ ops01  4   ●alice │     │          │ dispatch…?jwt= ⧉ │
+│          │ night  7   ○ idle │     │          │ jwt only    ⧉   │
+└──────────┴──────────────────┘     └──────────┴──────────────────┘
+```
+
+```text
+browser ─/a─ fetch(Bearer admin-JWT) ─► /admin/api/*  [admin.rs]
+                                          │ overview · rooms · tokens
+talkservo-server                          ├─ auth: TS_ADMIN_SECRET, aud=admin (fail-closed)
+ ├ room task actors ◄─ AdminInspect(oneshot)  (read-only)
+ ├ auth::issue ─────────────► user JWT (same HS256 path /ws join verifies)
+ └ /ws, /healthz, static embed — untouched; wire unchanged (27 variants)
+```
+
+Acceptance (plan-5): missing/wrong admin token ⇒ 401/503 matrix in tests; token issued via API joins /ws successfully; AdminInspect shape stable empty/active; Monitor reflects a live hold within one poll; no admin route reachable without auth (axum integration). Non-goals stay Alpha (user store, audit persistence, keys/limits/drain UI, WS push).
 
 ## Examples & GUI policy (binding demos, not products)
 
