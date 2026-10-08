@@ -1,7 +1,7 @@
 # Plan-6: Ship tooling — oxmgr instance model + talk servo.sh (build/start/deploy/package)
 
 > Sister-project survey (ms_rtc: msrtc.sh → mediaservo.sh → mediaservo_cli.py + oxmgr) drove this design.
-> **STATUS: awaiting execution approval.** Adjudication record at bottom (5 points, user-adjudicated one-by-one 2026-10-08).
+> **STATUS: COMPLETE 2026-10-08** (T1 a/b/c, T2, T3, T4; live smokes: facade lifecycle on real oxmgr + package→deploy→start→healthz→stop). Adjudication record at bottom (5 points, user-adjudicated one-by-one 2026-10-08).
 > Design truth after execution: `docs/modules/09-dev-toolchain.md` §Delivery shell (pre-staged below) + `docs/modules/06-deployment-security.md` config precedence.
 
 ## Command surface (as adjudicated)

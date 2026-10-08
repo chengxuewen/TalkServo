@@ -15,6 +15,7 @@
 - **Transport security (acceptance-blocking)**: page + WS over TLS — Caddy or axum-rustls (PoC self-signed accepted; browsers kill `getUserMedia` without secure context — MDN); `wss://` mandatory outside LAN.
 - **Trust statement (D6 consequence)**: mediasoup's C++ worker terminates DTLS-SRTP per transport — **the server operator holds plaintext audio of every joined peer** (no E2EE/SFrame upstream). Accepted for PoC dispatch trust model; E2EE = OQ-10 before any external hosting.
 - JWT HMAC shared secret via env (`TS_JWT_SECRET`), fail-fast validation at startup; room-scoped audience claim; **TTL 3600 s default**.
+- Config resolution order (D19/plan-6): **process env > `etc/server.yaml` > defaults** (`talkservo.sh`/systemd/compose stay authoritative via env; YAML is the instance-directory convenience). `init` renders identity secrets as LITERALS into `run/oxfile.toml` — oxmgr-spawned processes do not inherit the invoking env, so editing `identity/env` alone does not move a running instance (re-init fresh dir or edit the oxfile). `TS_ADMIN_SECRET` must differ from `TS_JWT_SECRET` (startup-enforced).
 - **PoC token issuance**: `scripts/issue-token.sh` (pixi task `issue-token`) mints HS256 tokens from the env secret for dev/e2e — no public signing endpoint exists; replaced by admin-issued tokens at Alpha (surface list in research/ui/admin-ui-patterns.md).
 - TURN credentials: HMAC short-TTL, **3600 s default**, delivered in `Welcome` (no static REST keys anywhere).
 - Short-TTL TURN credentials server-signed per session (no static REST keys).

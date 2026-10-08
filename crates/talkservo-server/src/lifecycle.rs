@@ -265,10 +265,10 @@ pub fn instance_bind(dir: &Path) -> String {
                 if let Some(v) = l.strip_prefix("TS_BIND = \"").and_then(|v| v.strip_suffix('\u{22}')) {
                     return v.to_string();
                 }
-                if let Some(v) = l.strip_prefix("TS_BIND=") {
-                    if !v.is_empty() {
-                        return v.to_string();
-                    }
+                if let Some(v) = l.strip_prefix("TS_BIND=")
+                    && !v.is_empty()
+                {
+                    return v.to_string();
                 }
             }
         }
