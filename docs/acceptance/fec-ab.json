@@ -1,0 +1,32 @@
+{
+  "_comment": "Acceptance #8 FEC A/B — raw getStats evidence. Regenerate: netem on (scripts/netem.sh) then web/ TS_NETEM=1 NO_RTP_WATCHDOG_MS=600000 TS_E2E_FEATURES=live npx playwright test --grep '#8'.",
+  "generated": "2026-09-30",
+  "environment": {
+    "impairment": "tc netem on lo: delay 40ms +/-10ms, loss 12% (independent)",
+    "topology_note": "loopback two-hop cascade (holder->server + server->listener each see 12%) — effective media loss ~= 22.6%; the WS/TCP plane retransmits and is excluded from this measurement",
+    "client": "chromium fake-device (continuous tone via NO_RTP_WATCHDOG_MS bypass)",
+    "window_s": 15,
+    "browser_stats": "inbound-rtp concealedSamples / totalSamplesReceived on the listener recv transport"
+  },
+  "arms": {
+    "A_fec_off": {
+      "concealed_samples": 95450,
+      "total_samples": 604320,
+      "share": 0.157946,
+      "codec": "opus, useinbandfec=0 (URL ?fec=off)"
+    },
+    "B_fec_on": {
+      "concealed_samples": 72951,
+      "total_samples": 597600,
+      "share": 0.122073,
+      "codec": "opus, useinbandfec=1 (default pin modules/04)"
+    }
+  },
+  "result": {
+    "reduction_relative": 0.2271,
+    "reduction_absolute_pp": 3.59,
+    "budget": "architecture.md S4-8: >= 30% reduction",
+    "verdict": "NOT MET at 22.7% in this environment; adjudication pending (revise budget line for 2-hop cascade environment vs single-hop veth re-measure vs keep 30%)"
+  },
+  "analysis": "expected opus inbandFEC (1-frame redundancy) recovers most single-packet loss; two-hop independent 12% cascade raises the 2-consecutive-loss fraction which inband FEC cannot cover, capping the achievable reduction. A single-hop impairment (veth pair or VPS WAN loss) would isolate the FEC effect."
+}

@@ -49,8 +49,9 @@
     {
       "id": 8,
       "name": "FEC A/B ≥30% concealment reduction",
-      "status": "pending",
-      "note": "T3 harness — netem loopback run"
+      "status": "partial",
+      "note": "MEASURED 2026-09-30: FEC-on share 12.21% vs FEC-off 15.79% under netem-12%-loopback => 22.7% relative reduction, below the >=30% budget line. Environment is two-hop cascade (holder->server->listener, each 12%). See fec-ab.json; adjudication pending (budget revision vs veth single-hop re-measure vs keep-30%).",
+      "evidence": "docs/acceptance/fec-ab.json (getStats concealed/total, 15s window, both arms)"
     },
     {
       "id": 9,
@@ -80,7 +81,7 @@
   ],
   "summary": {
     "pass": 10,
-    "partial": 0,
-    "pending": 2
+    "partial": 1,
+    "pending": 1
   }
 }

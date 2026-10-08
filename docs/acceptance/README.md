@@ -13,9 +13,11 @@ playwright test` (media+latency, live worker).
 
 ## Current status (2026-09-30, local slice)
 
-12 items per architecture.md §4: **10 pass / 2 pending**.
-Pending: #8 (FEC A/B — netem root console run, harness green in dry-run),
-#9 (ICE classes host/srflx/relay — public VPS, slice T4-T5).
+12 items per architecture.md §4: **10 pass / 1 partial / 1 pending**.
+Partial-pending-adjudication: #8 (FEC A/B MEASURED: 22.7% relative reduction
+under 12%-loss loopback two-hop cascade — below the >=30% budget line; raw
+arms in fec-ab.json). Pending: #9 (ICE classes host/srflx/relay — public VPS,
+slice T4-T5).
 Notable measurements: keydown→audible p50 = **89 ms** (LAN budget 300);
 audible verified by inbound-RTP byte growth on the listener recv transport.
 
