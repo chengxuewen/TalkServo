@@ -5,7 +5,7 @@
 
 | Direction | Messages |
 |-----------|----------|
-| client→server | `Join{jwt}` · `FloorRequest{priority,preempt}` · `FloorRelease` · `ModeChange{mode}`* · `MuteSet{peer,on}`* · `TransportCreate` · `TransportConnect{dtls}` · `Produce{rtpParameters}` · `Consume{producerId}` · `Resync` |
+| client→server | `Join{jwt}` · `FloorRequest{priority,preempt}` · `FloorRelease` · `ModeChange{mode}`* · `MuteSet{peer,on}`* · `TransportCreate{dir?}` · `TransportConnect{dtls,dir?}` · `Produce{rtpParameters}` · `Consume{producerId}` · `Resync` |
 | server→client | `Welcome{peerId,turnCreds}` · `RouterCaps{mediaCodecs}` · `PeerList` · `FloorGranted{grants,gen}` · `FloorTaken{by,gen}` · `FloorDenied{reason,gen}` · `FloorQueued{pos,gen}` · `FloorIdle{gen,reason?}` · `TransportInfo{ice,dtls,addrs}` · `ProduceOk{producerId}` · `ConsumeOk{producerId,rtpParameters}` · `MediaRestart{room,reason}` · `MediaFailed{peer}` · `TokenRefresh{jwt}` · `ServerSnapshot{...}` · `Error{code,detail}` |
 
 `ServerSnapshot` is role-scoped (D12): field role receives `{mode,grants,muted,gen,peers}` only; the pending queue (intent-to-speak metadata) is dispatcher-only. `TokenRefresh{jwt}` is pushed proactively before expiry (LiveKit pattern) — client swaps silently; visible error only on refresh failure.
@@ -14,7 +14,7 @@ Additive-only evolution within a version; unknown fields rejected in debug, igno
 
 ## 2. Sequences (normative)
 
-- **J join**: `WS → Join → Welcome+RouterCaps → TransportCreate → TransportInfo → TransportConnect → Produce → ProduceOk` — producer registered once, **server pauses it unless granted** (D13 transmission gating). Identity collision: second Join presenting an already-connected identity → `Error{AlreadyJoined}` (PoC policy; displace-mode = Alpha decision).
+- **J join**: `WS → Join → Welcome+RouterCaps → TransportCreate(dir) ×2 → TransportInfo → TransportConnect(dir) → Produce → ProduceOk` — producer registered once, **server pauses it unless granted** (D13 transmission gating). `dir ∈ {"send","recv"}` (absent = "send", additive wire evolution): each client requests BOTH transports; the server keys them `(room, peer, dir)` — producers attach to the send transport, consumers to the recv one (measured: one-slot-per-peer silently overwrote, uplink scored empty — PIT-6). Identity collision: second Join presenting an already-connected identity → `Error{AlreadyJoined}` (PoC policy; displace-mode = Alpha decision).
 - **P press-to-audible**: `keydown → FloorRequest → apply → grant broadcast + sfu.apply_floor(state) [diff: resume holder producer + resume/create matching consumers — mechanism unified in modules/03] → listeners audible`. Budget: ≤300 ms LAN / ≤600 ms public-relay (initial guess; measured at acceptance #10, then revised here).
 - **X pre-empt**: strictly-higher request + preempt → old holder `FloorTaken{gen}`, all `FloorGranted{grants,gen+1}`, relay+gating swapped; non-strict → `Denied{PreemptPriority}`.
 - **R reconnect (R1)**: `reconnect → Join → ServerSnapshot → client rebuilds; stale-gen events discarded`. No per-message ACK: WS runs over TCP (in-order within a connection); the only loss window is the connection boundary, which the snapshot exactly covers. (MCPTT re-send timers exist because its signaling rides unreliable transports — OQ-6 resolution, recorded.)
