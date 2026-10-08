@@ -49,20 +49,13 @@ async fn main() {
                 }
             }
             "start" => talkservo_server::lifecycle::oxmgr_forward(&dir, &["apply"]),
-            "stop" => talkservo_server::lifecycle::oxmgr_forward(&dir, &["stop"]),
+            "stop" => talkservo_server::lifecycle::oxmgr_stop_cluster(&dir),
             "restart" => {
-                talkservo_server::lifecycle::oxmgr_forward(&dir, &["stop"]);
+                let _ = talkservo_server::lifecycle::oxmgr_stop_cluster(&dir);
                 talkservo_server::lifecycle::oxmgr_forward(&dir, &["apply"])
             }
             "status" => {
-                let bind = std::fs::read_to_string(dir.join("identity/env"))
-                    .ok()
-                    .and_then(|t| {
-                        t.lines()
-                            .find_map(|l| l.strip_prefix("TS_BIND="))
-                            .map(str::to_string)
-                    })
-                    .unwrap_or_else(|| "127.0.0.1:8080".into());
+                let bind = talkservo_server::lifecycle::instance_bind(&dir);
                 if talkservo_server::lifecycle::probe_healthz(&bind, std::time::Duration::from_millis(800)) {
                     println!("status: healthy ({bind})");
                     0
@@ -71,11 +64,11 @@ async fn main() {
                     2
                 }
             }
-            "logs" | "monit" | "ps" => {
-                let rest: Vec<&str> = argv.iter().skip(2).map(String::as_str).collect();
-                let mut args: Vec<&str> = vec![sub];
-                args.extend(rest);
-                talkservo_server::lifecycle::oxmgr_forward(&dir, &args)
+            "monit" | "ui" => talkservo_server::lifecycle::oxmgr_forward(&dir, &["ui"]),
+            "ps" => talkservo_server::lifecycle::oxmgr_forward(&dir, &["list"]),
+            "logs" => {
+                let svc = argv.get(2).cloned().unwrap_or_else(|| talkservo_server::lifecycle::SERVER_APP.into());
+                talkservo_server::lifecycle::oxmgr_forward(&dir, &["logs", &svc])
             }
             "version" => {
                 println!("talkservo-server {VERSION}");

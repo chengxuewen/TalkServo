@@ -184,6 +184,50 @@ fn which(bin: &str) -> Option<PathBuf> {
         })
 }
 
+/// parse app names out of a rendered oxfile (stop/restart cluster targets).
+pub fn oxfile_apps(oxfile_text: &str) -> Vec<String> {
+    oxfile_text
+        .lines()
+        .filter_map(|l| l.trim().strip_prefix("name = ").and_then(|v| v.trim().trim_matches('"').to_string().into()))
+        .collect()
+}
+
+/// stop then delete every app declared by the instance oxfile (sister
+/// shape: cluster teardown = stop+delete per app; individual misses —
+/// already-down app — don't abort the sweep).
+pub fn oxmgr_stop_cluster(dir: &Path) -> i32 {
+    let Some(ox) = discover_oxmgr(dir) else {
+        eprintln!("oxmgr not found (instance bin/ or PATH) — deploy package includes it (plan-6 T2)");
+        return 2;
+    };
+    let names = std::fs::read_to_string(dir.join("run/oxfile.toml"))
+        .map(|t| oxfile_apps(&t))
+        .unwrap_or_default();
+    if names.is_empty() {
+        eprintln!("no apps found in run/oxfile.toml — run `talkservo-server init <dir>` first");
+        return 2;
+    }
+    let mut worst = 0;
+    for n in &names {
+        let a = [std::ffi::OsStr::new("stop"), std::ffi::OsStr::new(n)];
+        worst = worst.max(run_ox(&ox, &a));
+        let d = [std::ffi::OsStr::new("delete"), std::ffi::OsStr::new(n)];
+        run_ox(&ox, &d);
+    }
+    worst
+}
+
+fn run_ox(ox: &Path, args: &[&std::ffi::OsStr]) -> i32 {
+    let owned: Vec<std::ffi::OsString> = args.iter().map(|s| s.to_os_string()).collect();
+    match std::process::Command::new(ox).args(&owned).status() {
+        Ok(s) => s.code().unwrap_or(1),
+        Err(e) => {
+            eprintln!("oxmgr spawn failed: {e}");
+            1
+        }
+    }
+}
+
 /// forward an oxmgr verb against the instance oxfile. Returns process exit code.
 pub fn oxmgr_forward(dir: &Path, args: &[&str]) -> i32 {
     let Some(ox) = discover_oxmgr(dir) else {
@@ -199,8 +243,6 @@ pub fn oxmgr_forward(dir: &Path, args: &[&str]) -> i32 {
     cmd.args(args);
     if args.contains(&"apply") {
         cmd.arg(&oxfile);
-    } else {
-        cmd.arg("--namespace").arg(NAMESPACE);
     }
     match cmd.status() {
         Ok(s) => s.code().unwrap_or(1),
@@ -209,6 +251,29 @@ pub fn oxmgr_forward(dir: &Path, args: &[&str]) -> i32 {
             1
         }
     }
+}
+
+/// Effective TS_BIND of an instance: the oxfile literal is what actually
+/// runs (init renders identity/env INTO it — editing identity alone does
+/// not move the running process; sister C33 literal-render tradeoff).
+pub fn instance_bind(dir: &Path) -> String {
+    for cand in [dir.join("run/oxfile.toml"), dir.join("identity/env")] {
+        if let Ok(t) = std::fs::read_to_string(&cand) {
+            for line in t.lines() {
+                let l = line.trim();
+                // oxfile: TS_BIND = "x"  |  identity: TS_BIND=x
+                if let Some(v) = l.strip_prefix("TS_BIND = \"").and_then(|v| v.strip_suffix('\u{22}')) {
+                    return v.to_string();
+                }
+                if let Some(v) = l.strip_prefix("TS_BIND=") {
+                    if !v.is_empty() {
+                        return v.to_string();
+                    }
+                }
+            }
+        }
+    }
+    "127.0.0.1:8080".into()
 }
 
 /// healthz probe for `status` (no HTTP client dep: raw TCP GET, HTTP/1.0).
