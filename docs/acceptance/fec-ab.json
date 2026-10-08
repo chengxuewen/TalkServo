@@ -26,7 +26,7 @@
     "reduction_relative": 0.2271,
     "reduction_absolute_pp": 3.59,
     "budget": "architecture.md S4-8: >= 30% reduction",
-    "verdict": "NOT MET at 22.7% in this environment; adjudication pending (revise budget line for 2-hop cascade environment vs single-hop veth re-measure vs keep 30%)"
+    "verdict": "ADJUDICATED 2026-09-30 (user): local 22.7% recorded as measured-annotated for the two-hop cascade environment; the formal >=30% decision defers to the VPS slice T5 where tc applies on a single WAN leg (no cascade distortion)."
   },
   "analysis": "expected opus inbandFEC (1-frame redundancy) recovers most single-packet loss; two-hop independent 12% cascade raises the 2-consecutive-loss fraction which inband FEC cannot cover, capping the achievable reduction. A single-hop impairment (veth pair or VPS WAN loss) would isolate the FEC effect."
 }

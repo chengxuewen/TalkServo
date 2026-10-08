@@ -52,3 +52,8 @@
 - **Root cause**: ListenInfo ip=0.0.0.0 with announced_address=Some(127.0.0.1) did not produce working sockets here (environment-specific mediasoup behavior).
 - **Solution**: dev/e2e default binds 127.0.0.1 directly (dialable candidate, no translation); TS_ANNOUNCED_IP env switches to 0.0.0.0+announced for real deploys.
 - **Verification**: `TS_E2E_FEATURES=live npx playwright test --grep "holder audible"` passes; transport connectionState reaches "connected" in the e2e log.
+## PIT-8: netem on loopback impairs BOTH legs of the SFU media path — one-leg A/B measures cannot run on lo (2026-09-30)
+- **Symptom**: FEC A/B showed 22.7% relative reduction (budget ≥30%) while the FEC switch, watchdog bypass and both arms' continuous streams all worked — the harness was correct, the number low.
+- **Root cause**: `tc netem ... dev lo` applies loss to all loopback traffic; the SFU path traverses two legs on lo (holder→server, server→listener), each independently 12% — effective burst loss ≈22.6%. Opus inband FEC (1-frame redundancy) cannot recover consecutive losses, so the arm comparison measured the environment, not the codec.
+- **Solution**: single-leg impairment A/B needs netns+veth (server in its own namespace, tc on one leg) or a real deployment (VPS WAN, one-leg tc). On lo-only, record numbers with the two-leg cascade caveat explicitly and defer budget decisions (done: fec-ab.json + architecture §4-8 annotation, decision moved to T5).
+- **Verification**: `docs/acceptance/fec-ab.json` environment block declares the cascade; architecture §4-8 carries the measured annotation + deferral.
