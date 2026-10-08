@@ -31,6 +31,8 @@ First-party desktop dispatcher = **Electron shell wrapping `web/` unchanged**: r
 
 ## Admin surface (PoC-tail, D18)
 
+_Landed 2026-10-08 (plan-5 S1/S2): tests `admin_api.rs` + `e2e/admin.spec.ts`. Monitor poll/Tokens link click-through verified._
+
 Minimal admin for LAN operators: **live floor Monitor + token issuance** — the two surfaces the admin dossier §3 flagged PoC-candidate. Out-of-band REST + the same SPA gains `/a`; zero additions to the signaling wire, zero media-plane change; fail-closed (`TS_ADMIN_SECRET` unset ⇒ 503).
 
 **Server** (`crates/talkservo-server/src/admin.rs`): `GET /admin/api/overview` (rooms/peers/uptime/backend), `GET /admin/api/rooms` (per-room mode, holders, queue length, peers, muted set, per-holder speaking activity — the speaking bit cached by the watchdog probe tick, muted from FloorState via the snapshot fix; read via read-only `RoomCommand::AdminInspect(oneshot)` with clone-drop-lock fan-out + 1s per-room timeout stale marking, no shared-state restructure, zero SFU calls on the inspect path), `POST /admin/api/tokens` `{sub,room,role,ttl_s}` → `{jwt, field_url, dispatch_url}` (wraps the existing auth issue). Auth: admin JWT `aud:"admin"`, separate `TS_ADMIN_SECRET` (MediaServo D196 dual-token rule, verbatim); bootstrap = `scripts/issue-admin-token.sh`; 401 without token / wrong audience / wrong secret, no leak.

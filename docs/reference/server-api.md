@@ -18,6 +18,18 @@
 |-------|----------|
 | `GET /healthz` | `200 {ok:true, version}` (compose/CI readiness) |
 
+### Admin console (`/admin/api/*`, plan-5 D18)
+
+All routes ALWAYS mounted; fail-closed `503` while `TS_ADMIN_SECRET` unset. Auth: `Authorization: Bearer <admin JWT>` — HS256, `aud:"admin"`, NO room claim (structural audience isolation; `/ws` can never accept an admin token); minted by `scripts/issue-admin-token.sh` on the server host.
+
+| Endpoint | Body / params | Response |
+|---|---|---|
+| `GET /admin/api/overview` | — | `{rooms, peers, uptime_s, backend}` |
+| `GET /admin/api/rooms` | — (1s per-room fan-out timeout) | `[{room, mode, holders[], queue_len, peers[{id, connected_since_ms}], muted[], speaking[]} \| {room, stale:true}]` |
+| `POST /admin/api/tokens` | `{sub, room, role:"dispatch"\|"field", ttl_s?}` (ids: 1-64 `[A-Za-z0-9._-]`; ttl clamped `1..=TS_JWT_TTL_S`) | `{jwt, field_url, dispatch_url}`; base = `TS_PUBLIC_BASE` (scheme-inclusive; Host-header fallback is loopback-dev only). Rate: 60/min ⇒ 429. Issues no audit trail beyond the `admin_token_issued` log line (token value never logged) |
+
+REST contract of record = this table (`openapi.yaml` deferred to Alpha external-API work with CI validation — plan-2 /healthz precedent, adjudicated 2026-10-08).
+
 ## Join handshake (J sequence, server→client order)
 
 1. `Welcome{v:1, peer_id, turn_creds}` (TURN creds are empty stubs until the live
