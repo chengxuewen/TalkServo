@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# talkservo.sh — delivery outer shell (plan-6 / D19): build lanes, package,
+# deploy assembly, compose pass-through, doctor. Dev inner loop stays in
+# `pixi run <task>`; instance lifecycle lives in talkservo-server itself
+# (init/start/stop/status facade over oxmgr).
+#
+# usage: ./talkservo.sh <cmd> [args]
+#   build   [--lane stub|live] [--debug]   cargo build the lane, stage out/<lane>/bin
+#   package [--lane stub|live]             -> dist/talkservo-server-<ver>.tar.gz (versioned top dir)
+#   deploy  --prefix DIR [--lane ...]      assemble instance: bin/ + init (idempotent, never rotates secrets)
+#   up|down [service...]                   docker compose pass-through (server + coturn)
+#   run     [--lane stub]                  foreground dev server (thin pixi passthrough)
+#   doctor                                 toolchain + vendored-oxmgr presence report
+#   version | -h
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+cd "$ROOT"
+LANE="live"
+OXMGR_VER="v0.5.0"
+
+ver() { sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1; }
+
+usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; }
+
+# pixi activation (mediaservo.sh shape: command -v then ~/.pixi/bin; -h skips)
+ensure_pixi() {
+    if command -v pixi >/dev/null 2>&1; then PIXI_BIN="$(command -v pixi)"
+    elif [ -x "$HOME/.pixi/bin/pixi" ]; then PIXI_BIN="$HOME/.pixi/bin/pixi"
+    else echo "pixi missing — install first (docs/modules/09 bootstrap)" >&2; exit 1; fi
+    export PIXI_BIN
+}
+
+# vendored oxmgr: verify-then-unpack, version-keyed cache, WARN on unknown
+# arch (never a wrong-arch binary — sister scheme-Y discipline)
+ensure_oxmgr() {
+    local arch; arch="$(uname -m)"
+    case "$arch" in
+        x86_64)  local pkg="oxmgr-${OXMGR_VER}-x86_64-unknown-linux-musl.tar.gz" ;;
+        aarch64|arm64) local pkg="oxmgr-${OXMGR_VER}-aarch64-unknown-linux-musl.tar.gz" ;;
+        *) echo "WARN: no vendored oxmgr for $arch — using PATH if any" >&2; return 0 ;;
+    esac
+    local cache=".cache/oxmgr/${pkg%.tar.gz}"
+    if [ ! -x "$cache/oxmgr" ]; then
+        ( cd "3rdparty/oxmgr" && sha256sum -c "$pkg.sha256" >/dev/null ) || {
+            echo "FATAL: oxmgr archive checksum mismatch — refuse to unpack" >&2; exit 1; }
+        mkdir -p "$cache" && tar xzf "3rdparty/oxmgr/$pkg" -C "$cache"
+    fi
+    PATH="$PWD/$cache:$PATH"; export PATH
+}
+
+lane_features() { # $1 lane -> cargo feature spec for talkservo-server
+    case "$1" in
+        stub) echo "--no-default-features --features talkservo-server/stub-media" ;;
+        live) echo "--no-default-features --features embedded-web,sfu-mediasoup" ;;
+        *)    echo "unknown lane $1 (stub|live)" >&2; exit 1 ;;
+    esac
+}
+
+cmd_build() {
+    local prof="--release"
+    local args=()
+    while [ $# -gt 0 ]; do case "$1" in
+        --lane) LANE="$2"; shift 2 ;;
+        --debug) prof=""; shift ;;
+        *) shift ;;
+    esac; done
+    ensure_pixi; ensure_oxmgr
+    echo "build: lane=$LANE ${prof:-debug}"
+    "$PIXI_BIN" run cargo build -p talkservo-server $prof $(lane_features "$LANE")
+    local profile_dir="debug"; [ -n "$prof" ] && profile_dir="release"
+    mkdir -p "out/$LANE/bin"
+    cp -f "target/$profile_dir/talkservo-server" "out/$LANE/bin/talkservo-server"
+    # web dist rides the embedded lane (rust-embed baked; keep a copy for ops)
+    [ -d web/dist ] && { mkdir -p "out/$LANE/web"; cp -r web/dist "out/$LANE/web/dist"; }
+    echo "staged: out/$LANE/bin/talkservo-server"
+}
+
+cmd_package() {
+    local dist="dist"
+    while [ $# -gt 0 ]; do case "$1" in
+        --lane) LANE="$2"; shift 2 ;;
+        --dist) dist="$2"; shift 2 ;;
+        *) shift ;;
+    esac; done
+    local stage bin="target/release"
+    [ -x "out/$LANE/bin/talkservo-server" ] || { echo "build first (no out/$LANE/bin)"; exit 1; }
+    mkdir -p "$dist"
+    stage="$(mktemp -d "$dist/.stage-XXXXXX")"
+    local name="talkservo-server-$(ver)-$LANE"
+    mkdir -p "$stage/$name/bin" "$stage/$name/etc" "$stage/$name/scripts"
+    cp "out/$LANE/bin/talkservo-server" "$stage/$name/bin/"
+    ensure_oxmgr
+    local ox; ox="$(command -v oxmgr || true)"
+    [ -n "$ox" ] && cp "$ox" "$stage/$name/bin/oxmgr" || echo "WARN: oxmgr not staged — start/stop will point at PATH" >&2
+    cp config/sample.env "$stage/$name/etc/"
+    cp deploy/Caddyfile deploy/talkservo.service "$stage/$name/etc/" 2>/dev/null || true
+    cp scripts/issue-token.sh "$stage/$name/scripts/"
+    cp 3rdparty/oxmgr/README.md "$stage/$name/etc/oxmgr-README.md" 2>/dev/null || true
+    mkdir -p "$dist"; find "$dist" -maxdepth 1 -name "${name}.tar.gz" -delete
+    tar czf "$dist/$name.tar.gz" -C "$stage" "$name"
+    rm -rf "$stage"
+    echo "packaged: $dist/$name.tar.gz (extract: tar xzf $name.tar.gz; top dir $name/)"
+}
+
+cmd_deploy() {
+    local prefix=""
+    while [ $# -gt 0 ]; do case "$1" in
+        --prefix) prefix="$2"; shift 2 ;;
+        --lane) LANE="$2"; shift 2 ;;
+        *) shift ;;
+    esac; done
+    [ -n "$prefix" ] || { echo "deploy: --prefix DIR required" >&2; exit 1; }
+    [ -x "out/$LANE/bin/talkservo-server" ] || { echo "build lane $LANE first"; exit 1; }
+    ensure_oxmgr
+    [ -e "$prefix" ] && { [ -d "$prefix" ] || { echo "$prefix exists and is not a dir"; exit 1; }; }
+    mkdir -p "$prefix/bin"
+    cp -f "out/$LANE/bin/talkservo-server" "$prefix/bin/"
+    local ox; ox="$(command -v oxmgr || true)"
+    [ -n "$ox" ] && cp -f "$ox" "$prefix/bin/oxmgr"
+    # init is idempotent: existing identity/etc/run files are preserved
+    "$prefix/bin/talkservo-server" init "$prefix"
+    echo "deployed: $prefix — $prefix/bin/talkservo-server start $prefix"
+}
+
+cmd_doctor() {
+    local fail=0
+    echo "(bare-PATH view — meson/ninja/clang living inside the pixi env are fine)"
+    for t in "pixi" "docker" "node" "caddy" "meson" "ninja" "clang"; do
+        if command -v "$t" >/dev/null 2>&1 || [ "$t" = "pixi" ] && [ -x "$HOME/.pixi/bin/pixi" ]; then
+            printf 'ok    %s\n' "$t"
+        else printf 'MISS  %s\n' "$t"; fail=$((fail+1)); fi
+    done
+    ensure_oxmgr >/dev/null 2>&1 || true
+    command -v oxmgr >/dev/null 2>&1 && echo "ok    oxmgr (vendored)" || { echo "miss  oxmgr (will matter for start/stop)"; fail=$((fail+1)); }
+    [ -f Cargo.lock ] && echo "ok    lockfile" || { echo "miss  Cargo.lock"; fail=$((fail+1)); }
+    echo "doctor: $fail issue(s)"; return "$fail"
+}
+
+case "${1:--h}" in
+    -h|--help|help) usage ;;
+    version) echo "talkservo $(ver)" ;;
+    build) shift; cmd_build "$@" ;;
+    package) shift; cmd_package "$@" ;;
+    deploy) shift; cmd_deploy "$@" ;;
+    up|down) shift; ensure_pixi; "$PIXI_BIN" exec -- docker compose -f docker/compose.yml "$1" ${2:+--} ${@:2} ;;
+    run) shift; ensure_pixi; "$PIXI_BIN" run cargo run -p talkservo-server --no-default-features --features talkservo-server/stub-media ;;
+    doctor) shift; cmd_doctor ;;
+    *) usage; exit 2 ;;
+esac
