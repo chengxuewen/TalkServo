@@ -116,6 +116,10 @@ impl FloorState {
     pub fn grants(&self) -> &[PeerId] {
         &self.grants
     }
+    /// Operationally muted peers (MuteSet; survives snapshots — S0.1).
+    pub fn muted(&self) -> &[PeerId] {
+        &self.muted
+    }
     pub fn queue(&self) -> &[Pending] {
         &self.queue
     }

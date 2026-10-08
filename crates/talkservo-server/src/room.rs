@@ -141,7 +141,7 @@ impl RoomState {
                     field: talkservo_core::wire::FieldSnapshot {
                         mode: self.floor.mode(),
                         grants: self.floor.grants().to_vec(),
-                        muted: vec![], // muted set lives in floor state — expose below
+                        muted: self.floor.muted().to_vec(),
                         generation,
                         peers,
                     },
@@ -150,7 +150,7 @@ impl RoomState {
             Role::Field => ServerSnapshotPayload::Field(talkservo_core::wire::FieldSnapshot {
                 mode: self.floor.mode(),
                 grants: self.floor.grants().to_vec(),
-                muted: vec![],
+                muted: self.floor.muted().to_vec(),
                 generation,
                 peers,
             }),

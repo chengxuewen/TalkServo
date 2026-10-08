@@ -163,6 +163,77 @@ async fn dispatch_sees_queue_field_does_not() {
 }
 
 #[tokio::test]
+async fn mute_set_survives_resync_snapshot() {
+    // S0.1: the snapshot muted field was hardcoded empty — R1/reconnect lost
+    // the mute roster on the floor. Peer ids come from the token sub.
+    let srv = TestServer::start().await;
+    let mut d = ws_connect(srv.ws_url()).await;
+    send_json(&mut d, &join_msg(&srv.secret, "disp", "room-m", talkservo_core::wire::Role::Dispatch)).await;
+    for _ in 0..4 {
+        let _ = recv_msg(&mut d).await;
+    }
+    let mut v = ws_connect(srv.ws_url()).await;
+    send_json(&mut v, &join_msg(&srv.secret, "quiet-guy", "room-m", talkservo_core::wire::Role::Field)).await;
+    for _ in 0..4 {
+        let _ = recv_msg(&mut v).await;
+    }
+    // R8 precondition: mute governance applies to floor-active peers only —
+    // victim must hold (or be queued) before MuteSet takes effect
+    send_json(&mut v, &SignalingMessage::FloorRequest { priority: 0, preempt: false }).await;
+    let _ = recv_msg(&mut v).await; // FloorGranted
+    send_json(
+        &mut d,
+        &SignalingMessage::MuteSet {
+            peer: talkservo_core::ids::PeerId::from("quiet-guy"),
+            on: true,
+        },
+    )
+    .await;
+    // NOTE: MuteSet mutates silently (no reply/broadcast in current apply —
+    // cross-peer live sync logged as a candidate gap, S0.1 stays fill-only)
+    send_json(&mut d, &SignalingMessage::Resync).await;
+    let m = loop {
+        let m = recv_msg(&mut d).await;
+        if matches!(m, SignalingMessage::ServerSnapshot { .. }) {
+            break m;
+        }
+    };
+    match m {
+        SignalingMessage::ServerSnapshot {
+            payload: talkservo_core::wire::ServerSnapshotPayload::Dispatch(ds),
+            ..
+        } => {
+            assert!(
+                ds.field.muted.iter().any(|p| p.0.as_ref() == "quiet-guy"),
+                "dispatch snapshot must carry the mute roster: {:?}",
+                ds.field.muted
+            );
+        }
+        other => panic!("expected dispatch snapshot, got {other:?}"),
+    }
+    send_json(&mut v, &SignalingMessage::Resync).await;
+    let mv = loop {
+        let m = recv_msg(&mut v).await;
+        if matches!(m, SignalingMessage::ServerSnapshot { .. }) {
+            break m;
+        }
+    };
+    match mv {
+        SignalingMessage::ServerSnapshot {
+            payload: talkservo_core::wire::ServerSnapshotPayload::Field(fs),
+            ..
+        } => {
+            assert!(
+                fs.muted.iter().any(|p| p.0.as_ref() == "quiet-guy"),
+                "field snapshot muted roster lost (R1 mute-state bug): {:?}",
+                fs.muted
+            );
+        }
+        other => panic!("expected field snapshot, got {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn floor_request_grants_first_peer() {
     let srv = TestServer::start().await;
     let mut a = ws_connect(srv.ws_url()).await;

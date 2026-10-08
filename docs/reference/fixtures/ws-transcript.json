@@ -13,6 +13,60 @@
       }
     },
     {
+      "from": "dispatcher",
+      "msg": {
+        "media_codecs": {
+          "codecs": [
+            {
+              "channels": 2,
+              "clockRate": 48000,
+              "kind": "audio",
+              "mimeType": "audio/opus",
+              "preferredPayloadType": 100
+            }
+          ],
+          "headerExtensions": []
+        },
+        "type": "router_caps"
+      }
+    },
+    {
+      "from": "dispatcher",
+      "msg": {
+        "generation": 1791441416729567820,
+        "peers": [
+          {
+            "connected_since_ms": 1791441416729,
+            "id": "chief",
+            "role": "dispatch"
+          }
+        ],
+        "type": "peer_list"
+      }
+    },
+    {
+      "from": "dispatcher",
+      "msg": {
+        "generation": 1791441416729567820,
+        "payload": {
+          "generation": 1791441416729567820,
+          "grants": [],
+          "mode": "hybrid",
+          "muted": [],
+          "payload": "dispatch",
+          "peers": [
+            {
+              "connected_since_ms": 1791441416729,
+              "id": "chief",
+              "role": "dispatch"
+            }
+          ],
+          "queue": []
+        },
+        "type": "server_snapshot"
+      }
+    },
+    {
       "from": "alpha",
       "msg": {
         "peer_id": "alpha",
@@ -24,7 +78,7 @@
       }
     },
     {
-      "from": "dispatcher",
+      "from": "alpha",
       "msg": {
         "media_codecs": {
           "codecs": [
@@ -42,12 +96,17 @@
       }
     },
     {
-      "from": "dispatcher",
+      "from": "alpha",
       "msg": {
-        "generation": 1791432658025509034,
+        "generation": 1791441416729567820,
         "peers": [
           {
-            "connected_since_ms": 1791432658025,
+            "connected_since_ms": 1791441417077,
+            "id": "alpha",
+            "role": "field"
+          },
+          {
+            "connected_since_ms": 1791441416729,
             "id": "chief",
             "role": "dispatch"
           }
@@ -56,23 +115,27 @@
       }
     },
     {
-      "from": "dispatcher",
+      "from": "alpha",
       "msg": {
-        "generation": 1791432658025509034,
+        "generation": 1791441416729567820,
         "payload": {
-          "generation": 1791432658025509034,
+          "generation": 1791441416729567820,
           "grants": [],
           "mode": "hybrid",
           "muted": [],
-          "payload": "dispatch",
+          "payload": "field",
           "peers": [
             {
-              "connected_since_ms": 1791432658025,
+              "connected_since_ms": 1791441417077,
+              "id": "alpha",
+              "role": "field"
+            },
+            {
+              "connected_since_ms": 1791441416729,
               "id": "chief",
               "role": "dispatch"
             }
-          ],
-          "queue": []
+          ]
         },
         "type": "server_snapshot"
       }
@@ -80,9 +143,9 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1791432658025509034,
+        "generation": 1791441416729567820,
         "info": {
-          "connected_since_ms": 1791432662275,
+          "connected_since_ms": 1791441417077,
           "id": "alpha",
           "role": "field"
         },
@@ -92,23 +155,23 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1791432658025509035,
+        "generation": 1791441416729567821,
         "payload": {
-          "generation": 1791432658025509035,
+          "generation": 1791441416729567821,
           "grants": [],
           "mode": "exclusive",
           "muted": [],
           "payload": "dispatch",
           "peers": [
             {
-              "connected_since_ms": 1791432658025,
-              "id": "chief",
-              "role": "dispatch"
-            },
-            {
-              "connected_since_ms": 1791432662275,
+              "connected_since_ms": 1791441417077,
               "id": "alpha",
               "role": "field"
+            },
+            {
+              "connected_since_ms": 1791441416729,
+              "id": "chief",
+              "role": "dispatch"
             }
           ],
           "queue": []
@@ -119,86 +182,23 @@
     {
       "from": "alpha",
       "msg": {
-        "media_codecs": {
-          "codecs": [
-            {
-              "channels": 2,
-              "clockRate": 48000,
-              "kind": "audio",
-              "mimeType": "audio/opus",
-              "preferredPayloadType": 100
-            }
-          ],
-          "headerExtensions": []
-        },
-        "type": "router_caps"
-      }
-    },
-    {
-      "from": "alpha",
-      "msg": {
-        "generation": 1791432658025509034,
-        "peers": [
-          {
-            "connected_since_ms": 1791432658025,
-            "id": "chief",
-            "role": "dispatch"
-          },
-          {
-            "connected_since_ms": 1791432662275,
-            "id": "alpha",
-            "role": "field"
-          }
-        ],
-        "type": "peer_list"
-      }
-    },
-    {
-      "from": "alpha",
-      "msg": {
-        "generation": 1791432658025509034,
+        "generation": 1791441416729567821,
         "payload": {
-          "generation": 1791432658025509034,
-          "grants": [],
-          "mode": "hybrid",
-          "muted": [],
-          "payload": "field",
-          "peers": [
-            {
-              "connected_since_ms": 1791432658025,
-              "id": "chief",
-              "role": "dispatch"
-            },
-            {
-              "connected_since_ms": 1791432662275,
-              "id": "alpha",
-              "role": "field"
-            }
-          ]
-        },
-        "type": "server_snapshot"
-      }
-    },
-    {
-      "from": "alpha",
-      "msg": {
-        "generation": 1791432658025509035,
-        "payload": {
-          "generation": 1791432658025509035,
+          "generation": 1791441416729567821,
           "grants": [],
           "mode": "exclusive",
           "muted": [],
           "payload": "field",
           "peers": [
             {
-              "connected_since_ms": 1791432658025,
-              "id": "chief",
-              "role": "dispatch"
-            },
-            {
-              "connected_since_ms": 1791432662275,
+              "connected_since_ms": 1791441417077,
               "id": "alpha",
               "role": "field"
+            },
+            {
+              "connected_since_ms": 1791441416729,
+              "id": "chief",
+              "role": "dispatch"
             }
           ]
         },
@@ -208,7 +208,7 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1791432658025509036,
+        "generation": 1791441416729567822,
         "grants": [
           "alpha"
         ],
@@ -218,7 +218,7 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1791432658025509036,
+        "generation": 1791441416729567822,
         "grants": [
           "alpha"
         ],
@@ -229,14 +229,14 @@
       "from": "dispatcher",
       "msg": {
         "by": "chief",
-        "generation": 1791432658025509037,
+        "generation": 1791441416729567823,
         "type": "floor_taken"
       }
     },
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1791432658025509037,
+        "generation": 1791441416729567823,
         "grants": [
           "chief"
         ],
@@ -247,14 +247,14 @@
       "from": "alpha",
       "msg": {
         "by": "chief",
-        "generation": 1791432658025509037,
+        "generation": 1791441416729567823,
         "type": "floor_taken"
       }
     },
     {
       "from": "alpha",
       "msg": {
-        "generation": 1791432658025509037,
+        "generation": 1791441416729567823,
         "grants": [
           "chief"
         ],
@@ -264,7 +264,7 @@
     {
       "from": "dispatcher",
       "msg": {
-        "generation": 1791432658025509038,
+        "generation": 1791441416729567824,
         "reason": null,
         "type": "floor_idle"
       }
@@ -272,7 +272,7 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1791432658025509038,
+        "generation": 1791441416729567824,
         "reason": null,
         "type": "floor_idle"
       }
@@ -280,23 +280,23 @@
     {
       "from": "alpha",
       "msg": {
-        "generation": 1791432658025509038,
+        "generation": 1791441416729567824,
         "payload": {
-          "generation": 1791432658025509038,
+          "generation": 1791441416729567824,
           "grants": [],
           "mode": "exclusive",
           "muted": [],
           "payload": "field",
           "peers": [
             {
-              "connected_since_ms": 1791432658025,
-              "id": "chief",
-              "role": "dispatch"
-            },
-            {
-              "connected_since_ms": 1791432662275,
+              "connected_since_ms": 1791441417077,
               "id": "alpha",
               "role": "field"
+            },
+            {
+              "connected_since_ms": 1791441416729,
+              "id": "chief",
+              "role": "dispatch"
             }
           ]
         },
@@ -314,6 +314,21 @@
           "ufrag": "stub-chief"
         },
         "type": "transport_info"
+      }
+    },
+    {
+      "from": "dispatcher",
+      "msg": {
+        "producer_id": "prod-chief-1",
+        "type": "produce_ok"
+      }
+    },
+    {
+      "from": "dispatcher",
+      "msg": {
+        "peer": "chief",
+        "producer_id": "prod-chief-1",
+        "type": "producer_available"
       }
     }
   ],
