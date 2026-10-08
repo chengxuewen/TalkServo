@@ -72,8 +72,17 @@ cmd_build() {
     mkdir -p "out/$LANE/bin"
     cp -f "target/$profile_dir/talkservo-server" "out/$LANE/bin/talkservo-server"
     # web dist rides the embedded lane (rust-embed baked; keep a copy for ops)
-    [ -d web/dist ] && { mkdir -p "out/$LANE/web"; cp -r web/dist "out/$LANE/web/dist"; }
-    echo "staged: out/$LANE/bin/talkservo-server"
+    [ -d web/dist ] && { rm -rf "out/$LANE/web"; mkdir -p "out/$LANE/web"; cp -r web/dist "out/$LANE/web/dist"; }
+    # sister parity (msrtc): stage oxmgr into the delivery tree at BUILD time
+    # too — out/<lane> is then immediately instance-capable (monit/ps resolve
+    # instance bin/ first), explicit --prefix deploys just copy the tree
+    if command -v oxmgr >/dev/null 2>&1; then
+        cp -f "$(command -v oxmgr)" "out/$LANE/bin/oxmgr"
+        echo "staged: out/$LANE/bin/talkservo-server + oxmgr"
+    else
+        echo "WARN: oxmgr not staged — vendored cache unresolved; start/stop/monit need it on PATH" >&2
+        echo "staged: out/$LANE/bin/talkservo-server"
+    fi
 }
 
 cmd_package() {
