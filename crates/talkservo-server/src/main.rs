@@ -50,8 +50,14 @@ async fn main() {
         let mut restarts = supervisor_handle.restart_rx();
         tokio::spawn(async move {
             while let Ok(note) = restarts.recv().await {
-                let rooms = rooms_registry.rooms.lock().await;
-                for (room_id, tx) in rooms.iter() {
+                // clone-senders -> drop lock -> send: room tasks reap
+                // themselves under the SAME registry lock (ws.rs IdleTick);
+                // holding it across send().await is a deadlock window
+                let snapshot: Vec<_> = {
+                    let rooms = rooms_registry.rooms.lock().await;
+                    rooms.iter().map(|(id, tx)| (id.clone(), tx.clone())).collect()
+                };
+                for (room_id, tx) in &snapshot {
                     let _ = tx
                         .send(talkservo_server::ws::RoomCommand::Wire {
                             from: talkservo_core::ids::PeerId::from("system"),
@@ -65,7 +71,7 @@ async fn main() {
                 tracing::info!(
                     event = "media_restart_done",
                     reason = %note.reason,
-                    rooms = rooms.len(),
+                    rooms = snapshot.len(),
                     "media restart fanned out"
                 );
             }
