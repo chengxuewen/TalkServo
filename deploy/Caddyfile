@@ -13,3 +13,16 @@ talk.example.com {
 	# WebSocket upgrade is automatic through Caddy's reverse_proxy.
 	reverse_proxy 127.0.0.1:8080
 }
+
+# LAN / private-network range (D17): self-signed cert with hostname + IP SAN.
+# The cert must cover BOTH the DNS name and the announced IP (SAN list), and
+# browsers need ignoreHTTPSErrors (or the root distributed to devices).
+# Chromium/playwright note: unset proxies or pass --proxy-server=direct:// —
+# env http_proxy otherwise captures LAN traffic (PIT-9).
+#   openssl req -x509 -newkey rsa:2048 -keyout lan-key.pem -out lan-cert.pem \
+#     -days 365 -nodes -subj "/CN=talkservo.test" \
+#     -addext "subjectAltName=DNS:talkservo.test,IP:<LAN-IP>"
+#   https://talkservo.test:8443 {
+#       tls lan-cert.pem lan-key.pem
+#       reverse_proxy 127.0.0.1:8080
+#   }

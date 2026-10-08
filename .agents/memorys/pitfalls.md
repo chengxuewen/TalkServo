@@ -57,3 +57,8 @@
 - **Root cause**: `tc netem ... dev lo` applies loss to all loopback traffic; the SFU path traverses two legs on lo (holder→server, server→listener), each independently 12% — effective burst loss ≈22.6%. Opus inband FEC (1-frame redundancy) cannot recover consecutive losses, so the arm comparison measured the environment, not the codec.
 - **Solution**: single-leg impairment A/B needs netns+veth (server in its own namespace, tc on one leg) or a real deployment (VPS WAN, one-leg tc). On lo-only, record numbers with the two-leg cascade caveat explicitly and defer budget decisions (done: fec-ab.json + architecture §4-8 annotation, decision moved to T5).
 - **Verification**: `docs/acceptance/fec-ab.json` environment block declares the cascade; architecture §4-8 carries the measured annotation + deferral.
+## PIT-9: env http_proxy captures Playwright/Chromium LAN connections — smoke/probe browsers need explicit direct routing (2026-10-08)
+- **Symptom**: `net::ERR_CONNECTION_CLOSED` on every https://<lan-host> goto in playwright chromium, while curl -k to the same endpoint succeeds; ignoreHTTPSErrors and cert variants changed nothing.
+- **Root cause**: chromium inherits `http_proxy/https_proxy/all_proxy` from the environment; LAN hostnames get proxied, the proxy refuses them (curl was tested only with `--noproxy "*"`). netlog showed `Proxy-Connection: keep-alive` — the tell.
+- **Solution**: `--proxy-server=direct://` launch arg (or `proxy: { server: "direct://" }` context option); same discipline as the curl `--noproxy` rule, extended to browser automation.
+- **Verification**: `web/scripts/lan-smoke.mjs` passes (TLS + WS + media setup over LAN); netlog contains no Proxy-Connection header when fixed.
