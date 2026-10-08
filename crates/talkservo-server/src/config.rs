@@ -167,13 +167,26 @@ fn env_u64(key: &str, default: u64) -> u64 {
         .unwrap_or(default)
 }
 
+/// test-only: process-env is global — every env-touching test takes this
+/// lock (poison-tolerant: one failed assertion must not cascade) and clears
+/// the mapped keys first (set_var injection leaves residue otherwise).
+#[cfg(test)]
+pub(crate) static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
+pub(crate) fn clear_config_env() {
+    for env in YAML_ENV_KEYS.values() {
+        unsafe { std::env::remove_var(env) };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
 
-    // env is process-global: serialise every test that touches it
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    fn lock() -> std::sync::MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     fn write_yaml(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
         std::fs::create_dir_all(dir.join("etc")).unwrap();
@@ -184,7 +197,8 @@ mod tests {
 
     #[test]
     fn yaml_fills_and_env_overrides() {
-        let _g = ENV_LOCK.lock().unwrap();
+        let _g = lock();
+        clear_config_env();
         let dir = std::env::temp_dir().join(format!("ts-cfg-{}", std::process::id()));
         let p = write_yaml(
             &dir,
@@ -208,7 +222,8 @@ mod tests {
 
     #[test]
     fn nested_yaml_rejected_unknown_ignored() {
-        let _g = ENV_LOCK.lock().unwrap();
+        let _g = lock();
+        clear_config_env();
         let dir = std::env::temp_dir().join(format!("ts-cfg-neg-{}", std::process::id()));
         let p = write_yaml(
             &dir,
@@ -223,7 +238,8 @@ mod tests {
     fn every_mapped_env_name_is_consumed() {
         // guard against map drift: each yaml-mapped env key must appear in
         // from_env's reads — verified behaviourally with a full yaml
-        let _g = ENV_LOCK.lock().unwrap();
+        let _g = lock();
+        clear_config_env();
         let dir = std::env::temp_dir().join(format!("ts-cfg-all-{}", std::process::id()));
         let body: String = YAML_ENV_KEYS
             .keys()
