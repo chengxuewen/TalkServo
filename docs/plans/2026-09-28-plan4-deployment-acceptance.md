@@ -30,19 +30,19 @@
 - [ ] 3.3 artifacts: `docs/acceptance/latency.json` + `fec-ab.json` committed (rows marked `local-loopback`, budget verdicts pending public run)
 - [ ] 3.4 commit `feat(acceptance): latency + fec harness with local artifacts`
 
-## VPS slice (blocked on public host)
+## LAN slice (D17: same-subnet range; public deployment deferred to Alpha)
 
-### Task 4: public deployment
-- [ ] 4.1 provision VPS (ubuntu 22.04) → run deploy/ stack + Let's Encrypt
-- [ ] 4.2 coturn E2E: relay ICE candidate completes a P-sequence (#9 relay row)
-- [ ] 4.3 TURN 1h-boundary drill (review-focus pin)
+### Task 4': LAN deployment
+- [ ] 4'.1 server binds LAN IP (`TS_BIND` + `TS_ANNOUNCED_IP`), Caddy `tls internal` HTTPS
+- [ ] 4'.2 smoke: playwright against `https://<lan-ip>` (ignoreHTTPSErrors) — full live e2e green
+- [ ] 4'.3 compose/systemd templates carry the LAN posture (no hardcoded IPs; env-driven)
 
-### Task 5: full 12-item sign-off
-- [ ] 5.1 #9 ICE matrix (host/srflx/relay) on public net
-- [ ] 5.2 #10 P-latency on LAN + 4G budgets (revises architecture.md line with data)
-- [ ] 5.3 #3 netem 12% ×3 runs (veth, no loopback caveat)
-- [ ] 5.4 acceptance table completed in docs/acceptance/SIGNOFF.md with evidence links; deviations logged
-- [ ] 5.5 ledger: status.md → PoC-complete; lesson-review
+### Task 5': full 12-item sign-off (LAN range)
+- [ ] 5'.1 #9 ICE matrix vs self-hosted coturn on-LAN (host default / srflx via local STUN / relay via TURN-only servers) — each completes one P-sequence
+- [ ] 5'.2 #8 FEC A/B under media-only single-leg impairment (tc filter on UDP src port, RTC ports mask-aligned 40960-41215; replaces loopback two-leg number per PIT-8)
+- [ ] 5'.3 #10 latency budget line revised with measured LAN data (already 89ms; LAN verdict line in SIGNOFF)
+- [ ] 5'.4 acceptance table completed in docs/acceptance/SIGNOFF.md with evidence links; deviations logged
+- [ ] 5'.5 ledger: status.md → PoC-complete; lesson-review
 
 ## Global constraints (inherit plan-2/3 + this plan)
 - wss/https only on public; TURN TTL 1h; secrets env-only; every artifact JSON committed

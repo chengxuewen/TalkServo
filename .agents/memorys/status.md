@@ -1,6 +1,6 @@
 # TalkServo Status
 
-**Generated**: 2026-09-30 | Decisions: 16 entries | Phase: plan-4 local slice COMPLETE incl. FEC A/B measurement (10 pass/1 partial-adjudicated/1 pending of 12; #8 22.7%@loopback-cascade → VPS T5 single-leg re-decide; VPS slice T4-T5 pending host) | Branch: main
+**Generated**: 2026-09-30 | Decisions: 16 entries | Phase: plan-4 local slice COMPLETE incl. FEC A/B measurement (10 pass/1 partial-adjudicated/1 pending of 12; #8 22.7%@loopback-cascade → VPS T5 single-leg re-decide; LAN slice T4'-T5' per D17 (same-subnet range; public deferred to Alpha)) | Branch: main
 
 > TalkServo is a sister project of MediaServo (same RTC domain). Engineering lessons are accumulated from scratch;
 > MediaServo's historical ledgers live in its own repository under `.agents/memorys/` — they are not migrated here and must not impersonate this project's history.
