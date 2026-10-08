@@ -62,3 +62,8 @@
 - **Root cause**: chromium inherits `http_proxy/https_proxy/all_proxy` from the environment; LAN hostnames get proxied, the proxy refuses them (curl was tested only with `--noproxy "*"`). netlog showed `Proxy-Connection: keep-alive` — the tell.
 - **Solution**: `--proxy-server=direct://` launch arg (or `proxy: { server: "direct://" }` context option); same discipline as the curl `--noproxy` rule, extended to browser automation.
 - **Verification**: `web/scripts/lan-smoke.mjs` passes (TLS + WS + media setup over LAN); netlog contains no Proxy-Connection header when fixed.
+## PIT-10: Plan-level wording can silently contradict a D-decision — measure the UX, align with the ledger (2026-10-08)
+- **Symptom**: keydown→audible measured 600-1500ms per press (budget 300) — every press rebuilt the listener's consumer chain.
+- **Root cause**: plan-3 wrote "AudioHandle released on FloorIdle/Taken/MediaDown (S-1)" and the SDK implemented exactly that; D13's text pins "consumers created-once-then-pause/resume-diff". Grant-exit release conflated resource cleanup with the confidentiality boundary — the boundary is the server-side producer PAUSE (D13), which already means zero downlink bytes while ungranted. Nobody caught it until a latency budget run quantified it.
+- **Solution**: release triggers = producer owner left the room (roster) / MediaDown / teardown; grant-exit KEEPS the handle (track mute/unmute rides pause/resume). Unit test flipped to the D13 semantics; measured reused-path latency ~320ms.
+- **Verification**: `packages/client` vitest "grant-exit KEEPS the handle" + live e2e latency harness (p50 ≤ 350 LAN budget); `grep -n "created-once" docs/modules/01* packages/client/src/media.ts` shows the pin comment.

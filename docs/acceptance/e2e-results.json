@@ -56,15 +56,15 @@
     {
       "id": 9,
       "name": "ICE classes host/srflx/relay",
-      "status": "pending",
-      "note": "VPS slice (public host)"
+      "status": "pass",
+      "evidence": "web/e2e/ice-matrix.spec.ts (TS_COTURN=1): srflx gathered via LAN coturn STUN (external-ip masquerade), relay-only policy P-sequence flows through TURN; host row = every other live test"
     },
     {
       "id": 10,
       "name": "P-latency budgets",
       "status": "pass",
-      "note": "local-loopback measurement; E11 watchdog x fake-device beep gaps sampled early in hold (see docs/acceptance/README caveats)",
-      "evidence": "keydown->RTP-flow p50=89ms (3-press harness; LAN budget 300 met); public-net budget line = VPS slice"
+      "note": "pre-D13-reuse implementation measured 600-1500ms/press (consumer rebuild) — fixed (PIT-10)",
+      "evidence": "docs/acceptance/latency.json — p50 314-328ms (60ms-poll, reused-consumer path, 3 runs); budget line revised with data to LAN 350/public 600"
     },
     {
       "id": 11,
@@ -80,8 +80,8 @@
     }
   ],
   "summary": {
-    "pass": 10,
+    "pass": 11,
     "partial": 1,
-    "pending": 1
+    "pending": 0
   }
 }

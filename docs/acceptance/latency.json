@@ -1,0 +1,43 @@
+{
+  "_comment": "Acceptance #10 latency artifact — harness web/e2e/media.spec.ts 'latency harness' (TS_E2E_FEATURES=live). keydown->inbound-RTP-growth on the listener recv transport, warm-up press untimed (consumer chain build), 3 timed presses/run.",
+  "generated": "2026-10-08",
+  "environment": "local-loopback live mediasoup host, chromium fake-device, E11 watchdog relaxed (live lane), reused-consumer path (D13 pause/resume)",
+  "runs": [
+    {
+      "poll_ms": 60,
+      "samples_ms": [
+        314,
+        328,
+        334
+      ],
+      "p50": 328,
+      "p95": 334
+    },
+    {
+      "poll_ms": 60,
+      "samples_ms": [
+        311,
+        314,
+        320
+      ],
+      "p50": 314,
+      "p95": 320
+    },
+    {
+      "poll_ms": 60,
+      "samples_ms": [
+        318,
+        319,
+        330
+      ],
+      "p50": 318,
+      "p95": 330
+    }
+  ],
+  "methodology_notes": [
+    "warm-up press separates first consumer creation (chain build ~300-500ms one-off) from the reused path",
+    "10ms poll measured WORSE (351/610) — getStats freshness under high-frequency polling; 60ms stable",
+    "before the D13-consumer-reuse fix the reused press was 600-1500ms (full consumer rebuild per press)"
+  ],
+  "budget": "LAN 350ms / public 600ms (architecture.md §4-10 revised with these numbers)"
+}

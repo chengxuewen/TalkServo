@@ -30,6 +30,7 @@ fake-device 3-instance: full §4 acceptance functional set (hold exclusive, pre-
 ## Round-2 routed findings (land during expansion, D14/D12)
 
 - SDK-owned AudioHandle{pause,release} per consumer; released on FloorIdle/Taken/MediaDown (S-1/#2)
+  - **REVISED 2026-10-08 (D13 alignment)**: handles are NOT released on grant-exit — consumers are created once and ride the server pause/resume diff (track mute/unmute); release triggers = owner left the room / MediaDown. Measured: grant-exit release rebuilt consumers per press (600-1500ms keydown->flow vs ~320ms reused).
 - TokenRefresh cache consumed by reconnect; 4401 → emit `auth-expired`, stop backoff, no auto-retry (S-4/#3)
 - `connectionstatechange failed` → local teardown + re-run J3-7 (mirror W-step 3) (S-5b/#12)
 - `micTruth = track.enabled && !serverPaused`; UI reads SDK only (S-5/#13)

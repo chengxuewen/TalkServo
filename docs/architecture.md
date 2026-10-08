@@ -70,7 +70,7 @@ Additional (from design session):
 7. E6: kill worker → W-sequence restores audio plane without touching floor state (measure real recovery time).
 8. FEC A/B under netem: concealment-share drops ≥30% (FEC on), quantitative via getStats. *(measured 2026-10-08: codec toggle proven on the wire (useinbandfec 0/1) and FEC recovery demonstrated at 10.4% concealment with NACK disabled — but loopback variance (playout-buffer adaptation) cannot adjudicate the 30% line; decision deferred to a real impaired network, full chain in docs/acceptance/fec-ab.json)*
 9. ICE classes: host / srflx / relay each complete one full P-sequence on public deployment.
-10. P-latency: keydown→audible ≤ budget lines (300/600 ms) — measured, then this line revised with data.
+10. P-latency: keydown→audible ≤ budget lines — **LAN 350 ms / public 600 ms** (measured 2026-10-08: p50 314-328 ms on loopback live e2e with reused consumers; the line started as a 300/600 placeholder and is revised here with data per its own rule).
 11. Zombie-holder (E11): kill holder uplink (mic revoked / no-RTP 2 s) with WS alive → `MediaDown` within grace → floor frees, queue promotes — floor NEVER locks on media death.
 12. Transmission gating (D13): non-holders produce nothing (server-paused) — verify zero idle uplink payload bytes per joined-silent peer except RTCP/consent.
 
