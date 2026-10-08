@@ -34,9 +34,15 @@ async fn main() {
         )));
     tracing::info!(backend = media_handle.backend(), version = VERSION, "talkservo-server starting");
 
+    if config.admin_secret.is_some() && config.admin_secret.as_deref() == Some(config.jwt_secret.as_str()) {
+        eprintln!("FATAL: TS_ADMIN_SECRET must differ from TS_JWT_SECRET (independent rotation, D18)");
+        std::process::exit(1);
+    }
     let app_state = Arc::new(ws::App {
         config,
         rooms: tokio::sync::Mutex::new(HashMap::new()),
+        started_at: std::time::Instant::now(),
+        admin_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
         media: media_handle,
     });
 
@@ -85,7 +91,8 @@ async fn main() {
     let app = app
         .route("/", axum::routing::get(talkservo_server::embed::index))
         .route("/{*path}", axum::routing::get(talkservo_server::embed::asset));
-    let app = app.with_state(app_state);
+    // admin surface always mounted (fail-closed by guard, plan-5 S1)
+    let app = app.merge(talkservo_server::admin::router()).with_state(app_state);
 
     let bind = std::env::var("TS_BIND").unwrap_or_else(|_| "0.0.0.0:8080".into());
     let listener = tokio::net::TcpListener::bind(&bind)

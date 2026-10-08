@@ -29,6 +29,8 @@ impl TestServer {
         let media: Arc<talkservo_sfu::StubSfu> = Arc::new(talkservo_sfu::StubSfu::new());
         let app_state = Arc::new(test_bridge::AppState {
             config,
+            started_at: std::time::Instant::now(),
+            admin_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
             rooms: tokio::sync::Mutex::new(std::collections::HashMap::new()),
             media: media.clone(),
         });
@@ -105,6 +107,8 @@ async fn e11_silence_past_grace_releases_and_promotes() {
         let media: Arc<talkservo_sfu::StubSfu> = Arc::new(talkservo_sfu::StubSfu::new());
         let app_state = Arc::new(test_bridge::AppState {
             config,
+            started_at: std::time::Instant::now(),
+            admin_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
             rooms: tokio::sync::Mutex::new(std::collections::HashMap::new()),
             media: media.clone(),
         });

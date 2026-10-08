@@ -67,6 +67,57 @@ pub fn validate(secret: &str, token: &str, room: &str) -> Result<Claims, AuthErr
     Ok(data.claims)
 }
 
+/// Admin-console claims (plan-5 S1). DELIBERATELY has no `room` field:
+/// /ws decodes `Claims` (room mandatory) in its two-pass flow, so an admin
+/// token structurally cannot pass — audience isolation survives even under
+/// the misconfiguration of both secrets being equal.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdminClaims {
+    pub sub: String,
+    /// fixed "admin" — the only audience the admin validator accepts
+    pub aud: String,
+    pub exp: u64,
+}
+
+/// Mint an admin token (tests / future rotation tooling; bootstrap issuance
+/// is scripts/issue-admin-token.sh on the server host).
+pub fn issue_admin(secret: &str, sub: &str, ttl_s: u64) -> Result<String, AuthError> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let claims = AdminClaims {
+        sub: sub.to_string(),
+        aud: "admin".to_string(),
+        exp: now + ttl_s,
+    };
+    encode(
+        &Header::new(Algorithm::HS256),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
+    .map_err(|e| AuthError::Invalid(e.to_string()))
+}
+
+pub fn validate_admin(secret: &str, token: &str) -> Result<AdminClaims, AuthError> {
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.validate_aud = true;
+    validation.set_audience(&["admin"]);
+    validation.validate_exp = true;
+    validation.leeway = 0;
+    let data = decode::<AdminClaims>(
+        token,
+        &DecodingKey::from_secret(secret.as_bytes()),
+        &validation,
+    )
+    .map_err(|e| match e.kind() {
+        jsonwebtoken::errors::ErrorKind::ExpiredSignature => AuthError::Expired,
+        jsonwebtoken::errors::ErrorKind::InvalidAudience => AuthError::WrongRoom,
+        _ => AuthError::Invalid(e.to_string()),
+    })?;
+    Ok(data.claims)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,5 +166,25 @@ mod tests {
         let f = issue(SECRET, "p", "r", Role::Field, 60).unwrap();
         assert_ne!(d, f);
         assert_eq!(validate(SECRET, &d, "r").unwrap().role, Role::Dispatch);
+    }
+
+    #[test]
+    fn admin_token_roundtrip_and_audience_isolation() {
+        let tok = issue_admin("admin-secret-a", "root", 60).unwrap();
+        let claims = validate_admin("admin-secret-a", &tok).unwrap();
+        assert_eq!(claims.sub, "root");
+        // wrong admin secret
+        assert!(validate_admin("admin-secret-b", &tok).is_err());
+        // structural isolation: an admin token must NEVER satisfy /ws's
+        // Claims decode (no room field) even under an EQUAL secret (the
+        // misconfiguration the startup guard is supposed to prevent anyway)
+        assert!(validate("admin-secret-a", &tok, "room-x").is_err());
+    }
+
+    #[test]
+    fn user_token_rejected_by_admin_validator() {
+        let user = issue("shared", "peer-1", "room-x", Role::Field, 60).unwrap();
+        // aud = room-x, not "admin" AND the claims shape differs — reject
+        assert!(validate_admin("shared", &user).is_err());
     }
 }

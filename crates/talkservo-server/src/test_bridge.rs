@@ -17,6 +17,8 @@ pub fn test_app(config: Config) -> Arc<AppState> {
     Arc::new(AppState {
         config,
         rooms: tokio::sync::Mutex::new(HashMap::new()),
+        started_at: std::time::Instant::now(),
+        admin_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
         media: std::sync::Arc::new(talkservo_sfu::StubSfu::new()),
     })
 }
@@ -31,6 +33,7 @@ pub fn build_router(state: Arc<AppState>) -> axum::Router {
         app.route("/", get(crate::embed::index))
             .route("/{*path}", get(crate::embed::asset))
     };
+    let app = app.merge(crate::admin::router());
     app.with_state(state)
 }
 

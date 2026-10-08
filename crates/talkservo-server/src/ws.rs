@@ -19,6 +19,10 @@ use tokio::sync::mpsc;
 pub struct App {
     pub config: Config,
     pub rooms: tokio::sync::Mutex<HashMap<RoomId, mpsc::Sender<RoomCommand>>>,
+    /// uptime source + token rate-limit window anchor (plan-5 S1,
+    /// adjudicated #4A: 60 issues/min, 429 beyond)
+    pub started_at: std::time::Instant,
+    pub admin_rate: std::sync::Mutex<(std::time::Instant, u32)>,
     /// Concrete SFU backend (exactly one; feature-selected, modules/03).
     #[cfg(feature = "stub-media")]
     pub media: std::sync::Arc<talkservo_sfu::StubSfu>,
@@ -46,6 +50,30 @@ pub enum RoomCommand {
     RefreshTick,
     /// Room-idle sweep tick (D16/CM-1: empty room past TTL → reap).
     IdleTick,
+    /// Read-only admin inspect (plan-5 S1): answer from RoomState ONLY —
+    /// zero SFU calls, zero mutation; the fan-out timeout lives in admin.rs.
+    AdminInspect(tokio::sync::oneshot::Sender<RoomReport>),
+}
+
+/// Internal room snapshot for /admin/api (plan-5 S1). The `speaking` list
+/// reads the watchdog activity cache: per-holder truth of "last probe saw
+/// RTP" — granted-but-silent peers are what an operator must see (E11
+/// precursors).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RoomReport {
+    pub room: String,
+    pub mode: talkservo_core::wire::FloorMode,
+    pub holders: Vec<String>,
+    pub queue_len: usize,
+    pub peers: Vec<PeerEntry>,
+    pub muted: Vec<String>,
+    pub speaking: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PeerEntry {
+    pub id: String,
+    pub connected_since_ms: u64,
 }
 
 pub async fn ws_handler(
@@ -278,6 +306,9 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                     RoomCommand::Join { .. } | RoomCommand::WatchdogTick
                     | RoomCommand::MaxHoldTick | RoomCommand::RefreshTick
                     | RoomCommand::IdleTick => {}
+                    // pre-admission inspect: dropping the oneshot surfaces
+                    // as `stale` on the admin side — correct semantics
+                    RoomCommand::AdminInspect(_) => {}
                 }
             }
         }
@@ -571,6 +602,9 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                                 // its drop closes the channel for the registry)
                     }
                 }
+                RoomCommand::AdminInspect(tx) => {
+                    let _ = tx.send(state.admin_report());
+                }
                 RoomCommand::WatchdogTick => {
                     // probe granted peers through the backend; silent-past-grace
                     // peers get MediaDown (core releases + promotes, F-sequence)
@@ -584,6 +618,8 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             media.media_activity(&state.id, &p).await,
                             talkservo_sfu::ActivityState::Active
                         );
+                        // admin `speaking` bit: cache the probe result (S1)
+                        state.note_activity(&p, active);
                         results.push((p, active));
                     }
                     let grace = std::time::Duration::from_millis(cfg_media_grace_ms);

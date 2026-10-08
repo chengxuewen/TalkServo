@@ -21,6 +21,13 @@ pub struct Config {
     pub transport_guardrail: usize,
     pub no_rtp_watchdog_ms: u64,
     pub room_idle_ttl_s: u64,
+    /// Admin-console JWT secret (plan-5 S1). None => /admin/api answers 503
+    /// (fail-closed). MUST differ from jwt_secret — enforced at startup.
+    pub admin_secret: Option<String>,
+    /// Scheme-inclusive public base for issued links (e.g.
+    /// https://192.168.2.127:8443). Required for LAN/TLS deploys; unset
+    /// falls back to the request Host header for loopback dev ONLY.
+    pub public_base: Option<String>,
     pub max_peers: usize,
     pub max_queue: usize,
     pub max_frame_bytes: usize,
@@ -54,6 +61,8 @@ impl Config {
             transport_guardrail: env_u64("TRANSPORT_GUARDRAIL", 50) as usize,
             no_rtp_watchdog_ms: env_u64("NO_RTP_WATCHDOG_MS", 2000),
             room_idle_ttl_s: env_u64("ROOM_IDLE_TTL_S", 600),
+            admin_secret: std::env::var("TS_ADMIN_SECRET").ok().filter(|v| !v.is_empty()),
+            public_base: std::env::var("TS_PUBLIC_BASE").ok().filter(|v| !v.is_empty()),
             max_peers: env_u64("MAX_PEERS", 10) as usize,
             max_queue: env_u64("MAX_QUEUE", 8) as usize,
             max_frame_bytes: env_u64("MAX_FRAME_BYTES", 65536) as usize,
@@ -77,6 +86,8 @@ impl Config {
             transport_guardrail: 50,
             no_rtp_watchdog_ms: 2_000,
             room_idle_ttl_s: 600,
+            admin_secret: None,
+            public_base: None,
             max_peers: 10,
             max_queue: 8,
             max_frame_bytes: 65_536,

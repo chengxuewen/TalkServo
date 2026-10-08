@@ -41,6 +41,9 @@ pub struct RoomState {
     empty_since: Option<Instant>,
     /// peer → latest producer id (R-F14 consume gate registry).
     producers_by_peer: HashMap<PeerId, String>,
+    /// last E11 watchdog probe result per granted peer (plan-5 S1 admin
+    /// `speaking` bit — cached here so AdminInspect never touches the SFU)
+    last_activity: HashMap<PeerId, bool>,
     /// FloorRequest → request instant; consumed by the grant path to emit
     /// `grant_latency_ms` (modules/05 §Obs, acceptance #10). Kept across
     /// queueing so queued→promoted grants measure from the ORIGINAL request.
@@ -63,6 +66,7 @@ impl RoomState {
             empty_since: None, // a new room has its creator en route
             pending_requests: HashMap::new(),
             producers_by_peer: HashMap::new(),
+            last_activity: HashMap::new(),
         }
     }
 
@@ -272,6 +276,38 @@ impl RoomState {
     /// Record a produced producer id for its owner (ProduceOk path).
     pub fn note_producer(&mut self, peer: &PeerId, producer_id: String) {
         self.producers_by_peer.insert(peer.clone(), producer_id);
+    }
+
+    /// watchdog writes the probe result (plan-5 S1)
+    pub fn note_activity(&mut self, peer: &PeerId, active: bool) {
+        self.last_activity.insert(peer.clone(), active);
+    }
+
+    /// Read-only admin snapshot (plan-5 S1): RoomState only, no SFU calls.
+    pub fn admin_report(&self) -> crate::ws::RoomReport {
+        let holders: Vec<String> = self.floor.grants().iter().map(|p| p.0.to_string()).collect();
+        let holder_ids: Vec<PeerId> = self.floor.grants().to_vec();
+        let speaking: Vec<String> = holder_ids
+            .iter()
+            .filter(|p| *self.last_activity.get(*p).unwrap_or(&false))
+            .map(|p| p.0.to_string())
+            .collect();
+        crate::ws::RoomReport {
+            room: self.id.0.to_string(),
+            mode: self.floor.mode(),
+            holders,
+            queue_len: self.floor.queue().len(),
+            peers: self
+                .members
+                .values()
+                .map(|m| crate::ws::PeerEntry {
+                    id: m.info.id.0.to_string(),
+                    connected_since_ms: m.info.connected_since_ms,
+                })
+                .collect(),
+            muted: self.floor.muted().iter().map(|p| p.0.to_string()).collect(),
+            speaking,
+        }
     }
 
     /// Immutable view for the media reconciliation call (D13).
