@@ -11,8 +11,9 @@ Outer shell `talkservo.sh` (repo root, msrtc.sh lineage — pixi activation, no 
 | Command | Behavior |
 |---|---|
 | `build [--lane stub\|live] [--debug]` | cargo build the lane feature combo (live = sfu-mediasoup+embedded-web; stub = stub-media tests/tooling host); stage binary into `out/<lane>/bin/`. Stateful-free: never deploys. |
+| `build:deploy [--lane ...] [--prefix ...]` | one-step build→deploy composite (sister D266 shape), args pass through to both |
 | `package [--lane live\|stub]` | staging → `dist/talkservo-server-<ver>.tar.gz`, versioned top dir (bare extract never scatters), `tar xzf -C <prefix> --strip-components=1` documented; contents: bin + oxmgr bin + etc template + sample.env + systemd unit + Caddyfile.lan + scripts/ |
-| `deploy --prefix DIR [--lane]` | stateful assembly ONLY (never builds): idempotent instance dir `DIR/{bin,etc/server.yaml,identity/ secrets 0600,run/oxfile.toml,logs}`; /opt needs root — check and say so |
+| `deploy [--prefix DIR] [--lane]` | stateful assembly ONLY (never builds); **default prefix `out/<lane>`** (delivery tree doubles as instance — sister convention; same-path short-circuit); explicit DIR installs elsewhere. Idempotent instance dir `DIR/{bin,etc/server.yaml,identity/ secrets 0600,run/oxfile.toml,logs}`; /opt needs root — check and say so |
 | `up / down [--env dev\|prod]` | compose pass-through (server+coturn; env file wiring, `--announced-ip` passthrough to TS_ANNOUNCED_IP/TS_PUBLIC_BASE) |
 | `run [--lane stub\|live]` | dev foreground: env assembly + secret hints (today's `pixi run run-server` superset) |
 | `doctor` | pixi/cargo/node/meson/clang/docker/oxmgr/ports presence; exit code = failure count |
@@ -66,3 +67,6 @@ Instance lifecycle inside the server binary (facade subcommands, oxmgr does the 
 | 5 | absent-artifact slots | A — exit 2 + pointer (D8/D10/D15); no scaffold crates (anti-pattern honored) |
 
 Open items: none (entry named talk servo.sh by sister convention — override at will).
+
+## Post-closeout revisions (2026-10-08)
+- deploy default `--prefix out/<lane>` (sister parity; same-path readlink short-circuit) and `build:deploy` composite — user-requested, both smoke-verified (default tree staged-in-place + explicit-DIR copy: init → start → status healthy → stop). Known limit logged: two default-bind instances collide on :8080 (no interactive takeover yet; diverge via identity/env).
