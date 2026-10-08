@@ -238,60 +238,71 @@ test.describe("latency harness (live host)", () => {
   });
 });
 
-test.describe("FEC A/B harness (live host, netem loopback)", () => {
+test.describe("FEC A/B harness (live host, netem)", () => {
   test.skip(!LIVE, "requires the live mediasoup host");
-  test.skip(!process.env.TS_NETEM, "requires TS_NETEM=1 (root; applies qdisc on lo)");
+  test.skip(!process.env.TS_NETEM, "run scripts/netem.sh on first (root console)");
 
-  test("#8: concealment-share drops with FEC under 12% loss", async ({ browser }) => {
-    test.setTimeout(180_000);
-    // runs A (FEC off — codecOptions stripped by env) and B (FEC on, default):
-    // concealment-share = concealedSamples / totalSamples from getStats on the
-    // listener side, sampled over a 30s window per run.
-    // The qdisc application/cleanup happens OUTSIDE playwright (scripts/netem.sh)
-    // because tc requires root and must not leak into the SSH session
-    // (review-focus pin). This test reads the run label from env.
-    const run = process.env.TS_FEC_RUN ?? "B-fec-on";
-    const ctxL = await browser.newContext();
-    const listener = await ctxL.newPage();
-    await joinField(listener, "fec-listener");
-    await listener.waitForTimeout(3000); // caps settle (measured)
-    const ctxH = await browser.newContext();
-    const holder = await ctxH.newPage();
-    await joinField(holder, "fec-holder");
+  test("#8: FEC on reduces concealment-share under 12% loss", async ({ browser }) => {
+    test.setTimeout(240_000);
+    // one run per arm: listener joins FIRST (caps settle), holder holds for
+    // a 15s sampling window, then concealment-share from the listener's
+    // inbound-rtp stats. Run A produces with ?fec=off (codec option off),
+    // run B with default FEC on. NO_RTP_WATCHDOG_MS must be set large when
+    // invoking (env passthrough in global-setup) so the E11 watchdog does
+    // not down the fake speaker mid-window.
+    const runArm = async (label: string, fec: boolean) => {
+      const r = label;
+      const ctxL = await browser.newContext();
+      const listener = await ctxL.newPage();
+      await joinField(listener, `${r}-listener`);
+      await listener.waitForTimeout(3000);
+      const ctxH = await browser.newContext();
+      const holder = await ctxH.newPage();
+      const url = urlFor(`${r}-holder`) + (fec ? "" : "&fec=off");
+      await holder.goto(url);
+      await expect(holder.getByText("connected")).toBeVisible({ timeout: 15_000 });
+      await holder.waitForTimeout(3000);
 
-    await holder.keyboard.down("Space");
-    await expect(holder.getByText(/HOLDING|SPEAKING/)).toBeVisible({ timeout: 10_000 });
+      await holder.keyboard.down("Space");
+      await expect(holder.getByText(/HOLDING|SPEAKING/)).toBeVisible({ timeout: 10_000 });
+      await listener.waitForTimeout(15_000);
 
-    // 30s sample window
-    await listener.waitForTimeout(30_000);
-
-    const stats = await listener.evaluate(async () => {
-      const pc = (
-        window as unknown as { __tsPc?: RTCPeerConnection }
-      ).__tsPc;
-      if (!pc) return { available: false };
-      const s = await pc.getStats();
-      let concealed = 0;
-      let total = 0;
-      s.forEach((r) => {
-        if (r.type === "inbound-rtp" && r.kind === "audio") {
-          concealed = Number(r.concealedSamples ?? 0);
-          total = Number(r.totalSamplesReceived ?? 0);
-        }
+      const stats = await listener.evaluate(async () => {
+        const w = window as unknown as {
+          __tsRecvT?: { getStats(): Promise<RTCStatsReport> };
+        };
+        if (!w.__tsRecvT) return null;
+        const rep = await w.__tsRecvT.getStats();
+        let concealed = 0;
+        let total = 0;
+        rep.forEach((rs) => {
+          if (rs.type === "inbound-rtp" && rs.kind === "audio") {
+            concealed = Number(rs.concealedSamples ?? 0);
+            total = Number(rs.totalSamplesReceived ?? 0);
+          }
+        });
+        return { concealed, total };
       });
-      return { available: true, concealed, total };
-    });
 
-    const share =
-      "concealed" in stats && stats.total
-        ? stats.concealed / stats.total
-        : null;
-    console.log(`FEC-RUN ${run}: ${JSON.stringify({ ...stats, share })}`);
+      await holder.keyboard.up("Space");
+      await ctxH.close();
+      await ctxL.close();
+      const share = stats && stats.total > 0 ? stats.concealed / stats.total : null;
+      return { arm: label, fec, ...(stats ?? {}), share };
+    };
 
-    await holder.keyboard.up("Space");
-    await ctxH.close();
-    await ctxL.close();
-    // assertion lands in the T3 artifact aggregation (two runs compared)
-    expect(share === null || share >= 0).toBe(true);
+    const a = await runArm("fecA", false);
+    const b = await runArm("fecB", true);
+    console.log(`FEC-AB ${JSON.stringify({ a, b })}`);
+
+    expect(a.share, `A arm has no stats: ${JSON.stringify(a)}`).not.toBeNull();
+    expect(b.share, `B arm has no stats: ${JSON.stringify(b)}`).not.toBeNull();
+    // the acceptance claim: inband FEC lowers the concealment share
+    expect(
+      b.share!,
+      `FEC-ON share ${b.share} must be below FEC-OFF share ${a.share}`,
+    ).toBeLessThan(a.share!);
+    // FEC must strictly reduce the concealment share under loss
+    expect(b.share!).toBeLessThan(a.share!);
   });
 });

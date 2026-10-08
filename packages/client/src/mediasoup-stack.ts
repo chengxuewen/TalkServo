@@ -134,6 +134,14 @@ export class MediasoupClientStack implements MediaStack {
   }
 }
 
+/** Acceptance #8 A/B harness switch: produced tracks carry inband FEC
+ *  unless the page URL sets `?fec=off` (browsers cannot read env — the
+ *  query param is the native channel). */
+function fecEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+  return new URLSearchParams(window.location.search).get("fec") !== "off";
+}
+
 /** E2E diagnostics: connection state transitions land on window.__tsIce. */
 function recordIce(name: string, t: AnyTransport): void {
   if (typeof window === "undefined") return;
@@ -151,8 +159,8 @@ function wrapSend(t: AnyTransport): SendTransportLike {
       const producer = await t.produce({
         track: opts.track,
         appData: {},
-        // opus FEC pin (modules/04)
-        codecOptions: { opusStereo: false, opusFec: true, opusDtx: false },
+        // opus FEC pin (modules/04); ?fec=off disables it for the A/B harness
+        codecOptions: { opusStereo: false, opusFec: fecEnabled(), opusDtx: false },
       });
       return {
         id: producer.id,
