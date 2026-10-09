@@ -15,12 +15,13 @@ async fn healthz() -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::json!({ "ok": true, "version": VERSION }))
 }
 
-const USAGE: &str = "usage: talkservo-server <init|start|stop|restart|status|logs|monit|ps|run|version> [<dir>]  (instance dir default .server/)
+const USAGE: &str = "usage: talkservo-server <init|start|stop|restart|status|logs|monit|ps|run|version> [<dir>]  (default dir: bin/ sibling when run/oxfile.toml is there, else .server/)
   init <dir>              assemble an instance dir: etc/server.yaml + identity/env (0600, idempotent secrets) + run/oxfile.toml
   start|stop|restart <dir>  drive the process cluster via oxmgr (shipped by the deploy package / PATH)
   status <dir>            healthz probe (exit 0 healthy / 2 not running)
   logs|monit|ps <dir> [args...]  oxmgr pass-through
   run [--config path]     foreground/daemon direct start — systemd/compose tracks untouched (env > yaml > defaults)
+  hash-password           read a password from STDIN, print a pbkdf2 store line for etc/server.yaml (admin_password_hash)
   version | -h";
 
 #[tokio::main]
@@ -30,11 +31,15 @@ async fn main() {
     {
         let argv: Vec<String> = std::env::args().skip(1).collect();
         let sub = argv.first().map(|s| s.as_str()).unwrap_or("run");
-        let dir = std::path::PathBuf::from(argv.get(1).cloned().unwrap_or_else(|| ".server".into()));
         let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("talkservo-server"));
+        let dir = argv
+            .get(1)
+            .filter(|a| !a.starts_with("--"))
+            .cloned()
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| talkservo_server::lifecycle::default_instance_dir(&exe));
         let code = match sub {
             "init" => {
-                let dir = std::path::PathBuf::from(argv.get(1).cloned().unwrap_or_else(|| ".server".into()));
                 match crate_ok(talkservo_server::lifecycle::init_instance(&dir, &exe)) {
                     Ok(lines) => {
                         for l in lines {
@@ -86,6 +91,19 @@ async fn main() {
             "logs" => {
                 let svc = argv.get(2).cloned().unwrap_or_else(|| talkservo_server::lifecycle::SERVER_APP.into());
                 talkservo_server::lifecycle::oxmgr_forward(&dir, &["logs", &svc])
+            }
+            "hash-password" => {
+                // stdin, never argv — sister PIT-171: passwords must not
+                // appear in shell literals or the process table.
+                let mut pw = String::new();
+                if std::io::stdin().read_line(&mut pw).unwrap_or(0) == 0 {
+                    eprintln!("hash-password: empty stdin — pipe the password: printf '%s' PW | talkservo-server hash-password");
+                    1
+                } else {
+                    let pw = pw.trim_end_matches(['\n', '\r']);
+                    println!("{}", talkservo_server::kdf::hash_password(pw));
+                    0
+                }
             }
             "version" => {
                 println!("talkservo-server {VERSION}");

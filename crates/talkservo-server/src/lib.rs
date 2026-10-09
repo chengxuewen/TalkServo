@@ -9,7 +9,9 @@ pub async fn healthz() -> axum::Json<serde_json::Value> {
 pub mod embed;
 pub mod admin;
 pub mod lifecycle;
+pub mod accounts;
 pub mod auth;
+pub mod kdf;
 pub mod turn;
 pub mod media;
 pub mod config;

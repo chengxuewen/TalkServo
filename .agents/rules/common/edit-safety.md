@@ -211,3 +211,16 @@ Writing a plan/doc header line claiming "+X step added" while only the header wa
 
 **Blocking condition**: committing a revision/changelog line whose claimed change is not grep-present in the same diff.
 **Source**: this project, 2026-09-28 plan-review (P1-1 phantom schema step + F4, caught independently by 2 lanes).
+
+### 21. Scripted batch replacement: the write-back + on-disk grep is the only completion evidence
+
+Python/heredoc patch scripts must contain an explicit `open(..., "w").write(s)` for EVERY mutated file, and after execution verify each new anchor with `grep -c` in the file on disk. Printing "ok" without writing changes nothing (family: PIT-1 — never trust self-reports). For edit-tool replacements of template-string regions (Rust `format!`/raw-string blocks), the auto-merge can splice OLD fragments into NEW ones (duplicate `).unwrap();`, doubled comments/lines): immediately after such an edit `grep -c` a template anchor line (expect 1) and run `cargo check` before proceeding.
+
+**Blocking condition**: a script reports success but the disk file is unchanged; or a template block shows duplicate lines that have not passed a compile check.
+**Source**: this project, 2026-10-09 (phase-2 patch printed "ok" missing the lifecycle.rs write-back; `render_server_yaml` raw-string merges produced `).unwrap();`/comment duplicates — caught only by compiler + follow-up greps, cost 3 extra rounds).
+
+### 22. Never start a cargo gate while another cargo is compiling — phantom errors name clean code
+
+`pixi run lint` / `cargo check` sharing `target/` with an in-flight build (e2e global-setup, test task, parallel agent) fail with "waiting for other jobs / could not compile" on files that just passed. Discipline: `pgrep -x cargo` must be empty before a gate; if a gate fails right after another cargo command, rerun ONCE before diagnosing — a passing rerun means the failure was phantom. Editing code to "fix" phantom errors is a blocker-level mistake.
+**Blocking condition**: code changes made against a lint failure taken while cargo was busy, without a clean serial rerun.
+**Source**: this project, 2026-10-09 (two identical phantom lint failures after the D22 live loop and the stub suite; both cleared by serial rerun, zero real errors).

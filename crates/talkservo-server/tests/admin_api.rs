@@ -49,9 +49,21 @@ async fn http(
     (status, json)
 }
 
-async fn spawn_server(admin_secret: Option<&str>) -> String {
+async fn spawn_server(admin_secret: Option<&str>, pw_hash: Option<String>) -> String {
     let mut config = test_bridge::config_for_test("user-secret-shared-no-wait-distinct");
     config.admin_secret = admin_secret.map(str::to_string);
+    config.admin_password_hash = pw_hash;
+    // instance layout for the accounts registry: unique temp etc/ PER SERVER
+    // (integration tests run concurrently — a shared path crosses accounts.yaml)
+    static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let dir = std::env::temp_dir().join(format!(
+        "ts-adm-{}-{}",
+        std::process::id(),
+        SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("etc")).unwrap();
+    config.accounts_file = Some(dir.join("etc/accounts.yaml"));
     config.public_base = Some("https://test.lan:8443".into());
     let app = test_bridge::build_router(test_bridge::test_app(config));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -95,7 +107,7 @@ fn admin_tok(secret: &str) -> String {
 #[tokio::test]
 async fn fail_closed_matrix() {
     // unset secret => 503 on every route (NEVER the SPA/200 fallback)
-    let addr = spawn_server(None).await;
+    let addr = spawn_server(None, None).await;
     for path in ["/admin/api/overview", "/admin/api/rooms"] {
         let (st, _) = http(&addr, "GET", path, None, None).await;
         assert_eq!(st, 503, "{path} with unset admin secret");
@@ -108,7 +120,7 @@ async fn fail_closed_matrix() {
     assert_eq!(st, 503, "tokens with unset admin secret");
 
     // set secret => auth matrix
-    let addr = spawn_server(Some("admin-secret-xyz")).await;
+    let addr = spawn_server(Some("admin-secret-xyz"), None).await;
     let (st, _) = http(&addr, "GET", "/admin/api/overview", None, None).await;
     assert_eq!(st, 401, "missing bearer");
     let (st, _) = http(&addr, "GET", "/admin/api/overview", Some("garbage"), None).await;
@@ -126,7 +138,7 @@ async fn fail_closed_matrix() {
 
 #[tokio::test]
 async fn rooms_report_reflects_live_floor_state() {
-    let addr = spawn_server(Some("admin-secret-xyz")).await;
+    let addr = spawn_server(Some("admin-secret-xyz"), None).await;
     let mut holder = ws_join(&addr, "h1", "rep-room", Role::Field).await;
     use futures_util::SinkExt;
     holder
@@ -154,7 +166,7 @@ async fn rooms_report_reflects_live_floor_state() {
 #[tokio::test]
 async fn token_issuance_end_to_end_and_guards() {
     use futures_util::SinkExt;
-    let addr = spawn_server(Some("admin-secret-xyz")).await;
+    let addr = spawn_server(Some("admin-secret-xyz"), None).await;
     let auth = admin_tok("admin-secret-xyz");
     // validation: URL-unsafe room rejected (goes into the link PATH)
     let (st, _) = http(
@@ -170,7 +182,7 @@ async fn token_issuance_end_to_end_and_guards() {
     )
     .await;
     assert_eq!(st, 200, "issue: {body}");
-    let expected = format!("https://test.lan:8443/f/issued-room?jwt={}", body["jwt"].as_str().unwrap());
+    let expected = format!("https://test.lan:8443/field/issued-room?jwt={}", body["jwt"].as_str().unwrap());
     assert_eq!(body["field_url"], serde_json::json!(expected));
     let jwt = body["jwt"].as_str().unwrap().to_string();
     let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/ws")).await.unwrap();
@@ -201,4 +213,84 @@ async fn token_issuance_end_to_end_and_guards() {
         }
     }
     assert_eq!(last, 429, "60 issuances/min cap (adjudicated #4A)");
+}
+
+#[tokio::test]
+async fn login_password_mints_working_admin_jwt() {
+    // D22: password login -> server-minted admin JWT -> guard-protected call.
+    // low iters via the public knob keeps the roundtrip fast.
+    let hash = talkservo_server::kdf::hash_password_with_iters("correct horse battery", 4096);
+    let addr = spawn_server(Some("admin-secret-xyz"), Some(hash)).await;
+
+    // wrong password -> 401, no token
+    let (st, _) = http(&addr, "POST", "/admin/api/login", None, Some(r#"{"user":"admin","password":"nope"}"#)).await;
+    assert_eq!(st, 401, "wrong password rejected");
+
+    // right password -> jwt that actually passes the guard
+    let (st, body) = http(
+        &addr, "POST", "/admin/api/login", None,
+        Some(r#"{"user":"admin","password":"correct horse battery"}"#),
+    )
+    .await;
+    assert_eq!(st, 200, "login ok");
+    let jwt = body["jwt"].as_str().expect("jwt field").to_string();
+    let (st, _) = http(&addr, "GET", "/admin/api/overview", Some(&jwt), None).await;
+    assert_eq!(st, 200, "minted token authenticates");
+
+    // hash unset on the other server shape -> fail-closed 503 (login disabled)
+    let plain = spawn_server(Some("admin-secret-xyz"), None).await;
+    let (st, _) = http(&plain, "POST", "/admin/api/login", None, Some(r#"{"user":"admin","password":"x"}"#)).await;
+    assert_eq!(st, 503, "no password configured -> login off, script path unchanged");
+}
+
+#[tokio::test]
+async fn accounts_registry_crud_over_admin_api() {
+    // D22 user/pwd shape: script token bootstraps, then the registry is real.
+    let boot = talkservo_server::kdf::hash_password_with_iters("bootpw-1234", 4096);
+    let addr = spawn_server(Some("admin-secret-xyz"), Some(boot)).await;
+
+    // implicit admin visible (no hash field), login works
+    let tok = {
+        let (st, b) = http(&addr, "POST", "/admin/api/login", None, Some(r#"{"user":"admin","password":"bootpw-1234"}"#)).await;
+        assert_eq!(st, 200); b["jwt"].as_str().unwrap().to_string()
+    };
+    let (st, list) = http(&addr, "GET", "/admin/api/accounts", Some(&tok), None).await;
+    assert_eq!(st, 200);
+    assert_eq!(list[0]["user"], "admin");
+    assert!(list[0].get("hash").is_none(), "never list hashes");
+
+    // create a second human account; bootstrap row is carried into the file
+    let (st, _) = http(&addr, "POST", "/admin/api/accounts", Some(&tok),
+        Some(r#"{"user":"ops-1","password":"another-pw-123"}"#)).await;
+    assert_eq!(st, 201, "upsert ok");
+    let (st, _) = http(&addr, "POST", "/admin/api/login", None,
+        Some(r#"{"user":"ops-1","password":"another-pw-123"}"#)).await;
+    assert_eq!(st, 200, "new user logs in (hot, no restart — sister parity)");
+    let (st, _) = http(&addr, "POST", "/admin/api/login", None,
+        Some(r#"{"user":"admin","password":"bootpw-1234"}"#)).await;
+    assert_eq!(st, 200, "bootstrap admin survived materialization");
+    let (_, list) = http(&addr, "GET", "/admin/api/accounts", Some(&tok), None).await;
+    assert_eq!(list.as_array().unwrap().len(), 2);
+
+    // weak password + bad user rejected at the boundary
+    let (st, _) = http(&addr, "POST", "/admin/api/accounts", Some(&tok),
+        Some(r#"{"user":"ops-2","password":"short"}"#)).await;
+    assert_eq!(st, 400);
+    let (st, _) = http(&addr, "POST", "/admin/api/accounts", Some(&tok),
+        Some(r#"{"user":"ops/../x","password":"longenough1"}"#)).await;
+    assert_eq!(st, 400);
+
+    // delete ops-1; its sessions keep validating until expiry (stateless JWT —
+    // documented D22 limit), but new logins fail
+    let (st, _) = http(&addr, "DELETE", "/admin/api/accounts/ops-1", Some(&tok), None).await;
+    assert_eq!(st, 204);
+    let (st, _) = http(&addr, "DELETE", "/admin/api/accounts/ops-1", Some(&tok), None).await;
+    assert_eq!(st, 404);
+    let (st, _) = http(&addr, "POST", "/admin/api/login", None,
+        Some(r#"{"user":"ops-1","password":"another-pw-123"}"#)).await;
+    assert_eq!(st, 401, "removed user cannot log in");
+
+    // unauthenticated registry access -> 401
+    let (st, _) = http(&addr, "GET", "/admin/api/accounts", None, None).await;
+    assert_eq!(st, 401);
 }

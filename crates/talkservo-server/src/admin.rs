@@ -29,6 +29,9 @@ pub fn router() -> Router<Arc<App>> {
         .route("/admin/api/overview", get(overview))
         .route("/admin/api/rooms", get(rooms))
         .route("/admin/api/tokens", post(tokens))
+        .route("/admin/api/login", post(login))
+        .route("/admin/api/accounts", get(accounts_list).post(accounts_create))
+        .route("/admin/api/accounts/{user}", axum::routing::delete(accounts_delete))
 }
 
 fn guard<'a>(app: &'a App, headers: &'a HeaderMap) -> Result<(), (StatusCode, &'static str)> {
@@ -159,6 +162,110 @@ fn base_url(app: &App, headers: &HeaderMap) -> String {
     format!("http://{host}")
 }
 
+#[derive(Deserialize)]
+struct LoginReq {
+    user: String,
+    password: String,
+}
+
+/// Password login (D22, sister `POST /api/auth/login` shape): verify the
+/// PBKDF2 hash from server.yaml, mint a SHORT-lived admin JWT server-side.
+/// Rate-limited ahead of verification (brute-force budget); fail-closed 503
+/// when hash or signing secret is unset. The password is never logged.
+async fn login(
+    State(app): State<Arc<App>>,
+    body: Result<Json<LoginReq>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    if !rate_ok(&app) {
+        return (StatusCode::TOO_MANY_REQUESTS, "login rate exceeded").into_response();
+    }
+    let Json(req) = match body {
+        Ok(v) => v,
+        Err(_) => return (StatusCode::BAD_REQUEST, "malformed body").into_response(),
+    };
+    let Some(secret) = app.config.admin_secret.as_deref() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, "admin surface disabled").into_response();
+    };
+    if app.config.admin_password_hash.is_none() && app.config.accounts_file.as_ref().is_none_or(|p| crate::accounts::load(p).is_empty()) {
+        return (StatusCode::SERVICE_UNAVAILABLE, "no admin credentials configured").into_response();
+    }
+    // user/pwd against the accounts registry (D22 sister shape: implicit
+    // "admin" from server.yaml until accounts.yaml is materialized)
+    if !crate::accounts::authenticate(&app.config, &req.user, &req.password) {
+        tracing::warn!(event = "admin_login_failed", user = %req.user, "rejected credentials");
+        return (StatusCode::UNAUTHORIZED, "invalid credentials").into_response();
+    }
+    match auth::issue_admin(secret, &req.user, app.config.admin_login_ttl_s) {
+        Ok(jwt) => {
+            tracing::info!(event = "admin_login", ttl_s = app.config.admin_login_ttl_s, "session minted");
+            Json(serde_json::json!({ "jwt": jwt })).into_response()
+        }
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "token mint failed").into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+struct AccountReq {
+    user: String,
+    password: String,
+}
+
+/// Registry listing — users and roles, never hashes (sister parity).
+async fn accounts_list(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
+    if let Err(e) = guard(&app, &headers) {
+        return e.into_response();
+    }
+    Json(serde_json::json!(crate::accounts::list_view(&app.config))).into_response()
+}
+
+/// Create-or-reset (upsert = password change; PoC has no separate PUT).
+async fn accounts_create(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    body: Result<Json<AccountReq>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    if let Err(e) = guard(&app, &headers) {
+        return e.into_response();
+    }
+    let Json(req) = match body {
+        Ok(v) => v,
+        Err(_) => return (StatusCode::BAD_REQUEST, "malformed body").into_response(),
+    };
+    if !crate::accounts::valid_user(&req.user) {
+        return (StatusCode::BAD_REQUEST, "user must be 1-64 chars of [A-Za-z0-9._-]").into_response();
+    }
+    if req.password.len() < 8 {
+        return (StatusCode::BAD_REQUEST, "password must be at least 8 chars").into_response();
+    }
+    match crate::accounts::upsert(&app.config, &req.user, &req.password) {
+        Ok(()) => {
+            tracing::info!(event = "admin_account_upsert", user = %req.user, "registry written");
+            (StatusCode::CREATED, "stored").into_response()
+        }
+        Err(e) => {
+            tracing::warn!(event = "admin_account_write_failed", "{e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, "registry write failed").into_response()
+        }
+    }
+}
+
+async fn accounts_delete(State(app): State<Arc<App>>, headers: HeaderMap, axum::extract::Path(user): axum::extract::Path<String>) -> Response {
+    if let Err(e) = guard(&app, &headers) {
+        return e.into_response();
+    }
+    match crate::accounts::remove(&app.config, &user) {
+        Ok(0) => (StatusCode::NOT_FOUND, "no such account").into_response(),
+        Ok(_) => {
+            tracing::info!(event = "admin_account_removed", user, "registry written");
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(e) => {
+            tracing::warn!(event = "admin_account_write_failed", "{e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, "registry write failed").into_response()
+        }
+    }
+}
+
 async fn tokens(
     State(app): State<Arc<App>>,
     headers: HeaderMap,
@@ -201,8 +308,8 @@ async fn tokens(
         StatusCode::OK,
         Json(serde_json::json!({
             "jwt": jwt,
-            "field_url": format!("{base}/f/{}?jwt={jwt}", req.room),
-            "dispatch_url": format!("{base}/d/{}?jwt={jwt}", req.room),
+            "field_url": format!("{base}/field/{}?jwt={jwt}", req.room),
+            "dispatch_url": format!("{base}/dispatch/{}?jwt={jwt}", req.room),
         })),
     )
         .into_response()

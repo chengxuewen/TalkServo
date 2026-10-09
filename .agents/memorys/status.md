@@ -1,6 +1,6 @@
 # TalkServo Status
 
-**Generated**: 2026-09-30 | Decisions: 16 entries | Phase: plan-4 LAN slice COMPLETE + SIGNOFF (11 pass/1 partial-deferred #8 of 12; D13 consumer reuse fix → keydown p50 ~320ms budget revised 350/600; #9 ICE matrix pass vs LAN coturn; #8 FEC deferred to real impaired network per ruling; public posture = Alpha) | Branch: main
+**Generated**: 2026-10-09 | Decisions: 21 entries | Phase: plan-4 LAN slice COMPLETE + SIGNOFF (11 pass/1 partial-deferred #8 of 12; D13 consumer reuse fix → keydown p50 ~320ms budget revised 350/600; #9 ICE matrix pass vs LAN coturn; #8 FEC deferred to real impaired network per ruling; public posture = Alpha) | Branch: main
 
 > TalkServo is a sister project of MediaServo (same RTC domain). Engineering lessons are accumulated from scratch;
 > MediaServo's historical ledgers live in its own repository under `.agents/memorys/` — they are not migrated here and must not impersonate this project's history.
@@ -14,7 +14,7 @@
 | crates/talkservo-core | 38 | ids + wire contract (27-variant, D16) + FloorState apply() rules 1-9; floor.rs coverage 87.5% |
 | crates/talkservo-sfu | 1 | Sfu trait (create/connect/produce/consume/apply_floor diff/peer_left/media_activity E11 seam) + StubSfu call-log backend + MediasoupSfu skeleton (supervisor seam) |
 | crates/talkservo-sfu | 1 | Sfu trait + exactly-one-backend compile gate (mediasoup|stub) |
-| crates/talkservo-server | 19 | WS signaling (J burst, cooldown, AlreadyJoined, bad_version), media routing (E4/E10), timers (E11/max-hold/TokenRefresh) — stub path; mediasoup worker builds natively (3m52s) |
+| crates/talkservo-server | 37 | WS signaling (J burst, cooldown, AlreadyJoined, bad_version), media routing (E4/E10), timers (E11/max-hold/TokenRefresh) — stub path; mediasoup worker builds natively (3m52s) |
 | docs/ (whitepaper + architecture + modules/01-09 + reference) | — | v0.2 + plan series |
 
 ## Phase Status
@@ -23,7 +23,7 @@
 |-------|:----:|
 | 0 Scaffolding/config adaptation | ✅ (docs system ported + English migration; whitepaper/architecture/research generated 2026-09-28) |
 | 1 core crate (P0-1) | ✅ 2026-09-29 — workspace + pixi toolchain + talkservo-core domain slice (plan-1 executed) |
-| 1+ | ⬜ |
+| 1+ tooling (plan-6 D19/D20 + B/B2 D21 + C3 routes) | ✅ 2026-10-09 — facade default dir, secrets single-home, front_port yaml-driven, 28 lib tests, live LAN closed loop |
 
 ## Decision Status
 
@@ -45,6 +45,12 @@
 | D14 | TS client SDK package (PoC unreleased; npm at Beta) | ✅ adopted |
 | D15 | native engine multi-backend: webrtc-sys/webrtc-rs/stub | ✅ adopted |
 | D16 | round-2 hardening: queue purge, peer deltas, wire v/caps, dual-gate | ✅ adopted |
+| D17 | acceptance = LAN slice; coturn self-hosted | ✅ adopted |
+| D18 | admin minimal surface (/admin/api + console) | ✅ adopted |
+| D19 | oxmgr supervisor + facade + YAML config (+ Amendment B) | ✅ adopted |
+| D20 | default cluster = server + caddy TLS front; --no-web | ✅ adopted |
+| D21 | config single source = server.yaml; Caddyfile/oxfile generated | ✅ adopted |
+| D22 | admin user/pwd login: accounts.yaml registry (plaintext-or-hash rows, init bootstrap, hot) -> minted JWT | ✅ adopted |
 
 ## Next Steps
 

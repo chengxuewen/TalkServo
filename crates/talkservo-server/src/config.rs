@@ -31,6 +31,16 @@ pub struct Config {
     pub max_peers: usize,
     pub max_queue: usize,
     pub max_frame_bytes: usize,
+    /// PBKDF2 stored hash enabling `POST /admin/api/login` (D22). None =
+    /// password login off (script-mint remains the only path). yaml lives:
+    /// it is a hash, not the secret.
+    pub admin_password_hash: Option<String>,
+    /// Session TTL handed out by the login endpoint (default 12h).
+    pub admin_login_ttl_s: u64,
+    /// Registry path derived from the --config location
+    /// (`<etc>/../etc/accounts.yaml` sibling of server.yaml); None on
+    /// bare-env runs (script mint only). Not an env/yaml key.
+    pub accounts_file: Option<std::path::PathBuf>,
 }
 
 /// server.yaml snake_case keys → environment names (single source; tests
@@ -59,31 +69,47 @@ pub static YAML_ENV_KEYS: std::sync::LazyLock<std::collections::HashMap<&'static
             ("max_peers", "MAX_PEERS"),
             ("max_queue", "MAX_QUEUE"),
             ("max_frame_bytes", "MAX_FRAME_BYTES"),
+            ("admin_password_hash", "TS_ADMIN_PASSWORD_HASH"),
+            ("admin_login_ttl_s", "TS_ADMIN_LOGIN_TTL_S"),
         ])
     });
 
 impl Config {
     /// Read from environment; missing `TS_JWT_SECRET` aborts startup with a
     /// fix hint (modules/06: no default secret ever).
-    /// D19 instance config: read `<dir>/etc/server.yaml` (or explicit path)
-    /// and fill only env keys NOT already present — precedence is
-    /// **process env > yaml > defaults** (modules/06). Must run during single-
-    /// threaded startup (main, before spawn): std::env::set_var is only safe
-    /// there (edition-2024 rule). Unknown keys warn (typo visibility beats
-    /// silent no-op; doctor re-surfaces them).
+    /// D19 instance config: read `<dir>/etc/server.yaml` (or explicit path),
+    /// then B sidecar `<root>/identity/env` (0600 secrets), filling only keys
+    /// the REAL process env never had — precedence is
+    /// **process env > identity sidecar > yaml > defaults** (modules/06).
+    /// Must run during single-threaded startup (main, before spawn):
+    /// std::env::set_var is only safe there (edition-2024 rule). Unknown keys
+    /// warn (typo visibility beats silent no-op; doctor re-surfaces them).
     pub fn load_yaml(path: &std::path::Path) -> Result<Self, String> {
         let text = std::fs::read_to_string(path)
             .map_err(|e| format!("read {}: {e}", path.display()))?;
         let doc: serde_yaml::Value =
             serde_yaml::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))?;
         let map = doc.as_mapping().ok_or_else(|| "server.yaml must be a flat mapping".to_string())?;
+        // B sidecar: <config_dir>/../identity/env holds the 0600 secrets
+        // (and, on legacy instances, TS_BIND). Both file layers apply ONLY to
+        // keys the REAL process env never had — 12-factor authority is
+        // snapshotted before any injection.
+        let real_env: std::collections::HashSet<std::ffi::OsString> = std::env::vars_os().map(|(k, _)| k).collect();
+        if let Some(sc) = path.parent().and_then(|etc| etc.parent()).map(|root| root.join("identity/env")) {
+            Self::apply_identity_sidecar(&sc, &real_env);
+        }
         for (k, v) in map {
             let key = k.as_str().ok_or_else(|| "yaml keys must be strings".to_string())?;
+            // B2: keys the facade renders for OTHER processes (caddy) are
+            // valid yaml but not env-mapped here — skip, no unknown-key warn.
+            if key == "front_port" {
+                continue;
+            }
             let Some(env_name) = YAML_ENV_KEYS.get(key) else {
                 tracing::warn!(event = "config_unknown_key", key, "ignored (check spelling)");
                 continue;
             };
-            if std::env::var_os(env_name).is_some() {
+            if real_env.contains(std::ffi::OsStr::new(env_name)) {
                 continue; // env wins (12-factor)
             }
             let val = match v {
@@ -98,7 +124,31 @@ impl Config {
             // SAFETY: single-threaded startup (main before any spawn), see doc comment.
             unsafe { std::env::set_var(env_name, val) };
         }
-        Ok(Self::from_env())
+        let mut cfg = Self::from_env();
+        // registry default: next to the operator file (<instance>/etc/
+        // accounts.yaml); an explicit TS_ACCOUNTS_FILE env keeps authority.
+        if cfg.accounts_file.is_none() {
+            cfg.accounts_file = path
+                .parent()
+                .map(|etc| etc.join("accounts.yaml"));
+        }
+        Ok(cfg)
+    }
+
+    /// identity/env KEY=VALUE lines — applied only when the real env lacks
+    /// the key AND the value is non-empty (an empty TURN_SECRET slot must NOT
+    /// clobber; set_var cannot unset). Values arrive verbatim: `=` inside
+    /// base64 secrets is not a separator.
+    fn apply_identity_sidecar(path: &std::path::Path, real_env: &std::collections::HashSet<std::ffi::OsString>) {
+        let Ok(text) = std::fs::read_to_string(path) else { return };
+        for line in text.lines() {
+            let Some((k, v)) = line.split_once('=') else { continue };
+            if v.is_empty() || real_env.contains(std::ffi::OsStr::new(k)) {
+                continue;
+            }
+            // SAFETY: single-threaded startup, same window as load_yaml.
+            unsafe { std::env::set_var(k, v) };
+        }
     }
 
     pub fn from_env() -> Self {
@@ -131,6 +181,9 @@ impl Config {
             max_peers: env_u64("MAX_PEERS", 10) as usize,
             max_queue: env_u64("MAX_QUEUE", 8) as usize,
             max_frame_bytes: env_u64("MAX_FRAME_BYTES", 65536) as usize,
+            admin_password_hash: std::env::var("TS_ADMIN_PASSWORD_HASH").ok().filter(|v| !v.is_empty()),
+            admin_login_ttl_s: env_u64("TS_ADMIN_LOGIN_TTL_S", 43_200),
+            accounts_file: std::env::var("TS_ACCOUNTS_FILE").ok().filter(|v| !v.is_empty()).map(std::path::PathBuf::from),
         }
     }
 
@@ -156,6 +209,9 @@ impl Config {
             max_peers: 10,
             max_queue: 8,
             max_frame_bytes: 65_536,
+            admin_password_hash: None,
+            admin_login_ttl_s: 43_200,
+            accounts_file: None,
         }
     }
 }
@@ -218,6 +274,33 @@ mod tests {
         assert_eq!(c.max_peers, 7, "process env must override yaml");
         assert_eq!(c.rtc_port_min, 40960);
         unsafe { std::env::remove_var("MAX_PEERS") };
+    }
+
+    #[test]
+    fn sidecar_secrets_load_and_yaml_beats_legacy_identity_bind() {
+        let _g = lock();
+        clear_config_env();
+        let dir = std::env::temp_dir().join(format!("ts-side-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("identity")).unwrap();
+        std::fs::create_dir_all(dir.join("etc")).unwrap();
+        std::fs::write(
+            dir.join("identity/env"),
+            "TS_JWT_SECRET=side-car\nTS_ADMIN_SECRET=sc-admin\nTS_BIND=127.0.0.1:9199\nTURN_SECRET=\nTURN_URI=turn:sidecar\n",
+        ).unwrap();
+        let p = write_yaml(&dir, "bind: \"127.0.0.1:9200\"\nheartbeat_s: 31\njwt_secret: from-yaml\n");
+        unsafe { std::env::set_var("MAX_PEERS", "4") }; // real env beats every file layer
+        unsafe { std::env::set_var("TS_ADMIN_SECRET", "real-env-admin") };
+        let c = Config::load_yaml(&p).expect("sidecar load");
+        unsafe { std::env::remove_var("MAX_PEERS") };
+        assert_eq!(c.jwt_secret, "from-yaml", "yaml outranks sidecar for shared keys");
+        assert_eq!(c.admin_secret.as_deref(), Some("real-env-admin"), "real env keeps authority over identity sidecar");
+        assert_eq!(c.turn_uri, "turn:sidecar", "sidecar-only key loads");
+        unsafe { std::env::remove_var("TS_ADMIN_SECRET") };
+        assert_eq!(std::env::var("TS_BIND").unwrap(), "127.0.0.1:9200", "yaml bind beats legacy identity bind");
+        assert!(c.turn_secret.as_deref().unwrap_or_default().is_empty(), "empty sidecar slot never clobbers env");
+        clear_config_env();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
