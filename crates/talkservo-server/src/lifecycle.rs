@@ -248,12 +248,11 @@ pub fn discover_oxmgr(dir: &Path) -> Option<PathBuf> {
     // sibling of the running server binary — deployed trees ship
     // bin/{talkservo-server,oxmgr}; operators invoke from inside bin/ or
     // any cwd (measured: `monit` from out/live/bin missed the adjacent oxmgr)
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(sib) = exe.parent().map(|d| d.join("oxmgr")) {
-            if sib.is_file() {
-                return Some(sib);
-            }
-        }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(sib) = exe.parent().map(|d| d.join("oxmgr"))
+        && sib.is_file()
+    {
+        return Some(sib);
     }
     which("oxmgr")
 }
@@ -481,9 +480,9 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("ts-rel-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let prev = std::env::current_dir().unwrap();
-        unsafe { std::env::set_current_dir(&tmp).unwrap() };
+        std::env::set_current_dir(&tmp).unwrap();
         let r = init_instance(std::path::Path::new(".server"), std::path::Path::new("/bin/x"));
-        unsafe { std::env::set_current_dir(&prev).unwrap() };
+        std::env::set_current_dir(&prev).unwrap();
         let log = r.unwrap();
         assert!(log.iter().any(|l| l.contains("oxfile.toml created")));
         let ox = std::fs::read_to_string(tmp.join(".server/run/oxfile.toml")).unwrap();
