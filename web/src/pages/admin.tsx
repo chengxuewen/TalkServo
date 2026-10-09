@@ -1,6 +1,6 @@
-// Admin console (plan-5 S2, D18): out-of-band /admin/api consumer. Gate
-// card -> sessionStorage JWT -> Monitor (3s poll, one fan-out per tick) +
-// Tokens (issue form -> copy-ready join links). Wire truth stays in
+// Admin console (plan-5 S2, D18; D22 user/pwd): out-of-band /admin/api
+// consumer. Username+Password gate -> server-minted JWT (sessionStorage) ->
+// Monitor (3s poll) + Tokens (join links) + Accounts (registry CRUD). Wire truth stays in
 // talkservo-server/src/admin.rs; this page renders it verbatim, including
 // per-room `stale` marks from the 1s fan-out timeout.
 
@@ -13,6 +13,7 @@ import {
   Input,
   InputNumber,
   Layout,
+  Popconfirm,
   Select,
   Space,
   Table,
@@ -23,6 +24,7 @@ import {
   AdminApi,
   adminJwt,
   setAdminJwt,
+  type AccountRow,
   type Issued,
   type Overview,
   type RoomRow,
@@ -32,9 +34,12 @@ const { Sider, Content } = Layout;
 
 export function AdminPage(): React.ReactElement {
   const [authorized, setAuthorized] = useState<boolean>(() => !!adminJwt());
-  const [tokenDraft, setTokenDraft] = useState("");
+  const [userDraft, setUserDraft] = useState("");
+  const [pwDraft, setPwDraft] = useState("");
   const [gateError, setGateError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"monitor" | "tokens">("monitor");
+  const [tab, setTab] = useState<"monitor" | "tokens" | "accounts">("monitor");
+  const [accounts, setAccounts] = useState<AccountRow[]>([]);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [rooms, setRooms] = useState<RoomRow[]>([]);
   const [pollError, setPollError] = useState<string | null>(null);
@@ -46,19 +51,26 @@ export function AdminPage(): React.ReactElement {
       new AdminApi(() => {
         setAdminJwt(null);
         setAuthorized(false);
-        setGateError("rejected — paste a valid admin JWT (503 = surface disabled)");
+        setGateError("session expired or rejected — log in again");
       }),
     [],
   );
 
-  const enter = async () => {
-    setAdminJwt(tokenDraft.trim());
+  const loginByPassword = async () => {
     try {
-      await api.overview();
+      await api.login(userDraft, pwDraft);
+      await api.overview(); // confirm the minted token authenticates
       setGateError(null);
       setAuthorized(true);
-    } catch {
-      setAdminJwt(null); // 401/503 bounced by the api callback already
+    } catch (e) {
+      const msg = String(e);
+      setGateError(
+        msg.includes("503")
+          ? "no admin credentials configured on this server yet"
+          : msg.includes("401")
+            ? "invalid username or password"
+            : "login failed",
+      );
     }
   };
 
@@ -85,20 +97,43 @@ export function AdminPage(): React.ReactElement {
     };
   }, [authorized, tab, api]);
 
+  useEffect(() => {
+    if (!authorized || tab !== "accounts") return;
+    api
+      .accounts()
+      .then((rows) => setAccounts(rows))
+      .catch((e: Error) => setAccountError(e.message));
+  }, [authorized, tab, api]);
+
+  const removeAccount = async (user: string) => {
+    setAccountError(null);
+    try {
+      await api.removeAccount(user);
+      setAccounts(await api.accounts());
+    } catch (e) {
+      setAccountError((e as Error).message);
+    }
+  };
+
   if (!authorized) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
         <Content style={{ display: "grid", placeItems: "center" }}>
           <Card title="Admin access" style={{ width: 420 }}>
             <Space direction="vertical" style={{ width: "100%" }}>
-              <Input.Password
-                placeholder="Admin JWT"
-                value={tokenDraft}
-                onChange={(e) => setTokenDraft(e.target.value)}
-                onPressEnter={() => void enter()}
+              <Input
+                placeholder="Username"
+                value={userDraft}
+                onChange={(e) => setUserDraft(e.target.value)}
               />
-              <Button type="primary" onClick={() => void enter()}>
-                Enter
+              <Input.Password
+                placeholder="Password"
+                value={pwDraft}
+                onChange={(e) => setPwDraft(e.target.value)}
+                onPressEnter={() => void loginByPassword()}
+              />
+              <Button block type="primary" onClick={() => void loginByPassword()}>
+                Log in
               </Button>
               {gateError && <Alert type="error" message={gateError} />}
             </Space>
@@ -177,6 +212,9 @@ export function AdminPage(): React.ReactElement {
           <Button block type={tab === "tokens" ? "primary" : "default"} onClick={() => setTab("tokens")}>
             Tokens
           </Button>
+          <Button block type={tab === "accounts" ? "primary" : "default"} onClick={() => setTab("accounts")}>
+            Accounts
+          </Button>
         </Space>
       </Sider>
       <Content style={{ padding: 24 }}>
@@ -197,7 +235,7 @@ export function AdminPage(): React.ReactElement {
               pagination={false}
             />
           </>
-        ) : (
+        ) : tab === "tokens" ? (
           <Card title="Issue join token" style={{ maxWidth: 560 }}>
             <Form
               layout="vertical"
@@ -253,6 +291,55 @@ export function AdminPage(): React.ReactElement {
               </Card>
             )}
           </Card>
+        ) : (
+          <Space direction="vertical" style={{ width: "100%", maxWidth: 560 }}>
+            <Card title="Accounts">
+              <Table
+                rowKey="user"
+                size="small"
+                dataSource={accounts}
+                columns={[
+                  { title: "User", dataIndex: "user", key: "user" },
+                  { title: "Role", dataIndex: "role", key: "role" },
+                  {
+                    title: "",
+                    key: "actions",
+                    render: (_: unknown, a: AccountRow) => (
+                      <Popconfirm title={`Remove ${a.user}?`} onConfirm={() => void removeAccount(a.user)}>
+                        <Button size="small" danger>
+                          Remove
+                        </Button>
+                      </Popconfirm>
+                    ),
+                  },
+                ]}
+                pagination={false}
+              />
+            </Card>
+            <Card title="Create account / reset password">
+              <Form
+                layout="vertical"
+                onFinish={(v: { user: string; password: string }) => {
+                  setAccountError(null);
+                  api
+                    .createAccount(v.user, v.password)
+                    .then(() => api.accounts().then(setAccounts))
+                    .catch((e: Error) => setAccountError(e.message));
+                }}
+              >
+                <Form.Item name="user" label="Username" rules={[{ required: true }]}>
+                  <Input placeholder="ops-1" />
+                </Form.Item>
+                <Form.Item name="password" label="Password (min 8 chars)" rules={[{ required: true, min: 8 }]}>
+                  <Input.Password />
+                </Form.Item>
+                <Button type="primary" htmlType="submit">
+                  Save
+                </Button>
+                {accountError && <Alert type="error" message={accountError} style={{ marginTop: 12 }} />}
+              </Form>
+            </Card>
+          </Space>
         )}
       </Content>
     </Layout>

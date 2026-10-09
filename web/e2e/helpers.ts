@@ -15,7 +15,7 @@ export function urlFor(sub: string): string {
     [path.join(REPO, "scripts", "issue-token.sh"), sub, ROOM, "field", "3600"],
     { encoding: "utf8", env: { ...process.env, TS_JWT_SECRET: process.env.TS_E2E_SECRET } },
   );
-  return `${process.env.TS_URL!}/f/${ROOM}?jwt=${out.stdout.trim()}`;
+  return `${process.env.TS_URL!}/field/${ROOM}?jwt=${out.stdout.trim()}`;
 }
 
 export async function joinField(page: Page, sub: string) {

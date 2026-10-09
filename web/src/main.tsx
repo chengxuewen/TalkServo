@@ -17,10 +17,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     >
       <BrowserRouter>
         <Routes>
-          <Route path="/d/:room" element={<DispatcherPage />} />
-          <Route path="/f/:room" element={<FieldPage />} />
-          <Route path="/a" element={<AdminPage />} />
-          <Route path="*" element={<Navigate to="/f/demo" replace />} />
+          <Route path="/dispatch/:room" element={<DispatcherPage />} />
+          <Route path="/field/:room" element={<FieldPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="*" element={<Navigate to="/field/demo" replace />} />
         </Routes>
       </BrowserRouter>
     </ConfigProvider>

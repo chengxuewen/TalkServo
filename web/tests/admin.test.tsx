@@ -8,7 +8,7 @@ import { MemoryRouter } from "react-router-dom";
 import { ConfigProvider, theme } from "antd";
 import React from "react";
 import { AdminPage } from "../src/pages/admin.js";
-import { setAdminJwt } from "../src/lib/adminApi.js";
+import { setAdminJwt, adminJwt } from "../src/lib/adminApi.js";
 
 const routes: Record<string, unknown> = {
   "/admin/api/overview": { rooms: 1, peers: 2, uptime_s: 5, backend: "stub" },
@@ -43,7 +43,7 @@ afterEach(() => {
 function ui() {
   return render(
     <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
-      <MemoryRouter initialEntries={["/a"]}>
+      <MemoryRouter initialEntries={["/admin"]}>
         <AdminPage />
       </MemoryRouter>
     </ConfigProvider>,
@@ -54,6 +54,27 @@ describe("admin console", () => {
   it("renders gate when no jwt", () => {
     ui();
     expect(screen.getByText("Admin access")).toBeTruthy();
+  });
+
+  it("password login mints and stores the admin jwt (D22)", async () => {
+    globalThis.fetch = vi.fn(async (url: unknown, init?: { method?: string; body?: string }) => {
+      if (String(url) === "/admin/api/login") {
+        const { user, password } = JSON.parse(String(init?.body)) as { user: string; password: string };
+        const ok = user === "ops-1" && password === "s3cret";
+        return {
+          ok,
+          status: ok ? 200 : 401,
+          json: async () => (ok ? { jwt: "minted-jwt" } : { error: "invalid credentials" }),
+        };
+      }
+      return { ok: true, status: 200, json: async () => routes[String(url)] ?? {} };
+    }) as never;
+    ui();
+    fireEvent.change(screen.getByPlaceholderText("Username"), { target: { value: "ops-1" } });
+    fireEvent.change(screen.getByPlaceholderText("Password"), { target: { value: "s3cret" } });
+    fireEvent.click(screen.getByText("Log in"));
+    expect(await screen.findByText("ops-01")).toBeTruthy(); // logged in -> monitor
+    expect(adminJwt()).toBe("minted-jwt");
   });
 
   it("monitor shows holders/speaking/muted/stale + overview cards", async () => {

@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const SECRET = `e2e-${Date.now()}`;
+const ACCOUNTS_FILE = mkdtempSync(path.join(tmpdir(), "ts-e2e-accounts-")) + "/accounts.yaml";
 const PORT = 8090;
 
 let server;
@@ -55,6 +56,9 @@ export default async function () {
         ...process.env,
         TS_JWT_SECRET: SECRET,
         TS_BIND: `127.0.0.1:${PORT}`,
+        // writable accounts registry for the D22 user/pwd gate (spec creates
+        // the first account via the script-minted bootstrap token)
+        TS_ACCOUNTS_FILE: ACCOUNTS_FILE,
         ...(process.env.TS_ADMIN ? { TS_ADMIN_SECRET: adminSecret } : {}),
         // the live fake-device speaker beeps with ~400ms gaps — the E11
         // watchdog (2s grace) would down it mid-hold and make audibility/

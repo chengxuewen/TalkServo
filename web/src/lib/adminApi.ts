@@ -38,6 +38,11 @@ export interface Overview {
   backend: string;
 }
 
+export interface AccountRow {
+  user: string;
+  role: string;
+}
+
 export interface Issued {
   jwt: string;
   field_url: string;
@@ -62,6 +67,50 @@ export class AdminApi {
     }
     if (!res.ok) throw new Error(`admin api ${res.status}`);
     return (await res.json()) as T;
+  }
+
+  /** D22 password login: server verifies the PBKDF2 hash from server.yaml
+   * and mints a short-lived admin JWT. Errors surface as `login <status>`
+   * (401 wrong password, 503 password login not configured). */
+  async login(user: string, password: string): Promise<string> {
+    const res = await fetch("/admin/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ user, password }),
+    });
+    if (!res.ok) throw new Error(`login ${res.status}`);
+    const body = (await res.json()) as { jwt?: string };
+    if (!body.jwt) throw new Error("login: response missing jwt");
+    setAdminJwt(body.jwt);
+    return body.jwt;
+  }
+
+  private async callVoid(method: string, path: string, body?: unknown): Promise<void> {
+    const res = await fetch(path, {
+      method,
+      headers: {
+        ...(body ? { "content-type": "application/json" } : {}),
+        authorization: `Bearer ${adminJwt() ?? ""}`,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (res.status === 401 || res.status === 503) {
+      this.onUnauthorized();
+      throw new Error(`admin api ${res.status}`);
+    }
+    if (!res.ok) throw new Error(`admin api ${res.status}`);
+  }
+
+  /** Account registry rows — never carries hashes (server strips them). */
+  accounts(): Promise<AccountRow[]> {
+    return this.call("GET", "/admin/api/accounts");
+  }
+  /** Create or reset a password (upsert — sister Accounts semantics). */
+  createAccount(user: string, password: string): Promise<void> {
+    return this.callVoid("POST", "/admin/api/accounts", { user, password });
+  }
+  removeAccount(user: string): Promise<void> {
+    return this.callVoid("DELETE", `/admin/api/accounts/${encodeURIComponent(user)}`);
   }
 
   overview(): Promise<Overview> {

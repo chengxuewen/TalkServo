@@ -7,8 +7,8 @@ Two PoC screens, one SPA (`web/`, Vite+React18+TS+AntD5+zustand, rust-embed serv
 
 | Route | Role | Layout (normalized from research) |
 |-------|------|-----------------------------------|
-| `/d/:room` | dispatcher | target grid (tile per peer, tally ring red=holder) + event log side panel (grant/taken/idle + generation shown ONLY here) + per-line listen mute/gain + **grant-queue strip** (industry gap — differentiator) + authorized actions (preempt-broadcast / mute-all / ModeChange) |
-| `/f/:room` | field agent | compact live roster (speaking peer highlighted) + one oversized **hold-to-talk** button (pointerdown/up/cancel, thumb zone) + settings drawer (keybind capture rejecting Ctrl/Cmd+letter, release-delay slider, accessibility toggle; `preventDefault` keydown on the HTT to avoid Space double-fire C-5; polite `aria-live` floor announcements C-11) |
+| `/dispatch/:room` | dispatcher | target grid (tile per peer, tally ring red=holder) + event log side panel (grant/taken/idle + generation shown ONLY here) + per-line listen mute/gain + **grant-queue strip** (industry gap — differentiator) + authorized actions (preempt-broadcast / mute-all / ModeChange) |
+| `/field/:room` | field agent | compact live roster (speaking peer highlighted) + one oversized **hold-to-talk** button (pointerdown/up/cancel, thumb zone) + settings drawer (keybind capture rejecting Ctrl/Cmd+letter, release-delay slider, accessibility toggle; `preventDefault` keydown on the HTT to avoid Space double-fire C-5; polite `aria-live` floor announcements C-11) |
 
 Browser matrix (BCD-verified, C-1/C-2/C-3): Chrome/Edge/Firefox/Safari≥12 (mediasoup-client Safari12 handler; Unified Plan only) ⊂ acceptance #9; `setSinkId` all desktop engines, absent on Android browser (field mobile = D8 native); one `<audio>` element per consumer for sink routing; `devicechange` + `replaceTrack` handles headset hotplug.
 
@@ -33,11 +33,11 @@ First-party desktop dispatcher = **Electron shell wrapping `web/` unchanged**: r
 
 _Landed 2026-10-08 (plan-5 S1/S2): tests `admin_api.rs` + `e2e/admin.spec.ts`. Monitor poll/Tokens link click-through verified._
 
-Minimal admin for LAN operators: **live floor Monitor + token issuance** — the two surfaces the admin dossier §3 flagged PoC-candidate. Out-of-band REST + the same SPA gains `/a`; zero additions to the signaling wire, zero media-plane change; fail-closed (`TS_ADMIN_SECRET` unset ⇒ 503).
+Minimal admin for LAN operators: **live floor Monitor + token issuance** — the two surfaces the admin dossier §3 flagged PoC-candidate. Out-of-band REST + the same SPA gains `/admin`; zero additions to the signaling wire, zero media-plane change; fail-closed (`TS_ADMIN_SECRET` unset ⇒ 503).
 
 **Server** (`crates/talkservo-server/src/admin.rs`): `GET /admin/api/overview` (rooms/peers/uptime/backend), `GET /admin/api/rooms` (per-room mode, holders, queue length, peers, muted set, per-holder speaking activity — the speaking bit cached by the watchdog probe tick, muted from FloorState via the snapshot fix; read via read-only `RoomCommand::AdminInspect(oneshot)` with clone-drop-lock fan-out + 1s per-room timeout stale marking, no shared-state restructure, zero SFU calls on the inspect path), `POST /admin/api/tokens` `{sub,room,role,ttl_s}` → `{jwt, field_url, dispatch_url}` (wraps the existing auth issue). Auth: admin JWT `aud:"admin"`, separate `TS_ADMIN_SECRET` (MediaServo D196 dual-token rule, verbatim); bootstrap = `scripts/issue-admin-token.sh`; 401 without token / wrong audience / wrong secret, no leak.
 
-**Web** (`web/src/pages/admin.tsx`, route `/a`): dark AntD Layout + Sider (Monitor | Tokens). Monitor = overview stat cards + rooms table (red tally ring on the holder, reuse `.tally-ring`; 3s poll — AdminEvent WS push is the Alpha upgrade path, endpoint shapes stay compatible). Tokens = issue form → copy-ready join links. Gate card first-run: paste admin JWT (sessionStorage only). No new dependencies.
+**Web** (`web/src/pages/admin.tsx`, route `/admin`): dark AntD Layout + Sider (Monitor | Tokens | Accounts). Monitor = overview stat cards + rooms table (red tally ring on the holder, reuse `.tally-ring`; 3s poll — AdminEvent WS push is the Alpha upgrade path, endpoint shapes stay compatible). Tokens = issue form → copy-ready join links. Gate card first-run (D22 rev2, user/pwd): Username + Password -> `POST /admin/api/login` -> server-minted JWT (sessionStorage); no JWT paste in the UI (script mint is CLI-side bootstrap only). Sider: Monitor | Tokens | **Accounts** (registry table + create/reset form + delete confirm — sister `/accounts` shape; registry = `etc/accounts.yaml`, program-maintained, hot). No new dependencies.
 
 ```text
 Monitor                              Tokens
