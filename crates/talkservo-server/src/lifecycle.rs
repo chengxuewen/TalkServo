@@ -10,6 +10,63 @@ pub const NAMESPACE: &str = "talkservo";
 pub const SERVER_APP: &str = "talkservo-server";
 pub const WEB_APP: &str = "talkservo-web";
 
+/// First routable IPv4 of the host (`hostname -I`) — SAN default for LAN
+/// certs; None when unresolvable (caller degrades + warns).
+pub fn detect_lan_ip() -> Option<String> {
+    let out = std::process::Command::new("hostname")
+        .args(["-I"])
+        .output()
+        .ok()?;
+    String::from_utf8_lossy(&out.stdout)
+        .split_whitespace()
+        .find(|t| t.contains('.') && !t.starts_with("127."))
+        .map(str::to_string)
+}
+
+/// Self-signed LAN cert pair (T4'-proven openssl recipe; SAN = LAN IP +
+/// talkservo.test). True when a usable pair exists afterwards (fresh or
+/// pre-existing — re-init never rotates certs).
+pub fn ensure_certs(abs: &Path) -> bool {
+    let cert = abs.join("etc/lan-cert.pem");
+    let key = abs.join("etc/lan-key.pem");
+    if cert.is_file() && key.is_file() {
+        return true;
+    }
+    let ip = detect_lan_ip().unwrap_or_else(|| "127.0.0.1".into());
+    let san = format!("subjectAltName=DNS:talkservo.test,DNS:*.talkservo.test,IP:{ip}");
+    let rc = std::process::Command::new("openssl")
+        .args([
+            "req", "-x509", "-newkey", "rsa:2048",
+            "-keyout", &key.to_string_lossy(),
+            "-out", &cert.to_string_lossy(),
+            "-days", "365", "-nodes", "-subj", "/CN=talkservo.test",
+            "-addext", &san,
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+    matches!(rc, Ok(st) if st.success()) && cert.is_file() && key.is_file()
+}
+
+/// Enabled LAN TLS front: :8443 -> loopback backend. Literal-only (oxmgr's
+/// caddy inherits no invoking env). D20: this is the DEFAULT cluster shape.
+pub fn render_caddyfile() -> String {
+    r#"# talkservo LAN TLS front (D20 default cluster member).
+    # Devices reach https://<this-host>:8443 — trust etc/lan-cert.pem on the
+    # device once, or accept the browser warning per visit.
+    # Backend stays loopback (identity/env TS_BIND=127.0.0.1:8080).
+    # disable_redirects: Caddy's auto HTTP->HTTPS hop binds :80 —
+    # permission-denied for unprivileged runs (measured).
+    {
+    	auto_https disable_redirects
+    }
+    https://:8443 {
+    	tls etc/lan-cert.pem etc/lan-key.pem
+    	reverse_proxy 127.0.0.1:8080
+    }
+    "#.to_string()
+}
+
 /// server.yaml template — non-secret config only; secrets live in
 /// identity/env 0600 (oxfile env_file). Placeholders rendered by init.
 pub fn render_server_yaml(announced_ip: &str, public_base: &str, rtc_min: u16, rtc_max: u16) -> String {
@@ -114,12 +171,32 @@ pub fn init_instance(dir: &Path, server_bin: &Path) -> std::io::Result<Vec<Strin
     std::fs::create_dir_all(abs.join("run/logs"))?;
     std::fs::create_dir_all(abs.join("identity"))?;
 
+    // ---- D20 cluster shape resolved FIRST: caddy TLS front joins unless it
+    // genuinely cannot run (no caddy binary OR no openssl certs) — then the
+    // cluster degrades to server-only WITH A LOUD WARN, never silently ----
+    let have_certs = ensure_certs(&abs);
+    let caddy_bin = which("caddy").or_else(|| {
+        let in_bin = abs.join("bin/caddy");
+        in_bin.is_file().then_some(in_bin)
+    });
+    let web: Option<PathBuf> = if have_certs { caddy_bin } else { None };
+    // fresh init writes the ENABLED front; an existing Caddyfile is operator
+    // property — preserved untouched (same rule as identity/oxfile)
+    if !abs.join("etc/Caddyfile").exists() {
+        std::fs::write(abs.join("etc/Caddyfile"), render_caddyfile())?;
+    }
+    // backend bind: with the TLS front, devices enter via :8443 and the
+    // loopback binds the embedded http; degraded cluster must stay directly
+    // LAN-usable over plain http
+    let bind_default = if web.is_some() { "127.0.0.1:8080" } else { "0.0.0.0:8080" };
+
     let envf = abs.join("identity/env");
     if !envf.exists() {
         let body = format!(
-            "TS_JWT_SECRET={}\nTS_ADMIN_SECRET={}\nTS_BIND=0.0.0.0:8080\nTURN_SECRET=\n",
+            "TS_JWT_SECRET={}\nTS_ADMIN_SECRET={}\nTS_BIND={}\nTURN_SECRET=\n",
             gen_secret(),
             gen_secret(),
+            bind_default,
         );
         std::fs::write(&envf, body)?;
         #[cfg(unix)]
@@ -140,32 +217,10 @@ pub fn init_instance(dir: &Path, server_bin: &Path) -> std::io::Result<Vec<Strin
         log.push("etc/server.yaml preserved".into());
     }
 
-    let caddyfile = abs.join("etc/Caddyfile");
-    if !caddyfile.exists() {
-        std::fs::write(
-            &caddyfile,
-            "# talkservo LAN TLS front (plan-6/D17): generate certs, then uncomment.\n\
-# openssl req -x509 -newkey rsa:2048 -keyout etc/lan-key.pem -out etc/lan-cert.pem \\\n\
-#   -days 365 -nodes -subj \"/CN=talkservo.test\" \\\n\
-#   -addext \"subjectAltName=DNS:talkservo.test,IP:<LAN-IP>\"\n\
-# https://talkservo.test:8443 {\n#     tls etc/lan-cert.pem etc/lan-key.pem\n#     reverse_proxy 127.0.0.1:8080\n# }\n",
-        )?;
-        log.push("etc/Caddyfile scaffolded (add certs + uncomment to enable TLS)".into());
-    }
-    // caddy joins the cluster ONLY when actually usable: binary resolvable
-    // AND real certs staged — an all-comment config would crash caddy and
-    // fail `start` for the whole cluster
-    let certs = abs.join("etc/lan-cert.pem").is_file() && abs.join("etc/lan-key.pem").is_file();
-    let caddy = if certs {
-        which("caddy").or_else(|| {
-            let in_bin = abs.join("bin/caddy");
-            in_bin.is_file().then_some(in_bin)
-        })
-    } else {
-        None
-    };
-    if caddy.is_some() {
-        log.push("caddy in cluster (certs present)".into());
+    match &web {
+        Some(_) => log.push("caddy in cluster: TLS front :8443 -> embedded :8080 (one port for devices)".into()),
+        None if !have_certs => log.push("WARN: openssl/certs unavailable — server-only cluster (embedded http, devices need trust caveats)".into()),
+        None => log.push("WARN: caddy binary not found — server-only cluster (embedded http)".into()),
     }
 
     let oxfile = abs.join("run/oxfile.toml");
@@ -176,7 +231,7 @@ pub fn init_instance(dir: &Path, server_bin: &Path) -> std::io::Result<Vec<Strin
             .filter_map(|l| l.split_once('='))
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
-        std::fs::write(&oxfile, render_oxfile(&abs, server_bin, caddy.as_deref(), &env_pairs))?;
+        std::fs::write(&oxfile, render_oxfile(&abs, server_bin, web.as_deref(), &env_pairs))?;
         log.push("run/oxfile.toml created".into());
     } else {
         log.push("run/oxfile.toml preserved (edit to change topology)".into());
@@ -393,23 +448,29 @@ mod tests {
     }
 
     #[test]
-    fn caddy_joins_cluster_only_with_certs() {
-        let base = std::env::temp_dir().join(format!("ts-caddy-{}", std::process::id()));
-        // no certs -> scaffold present, single app
+    fn cluster_shape_is_self_consistent() {
+        // D20: full cluster (openssl+caddy present) or degraded (warn) —
+        // either way identity bind, oxfile app count and init log must agree
+        let base = std::env::temp_dir().join(format!("ts-d20-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(base.join("etc")).unwrap();
-        init_instance(&base, std::path::Path::new("/bin/x")).unwrap();
+        std::fs::write(base.join("identity_dummy"), b"").unwrap();
+        std::fs::remove_dir_all(base.join("etc")).unwrap();
+        let log = init_instance(&base, std::path::Path::new("/bin/x")).unwrap();
         let ox = std::fs::read_to_string(base.join("run/oxfile.toml")).unwrap();
-        assert_eq!(ox.matches("[[apps]]").count(), 1, "no certs => server-only cluster");
-        assert!(base.join("etc/Caddyfile").is_file(), "scaffold always written");
-        // certs + caddy on PATH -> second app renders (PATH probe hits our test exe dir trick: copy /bin/sh as caddy)
-        std::fs::write(base.join("etc/lan-cert.pem"), b"x").unwrap();
-        std::fs::write(base.join("etc/lan-key.pem"), b"x").unwrap();
-        std::fs::create_dir_all(base.join("bin")).unwrap();
-        std::fs::copy("/bin/sh", base.join("bin/caddy")).unwrap();
-        std::fs::remove_file(base.join("run/oxfile.toml")).unwrap();
-        init_instance(&base, std::path::Path::new("/bin/x")).unwrap();
-        let ox2 = std::fs::read_to_string(base.join("run/oxfile.toml")).unwrap();
-        assert!(ox2.contains(WEB_APP), "certs+binary => caddy app rendered:\n{ox2}");
+        let env = std::fs::read_to_string(base.join("identity/env")).unwrap();
+        let apps = ox.matches("[[apps]]").count();
+        if log.iter().any(|l| l.starts_with("caddy in cluster")) {
+            assert_eq!(apps, 2, "full cluster => server + caddy");
+            assert!(env.contains("TS_BIND=127.0.0.1:8080"), "front up => backend loopback");
+            assert!(base.join("etc/lan-cert.pem").is_file(), "certs generated");
+            let cf = std::fs::read_to_string(base.join("etc/Caddyfile")).unwrap();
+            assert!(cf.contains("https://:8443") && cf.contains("tls etc/lan-cert.pem"), "ENABLED front, not scaffold");
+        } else {
+            assert_eq!(apps, 1, "degraded => server only");
+            assert!(log.iter().any(|l| l.starts_with("WARN")), "degradation must be LOUD");
+            assert!(env.contains("TS_BIND=0.0.0.0:8080"), "no front => LAN-usable http");
+        }
         std::fs::remove_dir_all(&base).ok();
     }
 

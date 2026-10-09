@@ -70,3 +70,6 @@ Open items: none (entry named talk servo.sh by sister convention — override at
 
 ## Post-closeout revisions (2026-10-08)
 - deploy default `--prefix out/<lane>` (sister parity; same-path readlink short-circuit) and `build:deploy` composite — user-requested, both smoke-verified (default tree staged-in-place + explicit-DIR copy: init → start → status healthy → stop). Known limit logged: two default-bind instances collide on :8080 (no interactive takeover yet; diverge via identity/env).
+
+## D20 addendum (2026-10-08, user: sister parity for cluster shape)
+Default `init` = **server + caddy TLS front** two-process cluster (auto self-signed SAN cert, enabled Caddyfile with `auto_https disable_redirects`, backend narrowed to 127.0.0.1:8080, devices enter via :8443); missing caddy/openssl ⇒ loud degrade to server-only on 0.0.0.0:8080. `start/restart --no-web` = single-process dev shape (embedded http). Live-verified: 2×running + `https://<lan-ip>:8443/healthz` round-trip + restart --no-web 1-app.

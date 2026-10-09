@@ -48,11 +48,28 @@ async fn main() {
                     }
                 }
             }
-            "start" => talkservo_server::lifecycle::oxmgr_forward(&dir, &["apply"]),
+            "start" => {
+                let only = argv.iter().any(|a| a == "--no-web");
+                if only {
+                    talkservo_server::lifecycle::oxmgr_forward(
+                        &dir,
+                        &["apply", "--only", talkservo_server::lifecycle::SERVER_APP],
+                    )
+                } else {
+                    talkservo_server::lifecycle::oxmgr_forward(&dir, &["apply"])
+                }
+            }
             "stop" => talkservo_server::lifecycle::oxmgr_stop_cluster(&dir),
             "restart" => {
                 let _ = talkservo_server::lifecycle::oxmgr_stop_cluster(&dir);
-                talkservo_server::lifecycle::oxmgr_forward(&dir, &["apply"])
+                if argv.iter().any(|a| a == "--no-web") {
+                    talkservo_server::lifecycle::oxmgr_forward(
+                        &dir,
+                        &["apply", "--only", talkservo_server::lifecycle::SERVER_APP],
+                    )
+                } else {
+                    talkservo_server::lifecycle::oxmgr_forward(&dir, &["apply"])
+                }
             }
             "status" => {
                 let bind = talkservo_server::lifecycle::instance_bind(&dir);
