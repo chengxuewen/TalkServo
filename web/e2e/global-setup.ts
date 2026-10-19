@@ -90,6 +90,9 @@ export default async function () {
     await new Promise((r) => setTimeout(r, 200));
   }
   if (!healthy) throw new Error(`server failed healthz on :${PORT}`);
+  // process.env mutations propagate to worker forks (documented playwright
+  // behavior - the P3 "lost secret" was NEVER this line; it was the config's
+  // missing globalSetup entry, see playwright.config.ts forensics note).
   process.env.TS_URL = `http://127.0.0.1:${PORT}`;
   process.env.TS_E2E_SECRET = SECRET;
   return async () => {

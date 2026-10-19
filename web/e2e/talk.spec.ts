@@ -44,9 +44,7 @@ test("Open mode: three web clients speak at once", async ({ browser }) => {
   // mirrors — PIT-21 rule: wire-state assertions observe other peers' pages)
   const p1 = await (await browser.newContext()).newPage();
   await joinParticipant(p1, "alpha");
-  await expect(p1.getByText("mode: open")).toBeVisible({ timeout: 10_000 });
-  const p1 = await (await browser.newContext()).newPage();
-  await joinParticipant(p1, "alpha");
+  await expect(p1.getByText("mode: open")).toBeVisible({ timeout: 10_000 });   // propagated
   await p1.getByRole("button", { name: "JOIN THE CONVERSATION" }).click();
   await expect(p1.getByText("ON AIR — click to mute")).toBeVisible({ timeout: 5_000 });
 
@@ -76,7 +74,9 @@ test("Open mode: three web clients speak at once", async ({ browser }) => {
   await expect(p2.getByText("JOIN THE CONVERSATION")).toBeVisible();
   await expect(p1.getByText("ON AIR — click to mute")).toBeVisible();
   await expect(p1.getByText("Speakers (2)")).toBeVisible({ timeout: 5_000 }); // p1's mirror saw p2 leave
-  await expect(f3.getByText("Speakers (2)")).toBeVisible({ timeout: 5_000 }); // field page agrees
+  // field page agrees: its tally-ring holder count drops to 3 -> 2 (the field
+  // page has no Speakers card; the ring locator is its native cross-check)
+  await expect(f3.locator(".tally-ring.holder")).toHaveCount(2, { timeout: 5_000 });
   await f3.keyboard.up("Space");
 
   await d.context().close();

@@ -12,7 +12,7 @@ function userToken(sub: string): string {
   const out = spawnSync(
     "bash",
     [path.join(REPO, "scripts", "issue-token.sh"), sub, ROOM, "field", "3600"],
-    { encoding: "utf8", env: { ...process.env, TS_JWT_SECRET: process.env.TS_E2E_SECRET ?? "" } },
+    { encoding: "utf8", env: { ...process.env, TS_JWT_SECRET: process.env.TS_E2E_SECRET } },
   );
   return out.stdout.trim();
 }

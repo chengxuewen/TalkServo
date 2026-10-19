@@ -20,5 +20,12 @@ export default defineConfig({
     },
     permissions: ["microphone"],
   },
+  // the suite starts its own server in globalSetup (this line + workers were
+  // lost in a config-merge edit during the test-honesty batch and rode along
+  // unexecuted; P3 forensics caught it: every ctest-lane e2e since ran BARE -
+  // no server, no TS_URL/TS_E2E_SECRET. Lesson encoded: the gate must be the
+  // LAST action before a commit, never merely 'a run that happened during' the batch)
+  globalSetup: "./e2e/global-setup.ts",
+  workers: 1, // shared room state; serialize
   reporter: [["list"]],
 });
