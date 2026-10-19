@@ -32,6 +32,7 @@ None yet — this folder registers API/config/ops handbooks as product modules l
 |---|---|---|---|
 | [research/ui/ptt-ui-patterns.md](research/ui/ptt-ui-patterns.md) | 2026-09-28 | Discord/Zello/Mumble/talktome/openPTT... UI patterns: floor viz, PTT affordances, dispatch IA, gap ledger | archived (frozen) |
 | [research/ui/admin-ui-patterns.md](research/ui/admin-ui-patterns.md) | 2026-09-28 | LiveKit/Daily/Janus/talktome/MediaServo admin surfaces; object spine; PoC/Alpha split | archived (frozen) |
+| [research/ui/console-feature-checklist-2026-10-19.md](research/ui/console-feature-checklist-2026-10-19.md) | 2026-10-19 | per-product console feature lists (Zello/MCPTT/PushComm/LiveKit/Jitsi/Discord/Mumble) + web-UI testing norms + deduped borrow checklist | archived (frozen) |
 
 ### `research/tooling/` — dev-toolchain references
 | Path | Compiled | Scope | Status |
