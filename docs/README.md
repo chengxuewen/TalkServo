@@ -20,6 +20,7 @@ One-time competitive and selection research (frozen dossiers); living references
 | [research/commercial-ptt-products.md](reference/research/ptt/commercial-ptt-products.md) | Zello/Voxer/Rave/MCPTT-class/Hytera/Doro feature matrix, product lessons, open-core differentiation | verified (106 lines, team) |
 | [research/ui/ptt-ui-patterns.md](reference/research/ui/ptt-ui-patterns.md) | mainstream voice/PTT UI patterns + floor-viz affordances + gap ledger | verified snapshot |
 | [research/ui/admin-ui-patterns.md](reference/research/ui/admin-ui-patterns.md) | RTC admin console conventions + TalkServo admin v1 candidate list | verified snapshot |
+| [research/ui/console-feature-checklist-2026-10-19.md](reference/research/ui/console-feature-checklist-2026-10-19.md) | mainstream admin/dispatch console feature lists w/ source URLs (LiveKit, Jitsi, Discord, Mumble, PushComm, Zello, MCPTT) + WebRTC SPA testing norms | verified snapshot 2026-10-19 |
 | [research/github-sweep-ptt.md](reference/research/ptt/github-sweep-ptt.md) | PTT keyword-family exhaustive sweep (7 queries, 137 deduped repos, coverage claims, 5 new peers) | verified snapshot |
 | [research/github-sweep-webrtc.md](reference/research/media/github-sweep-webrtc.md) | WebRTC SFU/engine sweep (230 repos; str0m/kraken/sfu-crate verified; ranked PoC bases) | verified snapshot |
 | [research/github-sweep-ptt-standards.md](reference/research/ptt/github-sweep-ptt-standards.md) | OMA PoC/MCPTT/B-Trunco/SIP/murmur sweep — negative results + name-collision registry | verified snapshot |
@@ -60,3 +61,4 @@ All design docs already live in `docs/modules/01-09` (C2 tiering).
 | [plans/2026-09-28-plan4-deployment-acceptance.md](plans/2026-09-28-plan4-deployment-acceptance.md) | public deployment + 12-item acceptance | skeleton |
 | [plans/2026-10-08-plan5-admin-surface.md](plans/2026-10-08-plan5-admin-surface.md) | admin minimal surface (/admin/api + /a console) per D18 | **EXECUTED 2026-10-08** (S0/S1/S2; e2e 4/4 incl. click-through) |
 | [plans/2026-10-08-plan6-tooling-ship-shell.md](plans/2026-10-08-plan6-tooling-ship-shell.md) | ship tooling: talkservo.sh + oxmgr instance facade + YAML config (D19) | **EXECUTED 2026-10-08** (shell + facade + vendored oxmgr + instance model) |
+| [plans/2026-10-19-alpha-wave1-trust-control.md](plans/2026-10-19-alpha-wave1-trust-control.md) | Alpha wave-1: audit + room authority + tiers + intervention kit (D23) | DRAFT (review pending) |
