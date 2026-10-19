@@ -1,6 +1,8 @@
 # Plan-8: PolyOrch build assembly — CMake total graph, scripts as thin wrappers
 
-> **STATUS: APPROVED 2026-10-19 (D25) — implementation not started.**
+> **STATUS: approved (Momus OKAY + user 2026-10-19); P1 LANDED, P2 not started.**
+> Rulings locked 2026-10-19 (D25: adopt-now / blueprint v2 phased / submodule embed).
+> Implementation not started; commit ccffabc holds the spec, this revision is pending user approval.
 > Sibling design truth: `docs/modules/09-dev-toolchain.md` (pixi posture; §PolyOrch pointer).
 > Evidence base: `.refinfo/PolyOrch` (v0.3.0 Apache-2.0, upstream gitee.com/chengxuewen/PolyOrch),
 > `.refinfo/VisiaEngine` (D39 embed shim, T-B/B1/G4 lanes), `.refinfo/ModuKit` (D66 same shape).
@@ -16,7 +18,22 @@ pixi-tasks-only (12 `[tasks]`) with zero CMake surface; the Beta horizon (D8 bin
 npm/pip packaging, Qt/C/C++/wasm faces) is exactly the scenario PolyOrch serves, already
 proven on two sibling repos. Decision: adopt now, phased, with the blueprint settled in full.
 
-## 1. Embed shape (adjudicated)
+## 1a. Pre-flight (verified on dev host 2026-10-19)
+
+- **GAP-1 cmake absent**: `command -v cmake` empty on host AND in the pixi env (pixi.toml
+  has ninja/meson/clang, no cmake). PolyOrch floor is cmake >=3.25 (D39). P1.0 adds
+  `cmake` (conda-forge) to the pixi host dependencies — an ENVIRONMENT change, allowed by
+  D25 (pixi stays env single-source). CI parity job reuses the same lockfile.
+- **GAP-2 pixi.sh ownership**: `polyorch_pixi_setup(COPY_SCRIPTS)` re-installs PolyOrch's
+  own pixi.sh into the host repo (sister note: managed regions are committed). Today's
+  `pixi.sh` is ours (bootstrap/D11 lineage). Decision at P1.0: adopt PolyOrch-managed
+  region semantics for pixi.sh (sister-proven) OR keep ours and call `polyorch_pixi_setup`
+  without COPY_SCRIPTS — P1.0 records the choice in modules/09 before any lane lands.
+- `.gitignore` PolyOrch line removed by user 2026-10-19 (submodule path unshadowed) — OK.
+- gitee reachability is probed at P1.1 (`git ls-remote`); failure = escape-hatch path
+  (local checkout of .refinfo/PolyOrch promoted to a clone), recorded, not a blocker.
+
+## 1b. Embed shape (adjudicated)
 
 - `git submodule add https://gitee.com/chengxuewen/PolyOrch.git PolyOrch`, pinned at the
   0.3.0-tested SHA. Fresh clone: `git submodule update --init --recursive`.
@@ -51,16 +68,45 @@ proven on two sibling repos. Decision: adopt now, phased, with the blueprint set
 
 ## 3. Construction schedule (the "C" ruling: blueprint fixed, lights phased)
 
-| Phase | Deliverables | Exit gate |
-|---|---|---|
-| **P1 skeleton** | submodule + `.gitmodules` + shim + thin root CMakeLists + **core lane** into ctest + `pixi run cmake-probe` task (discoverability) | Linux: `cmake --build` configures + `ctest -L rust` runs core tests through PolyOrch; zero changes to existing pixi/web daily flow |
-| **P2 lanes** | sfu+server lanes × dual feature configs; web lane (build/vitest/tsc); **pixi build-verbs become thin forwarders to cmake** (names preserved, CI untouched) | full daily flow reachable via cmake/ctest verbs; pixi task names still work (= forwarders, env verbs kept) |
-| **P3 gates+e2e** | gate face ctest-ified (`-L gate`); Playwright stub lane `-L e2e-stub` default, live `-L e2e-live` label-gated | one verb table covers build/test/gate; live lane keeps env flags TS_E2E_FEATURES/TS_COTURN semantics |
-| **P4 package+CI** | install tree + tar target; `talkservo.sh build/package` thin; CI workflow verbs = `cmake --build` + `ctest -L` | artifact parity vs today (tar contents diff-tested); CI matrix unchanged platforms |
+### P1 detailed task list (the slice that unlocks the rest)
 
-Interleave note: plan-8 and plan-7 (wave-1 trust&control) are orthogonal workstreams —
-plan-8 P1 can land before, after, or between plan-7 slices; plan-7 slices' gates work under
-either entry (pixi native until P2, forwarders P2-P4, cmake sole build entry after P4 CI swap — plan-7 gates are entry-agnostic grep/cargo invocations either way).
+- [x] 1.0 env prep: add `cmake >=3.25` to pixi.toml host dependencies; `pixi lock`;
+      decide pixi.sh COPY_SCRIPTS posture (record in modules/09 pointer section)
+- [x] 1.1 submodule: probe `git ls-remote https://gitee.com/chengxuewen/PolyOrch.git`;
+      `git submodule add` pinned at the 0.3.0-tested SHA; fresh-clone drill:
+      `git submodule update --init --recursive`
+- [x] 1.2 shim: `cmake/TalkServoPolyOrch.cmake` — sentinel first-wins reuse, version-floor
+      probe (missing command => FATAL with the fix), `polyorch_rust_setup(FROM pixi)`
+      translation (VisiaEnginePolyOrch.cmake as the reference, D39 contract)
+- [x] 1.3 root `CMakeLists.txt` (thin): cmake_minimum 3.25; project(talkservo ...)
+      LANGUAGES NONE; include shim; ensure_polyorch + rust setup; NO CXX identity
+      (ModuKit note: CXX before embed only if the PlatformSupport contract needs it —
+      TalkServo has no C++ targets at graph level, verify the first-red)
+- [x] 1.4 core lane: talkservo-core through PolyOrch cargo helpers -> ctest label `rust`;
+      stub-feature lane only at P1 (mediasoup lane waits for P2 to keep configure cheap)
+- [x] 1.5 discoverability: pixi task `cmake-probe = "cmake -B build -G Ninja"` style entry;
+      README quickstart one-liner (sisters' bootstrap->pixi->cmake flow)
+- [x] 1.6 docs: AGENTS.md COMMANDS gains the cmake entry (P1 obligation, §4)
+- [x] 1.7 exit: Linux green = configure + build + `ctest -L rust` runs core's 39 tests
+      through PolyOrch; existing flows untouched (pixi test / web vitest / stub e2e still
+      pass); commit `feat(build): P1 PolyOrch skeleton — submodule, shim, core lane (plan-8)`
+
+### P2-P4 (task-level detail lands at each phase start; scope fixed here)
+
+- **P2 lanes**: sfu+server lanes x dual feature configs (stub / sfu-mediasoup+embedded-web);
+  web lane (build/vitest/tsc via Node helpers); pixi build-verbs become thin forwarders
+  (names kept, CI untouched). Exit: full daily flow via cmake/ctest verbs.
+- **P3 gates+e2e**: gate face -> ctest `-L gate` (C1/C2/C3/link + fmt/clippy/deny, managed
+  regions); Playwright stub -> `-L e2e-stub` default, live -> `-L e2e-live` label-gated
+  (TS_E2E_FEATURES/TS_COTURN semantics unchanged). Exit: one verb table covers build/test/gate.
+- **P4 package+CI**: install tree + versioned tar (`--strip-components` parity diff-tested
+  against today's artifact); talkservo.sh build/package thin; CI workflows switch verbs to
+  `cmake --build`/`ctest -L` (matrix platforms unchanged). Exit: fresh-clone acceptance §5.
+
+Interleave: plan-8 and plan-7 are orthogonal — plan-8 P1 lands before/between/after any
+plan-7 slice; plan-7 gates are entry-agnostic grep/cargo invocations either way (pixi
+native until P2, forwarders P2-P4, cmake sole build entry after P4 CI swap).
+
 
 ## 4. Docs & ledger obligations (per phase, plan-5 §8 style)
 

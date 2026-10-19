@@ -62,4 +62,4 @@ All design docs already live in `docs/modules/01-09` (C2 tiering).
 | [plans/2026-10-08-plan5-admin-surface.md](plans/2026-10-08-plan5-admin-surface.md) | admin minimal surface (/admin/api + /a console) per D18 | **EXECUTED 2026-10-08** (S0/S1/S2; e2e 4/4 incl. click-through) |
 | [plans/2026-10-08-plan6-tooling-ship-shell.md](plans/2026-10-08-plan6-tooling-ship-shell.md) | ship tooling: talkservo.sh + oxmgr instance facade + YAML config (D19) | **EXECUTED 2026-10-08** (shell + facade + vendored oxmgr + instance model) |
 | [plans/2026-10-19-alpha-wave1-trust-control.md](plans/2026-10-19-alpha-wave1-trust-control.md) | Alpha wave-1: audit + room authority + tiers + intervention kit (D23) | DRAFT (review pending) |
-| [plans/2026-10-19-plan8-polyorch-build-assembly.md](plans/2026-10-19-plan8-polyorch-build-assembly.md) | D25: PolyOrch build graph (lanes/gates/install), scripts thin, P1-P4 | APPROVED (implementation not started) |
+| [plans/2026-10-19-plan8-polyorch-build-assembly.md](plans/2026-10-19-plan8-polyorch-build-assembly.md) | D25: PolyOrch build graph (lanes/gates/install), scripts thin, P1-P4 | **P1 landed 2026-10-19** (core lane green; P2 pending) |

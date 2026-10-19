@@ -69,6 +69,7 @@ print(sum(not os.path.exists(os.path.normpath(os.path.join(os.path.dirname(p),m)
   for m in re.findall(r'\]\(([^)h][^)]*\.md)',open(p).read()))) # must print 0
 E
 ~/.pixi/bin/pixi run test    # workspace tests (core+server, stub lane)
+~/.pixi/bin/pixi run cmake-probe && ~/.pixi/bin/pixi run ctest --test-dir out/cmake-build -L rust   # plan-8 graph (P1: core lane)
 ~/.pixi/bin/pixi run lint    # fmt+clippy
 cd web && npx vitest run && npx tsc --noEmit   # web unit + types
 cd web && npx playwright test e2e/floor.spec.ts e2e/talk.spec.ts   # stub-lane e2e

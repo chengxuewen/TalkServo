@@ -9,6 +9,7 @@ version = "0.1.0"
 # Build chain for the mediasoup C++ worker (meson/ninja/clang) + node >= 22 for web/ Vite builds.
 [dependencies]
 rust = ">=1.85,<2"
+cmake = ">=3.25"   # PolyOrch embed floor (plan-8 P1.0, D25)
 python = "3.12.*"
 nodejs = ">=22"
 meson = "*"
@@ -26,6 +27,7 @@ invoke = "*"
 requests = "*"
 
 [feature.dev.tasks]
+cmake-probe   = "cmake -B out/cmake-build -G Ninja"   # plan-8 P1 discoverability entry
 check       = "cargo check --workspace"
 build       = "cargo build --workspace"
 test        = "cargo test --workspace"

@@ -70,6 +70,12 @@ secrets:      scripts/scan-hardcode.sh            # path already referenced by s
 > embed, Rust/Node/gate/install lanes — full blueprint + P1-P4 schedule in
 > docs/plans/2026-10-19-plan8-polyorch-build-assembly.md). pixi remains environment
 > single-source; this module's task tables stay current until their phase retires them.
+- **P1.0 posture (plan-8)**: `polyorch_pixi_setup` runs WITHOUT `COPY_SCRIPTS` — our
+  `pixi.sh`/`pixi.bat` stay repo-owned (subshell-entry semantics per §4 above; PolyOrch's
+  template is a source-activate file, swapping it would change the daily ritual). Sister
+  repos use COPY_SCRIPTS; we deliberately diverge here and record the choice.
+- **P1.0 env**: `cmake >=3.25` added to the pixi host dependencies (PolyOrch embed floor,
+  D39 equivalent); resolved in Pixi.lock 2026-10-19.
 
 
 D11 (this posture) · D5/D7 (default-features discipline + member gating) · D6 (mediasoup is why meson/ninja/clang exist at all) · platform.md/docker.md rule files annotated to defer to this module.

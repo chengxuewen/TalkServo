@@ -91,8 +91,8 @@ nodejs
 # --------
 .refinfo
 Testing/
-PolyOrch
 corrosion
+.refinfo
 
 # Don't ignore files
 # --------
