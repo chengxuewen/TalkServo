@@ -1,6 +1,6 @@
 # Plan-8: PolyOrch build assembly — CMake total graph, scripts as thin wrappers
 
-> **STATUS: P1+P2+P3 LANDED (2026-10-19: ctest verb table covers lanes+gates+e2e 9/9; P4 not started).**
+> **STATUS: P1-P4 LANDED 2026-10-19 (plan-8 complete; fresh-clone drill green; CI switched). Wave-1 plan-7 unaffected.**
 > Rulings locked 2026-10-19 (D25: adopt-now / blueprint v2 phased / submodule embed).
 > Implementation not started; commit ccffabc holds the spec, this revision is pending user approval.
 > Sibling design truth: `docs/modules/09-dev-toolchain.md` (pixi posture; §PolyOrch pointer).
@@ -105,9 +105,17 @@ proven on two sibling repos. Decision: adopt now, phased, with the blueprint set
   bare - restored, talk.spec cross-client assertions executed for the first time (field-page
   check rebased onto tally-ring locator), and the initial "node22 env-snapshot" theory was
   corrected in-place to the true single cause (missing globalSetup).
-- **P4 package+CI**: install tree + versioned tar (`--strip-components` parity diff-tested
-  against today's artifact); talkservo.sh build/package thin; CI workflows switch verbs to
-  `cmake --build`/`ctest -L` (matrix platforms unchanged). Exit: fresh-clone acceptance §5.
+- [x] **P4 package+CI** LANDED: TalkServoInstall components (bin / dist) + talkservo.sh
+  build/package thin forwarders + CI job set switched (graph + e2e via ctest labels; check
+  matrix, test-mediasoup, audit stay cargo-direct). Parity: tar member list identical,
+  text-file hashes identical, oxmgr identical; the server BINARY differs by design - the
+  old cmd_build silently built in the pixi DEFAULT env while the graph (and everything
+  else) uses -e dev; unification is the fix, and cargo path-embedding + build-id policy
+  make byte-parity unattainable across dirs. Functional smoke on the graph binary
+  (healthz/room-page/admin-401) + fresh-clone drill 4/4 (clone -> submodule init from
+  gitee -> npm ci x2 -> web lane -> ctest -L "rust|web"). Lane-ordering guard added:
+  embedded-web mediators depend on talkservo-web-build (rust-embed bakes web/dist at
+  compile time - fresh clones hit E0599 Assets::get otherwise).
 
 Interleave: plan-8 and plan-7 are orthogonal — plan-8 P1 lands before/between/after any
 plan-7 slice; plan-7 gates are entry-agnostic grep/cargo invocations either way (pixi

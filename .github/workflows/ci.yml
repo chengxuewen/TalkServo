@@ -1,5 +1,9 @@
 name: ci
 
+# plan-8 P4 verb switch: the Linux verification lanes run through the PolyOrch
+# graph (ctest labels; entries build their own artifacts). fmt/clippy/test/web
+# jobs folded into `graph`; macOS check, mediasoup feature tests, and cargo-deny
+# audit stay cargo-direct (no graph equivalent for their verbs yet).
 on:
   push:
     branches: [main]
@@ -9,14 +13,48 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  fmt:
+  graph:
+    # rust lanes + web lane + gate face (ledger greps, fmt, clippy, deny-skip)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
-      - run: cargo fmt --all -- --check
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: curl -fsSL https://pixi.sh/install | bash
+      - run: npm ci --prefix packages/client
+      - run: npm ci --prefix web
+      - name: configure graph
+        run: |
+          export PATH="$HOME/.pixi/bin:$PATH"
+          pixi run -e dev cmake -B out/ci-build -G Ninja -DTALKSERVO_PACKAGE_LANE=stub
+      - name: test + gates
+        run: |
+          export PATH="$HOME/.pixi/bin:$PATH"
+          pixi run -e dev ctest --test-dir out/ci-build -L "rust|web|gate"
+
+  e2e:
+    # stub-lane browser suite through the graph label (live lane stays manual:
+    # TS_E2E_FEATURES=live + coturn, plan-8 P3 semantics)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: curl -fsSL https://pixi.sh/install | bash
+      - run: npm ci --prefix packages/client
+      - run: npm ci --prefix web
+      - run: cd web && npx playwright install --with-deps chromium
+      - name: e2e via graph
+        run: |
+          export PATH="$HOME/.pixi/bin:$PATH"
+          pixi run -e dev cmake -B out/e2e-build -G Ninja -DTALKSERVO_PACKAGE_LANE=stub >/dev/null
+          pixi run -e dev ctest --test-dir out/e2e-build -L e2e-stub
 
   check:
     strategy:
@@ -26,27 +64,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      # mac has no mediasoup-capable backend → stub path (review H-3: stub must be explicit)
+      # mac has no mediasoup-capable backend -> stub path (review H-3: stub must be explicit)
       - run: cargo check --workspace --no-default-features --features talkservo-server/stub-media
         if: matrix.os == 'macos-latest'
       - run: cargo check --workspace
         if: matrix.os == 'ubuntu-latest'
-
-  clippy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --workspace
 
   test-mediasoup:
     # mediasoup C++ worker builds on Linux x86_64 only (D6/D11)
@@ -58,19 +80,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends meson ninja-build libuv1-dev libssl-dev
       - run: cargo test -p talkservo-server --features sfu-mediasoup
-
-  web:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm ci --prefix packages/client
-      - run: npm test --prefix packages/client
-      - run: npm ci --prefix web
-      - run: npm run build --prefix web -- --noEmit=false
-      - run: npm test --prefix web
 
   audit:
     runs-on: ubuntu-latest

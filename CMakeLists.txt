@@ -31,6 +31,9 @@ include(cmake/TalkServoWeb.cmake)
 talkservo_web()                         # P2: web Node lane (npm scripts keep authority) -> ctest "web"
 include(cmake/TalkServoGates.cmake)
 talkservo_gates()                       # P3: gate-docs/fmt/clippy/deny + e2e-stub/live ctest labels
+
+include(cmake/TalkServoInstall.cmake)
+talkservo_install_tree()                # P4: components bin (server+oxmgr) / dist (etc+scripts)
 # add_subdirectory(crates/...) stays off — lanes ride the helper surface; cargo keeps
 # its workspace authority (D65 equivalence, plan-8 red line 2: mediasoup worker build.rs-own).
 

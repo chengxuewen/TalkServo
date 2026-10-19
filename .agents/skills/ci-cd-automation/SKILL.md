@@ -12,6 +12,14 @@ description: "TalkServo CI/CD pipeline management: Docker compose (server + SFU)
 
 ## Pipeline Architecture
 
+> **2026-10-19 plan-8 P4 update (authoritative over the diagrams below, which predate the graph):**
+> `ci.yml` jobs = `graph` (ctest -L "rust|web|gate" via PolyOrch: pixi bootstrap + submodules:true),
+> `e2e` (ctest -L e2e-stub, chromium via playwright install), `check` (cargo matrix unchanged),
+> `test-mediasoup` + `audit` (cargo-direct, no graph verb yet). The old fmt/clippy/test/web jobs were
+> folded into `graph`. Local parity: `pixi run test` / `pixi run gate` / `pixi run e2e` are the same
+> ctest labels; build verbs (`build`, `web-test`, `web-build`) are thin forwarders (plan-8 §2 red lines:
+> runtime verbs oxmgr/compose are NOT graph members).
+
 ```
 GitHub Actions (on push/PR to main)
 │

@@ -48,6 +48,9 @@ function(talkservo_crates)
     list(GET _kv 5 _base)
     list(GET _kv 6 _feat)
     set(_base "${CMAKE_SOURCE_DIR}/${_base}")
+  if(NOT EXISTS "${CMAKE_SOURCE_DIR}/web/dist/index.html")
+    message(STATUS "talkservo crates: web/dist absent - build talkservo-web-build first (embedded-web lanes bake it)")
+  endif()
     string(TOUPPER "${_kind}" _kindw)
     set(_manifest "${CMAKE_SOURCE_DIR}/${_fold}/Cargo.toml")
 
@@ -76,8 +79,13 @@ function(talkservo_crates)
     # resolves the conda-prefixed x86_64-conda-linux-gnu-ld (old built-in sysroot,
     # no __libc_single_threaded); plain cc links like the daily activation flow.
     find_program(TALKSERVO_CONDA_CC cc REQUIRED)
+    # NO_PROXY for pypi (both cases): mediasoup-sys build.rs pip-install hits a
+    # MITM proxy that breaks pypi TLS specifically on this class of host
+    # (gitee/github still route fine through it) - surgical bypass, deterministic build.
     polyorch_rust_set_env_vars(TARGET ${_pkg}
-        "CARGO_TARGET_${_linktr}_LINKER=${TALKSERVO_CONDA_CC}")
+        "CARGO_TARGET_${_linktr}_LINKER=${TALKSERVO_CONDA_CC}"
+        "NO_PROXY=*"
+        "no_proxy=*")
 
     if(NOT _dotest STREQUAL "1")
       continue()  # artifact handles: build-only; test verb lives elsewhere

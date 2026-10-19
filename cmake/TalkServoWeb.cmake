@@ -21,6 +21,15 @@ function(talkservo_web)
   set(_mf "${CMAKE_SOURCE_DIR}/web/package.json")
   polyorch_node_build(TARGET talkservo-web MANIFEST "${_mf}")
 
+  # lane ordering: embedded-web cargo lanes bake web/dist at COMPILE time
+  # (rust-embed); the web lane must run first or fresh clones die with
+  # confusing E0599 from Assets. Guards: mediator targets exist per lane.
+  foreach(_dep talkservo-server talkservo-server-bin talkservo-server-mediasoup)
+    if(TARGET ${_dep}-build AND TARGET talkservo-web-build)
+      add_dependencies(${_dep}-build talkservo-web-build)
+    endif()
+  endforeach()
+
   if(TALKSERVO_WEB AND COMMAND polyorch_node_test)
     polyorch_node_test(TARGET talkservo-web)  # -test button verb
   endif()

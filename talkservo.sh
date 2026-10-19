@@ -59,7 +59,6 @@ lane_features() { # $1 lane -> cargo feature spec for talkservo-server
 
 cmd_build() {
     local prof="--release"
-    local args=()
     while [ $# -gt 0 ]; do case "$1" in
         --lane) LANE="$2"; shift 2 ;;
         --debug) prof=""; shift ;;
@@ -67,17 +66,22 @@ cmd_build() {
     esac; done
     ensure_pixi; ensure_oxmgr
     echo "build: lane=$LANE ${prof:-debug}"
-    "$PIXI_BIN" run cargo build -p talkservo-server $prof $(lane_features "$LANE")
-    local profile_dir="debug"; [ -n "$prof" ] && profile_dir="release"
-    mkdir -p "out/$LANE/bin"
-    cp -f "target/$profile_dir/talkservo-server" "out/$LANE/bin/talkservo-server"
+    # plan-8 P4: the graph is the builder; this script selects the lane target,
+    # stages the bin component, and passes the ops web/dist copy through.
+    local bdir="out/cmake-build" cfg="Debug" tgt
+    [ -n "$prof" ] && { bdir="out/cmake-build-release"; cfg="Release"; }
+    case "$LANE" in
+        live) tgt=talkservo-server-mediasoup-build ;;
+        stub) tgt=talkservo-server-bin-build ;;
+        *)    echo "unknown lane $1 (stub|live)" >&2; exit 1 ;;
+    esac
+    "$PIXI_BIN" run -e dev cmake -B "$bdir" -G Ninja -DCMAKE_BUILD_TYPE="$cfg" \
+        -DTALKSERVO_PACKAGE_LANE="$LANE" -DTALKSERVO_OXMGR="$(command -v oxmgr || true)" >/dev/null
+    "$PIXI_BIN" run -e dev cmake --build "$bdir" --target "$tgt"
+    "$PIXI_BIN" run -e dev cmake --install "$bdir" --prefix "out/$LANE" --component bin
     # web dist rides the embedded lane (rust-embed baked; keep a copy for ops)
     [ -d web/dist ] && { rm -rf "out/$LANE/web"; mkdir -p "out/$LANE/web"; cp -r web/dist "out/$LANE/web/dist"; }
-    # sister parity (msrtc): stage oxmgr into the delivery tree at BUILD time
-    # too — out/<lane> is then immediately instance-capable (monit/ps resolve
-    # instance bin/ first), explicit --prefix deploys just copy the tree
     if command -v oxmgr >/dev/null 2>&1; then
-        cp -f "$(command -v oxmgr)" "out/$LANE/bin/oxmgr"
         echo "staged: out/$LANE/bin/talkservo-server + oxmgr"
     else
         echo "WARN: oxmgr not staged — vendored cache unresolved; start/stop/monit need it on PATH" >&2
@@ -92,20 +96,15 @@ cmd_package() {
         --dist) dist="$2"; shift 2 ;;
         *) shift ;;
     esac; done
-    local stage bin="target/release"
+    local stage
     [ -x "out/$LANE/bin/talkservo-server" ] || { echo "build first (no out/$LANE/bin)"; exit 1; }
+    ensure_pixi; ensure_oxmgr
     mkdir -p "$dist"
     stage="$(mktemp -d "$dist/.stage-XXXXXX")"
     local name="talkservo-server-$(ver)-$LANE"
-    mkdir -p "$stage/$name/bin" "$stage/$name/etc" "$stage/$name/scripts"
-    cp "out/$LANE/bin/talkservo-server" "$stage/$name/bin/"
-    ensure_oxmgr
-    local ox; ox="$(command -v oxmgr || true)"
-    [ -n "$ox" ] && cp "$ox" "$stage/$name/bin/oxmgr" || echo "WARN: oxmgr not staged — start/stop will point at PATH" >&2
-    cp config/sample.env "$stage/$name/etc/"
-    cp deploy/Caddyfile deploy/talkservo.service "$stage/$name/etc/" 2>/dev/null || true
-    cp scripts/issue-token.sh "$stage/$name/scripts/"
-    cp 3rdparty/oxmgr/README.md "$stage/$name/etc/oxmgr-README.md" 2>/dev/null || true
+    # plan-8 P4: full install (bin + dist components) stages the exact tree;
+    # the tar/top-dir contract stays here.
+    "$PIXI_BIN" run -e dev cmake --install out/cmake-build-release --prefix "$stage/$name" >/dev/null
     mkdir -p "$dist"; find "$dist" -maxdepth 1 -name "${name}.tar.gz" -delete
     tar czf "$dist/$name.tar.gz" -C "$stage" "$name"
     rm -rf "$stage"
