@@ -1,6 +1,6 @@
 # Plan-8: PolyOrch build assembly — CMake total graph, scripts as thin wrappers
 
-> **STATUS: P1+P2 LANDED (2026-10-19: 6 lanes green - rust x3+web via ctest, mediasoup artifact links; P3 not started).**
+> **STATUS: P1+P2+P3 LANDED (2026-10-19: ctest verb table covers lanes+gates+e2e 9/9; P4 not started).**
 > Rulings locked 2026-10-19 (D25: adopt-now / blueprint v2 phased / submodule embed).
 > Implementation not started; commit ccffabc holds the spec, this revision is pending user approval.
 > Sibling design truth: `docs/modules/09-dev-toolchain.md` (pixi posture; §PolyOrch pointer).
@@ -97,9 +97,14 @@ proven on two sibling repos. Decision: adopt now, phased, with the blueprint set
   server-mediasoup artifact, feature column + per-config target dirs) + web Node lane; pixi
   build-verbs -> forwarders (names kept, CI untouched). Exit GREEN: ctest -L "rust|web" 4/4
   (39 core / 1 sfu / 79 server-stub / vitest 8) + vite build 8.9s through the graph.
-- **P3 gates+e2e**: gate face -> ctest `-L gate` (C1/C2/C3/link + fmt/clippy/deny, managed
-  regions); Playwright stub -> `-L e2e-stub` default, live -> `-L e2e-live` label-gated
-  (TS_E2E_FEATURES/TS_COTURN semantics unchanged). Exit: one verb table covers build/test/gate.
+- [x] **P3 gates+e2e** LANDED: scripts/gate.sh (C1-C3 embedded VERBATIM from conventions.md
+  via scripts/gate-gen.py - ledger Check lines upgraded to executable PASS/FAIL blocks) +
+  gate-fmt/clippy/deny + e2e-stub/e2e-live labels riding _polyorch_rust_command.
+  Exit GREEN: ctest -L "rust|web|gate|e2e-stub" 9/9 (deny honest-skip). Forensics side-quest:
+  a globalSetup/workers config line lost in the test-honesty batch made every ctest e2e run
+  bare - restored, talk.spec cross-client assertions executed for the first time (field-page
+  check rebased onto tally-ring locator), and the initial "node22 env-snapshot" theory was
+  corrected in-place to the true single cause (missing globalSetup).
 - **P4 package+CI**: install tree + versioned tar (`--strip-components` parity diff-tested
   against today's artifact); talkservo.sh build/package thin; CI workflows switch verbs to
   `cmake --build`/`ctest -L` (matrix platforms unchanged). Exit: fresh-clone acceptance §5.

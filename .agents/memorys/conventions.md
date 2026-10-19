@@ -14,6 +14,14 @@
 - **Check**: `grep -rnP '[\x{4e00}-\x{9fff}]' --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=target --exclude-dir=__pycache__ --exclude-dir=dist --exclude-dir=coverage .agents .opencode .omo crates admin-dashboard docs web 2>/dev/null | grep -v 'c1:allow-zh'` (output must be empty; build artifacts carry vendored locales — AntD ships Chinese strings in `web/dist`, so dist/coverage are excluded; non-existent dirs skipped by 2>/dev/null)
 - **Source**: User instruction (2026-09-28 documentation-port adaptation round; 2026-09-28 tightening round)
 
+```bash
+out=$(grep -rnP '[\x{4e00}-\x{9fff}]' --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=target \
+  --exclude-dir=__pycache__ --exclude-dir=dist --exclude-dir=coverage \
+  .agents .opencode .omo crates admin-dashboard docs web 2>/dev/null | grep -v 'c1:allow-zh')
+if [ -n "$out" ]; then echo "FAIL: non-English artifacts:"; echo "$out"; exit 1; fi
+echo PASS
+```
+
 <!-- Subsequent conventions start here -->
 
 ## C2: docs tree uses Diataxis tiering `reference/` + `reference/research/<domain>/` (2026-09-28)
@@ -23,9 +31,19 @@
 - **Check**: `test -f docs/reference/README.md && test -d docs/modules && ! ls docs/research 2>/dev/null && echo OK` (must print OK; `docs/modules/` must not hold external research; `reference/research/` must not hold design; links from `docs/reference/research/*/*.md` to docs root must use the `../../../` prefix)
 - **Source**: User instruction (research-docs structure round, 2026-09-28)
 
+```bash
+test -f docs/reference/README.md && test -d docs/modules && ! ls docs/research 2>/dev/null && echo PASS
+```
+
 ## C3: User-facing route/CLI/API names use full mainstream words — no cryptic single-letter abbreviations (2026-10-09)
 
 - **Constraint**: Every externally-visible name — SPA route paths, CLI subcommands, REST endpoints, generated link URLs — uses full, self-explanatory English words aligned with mainstream convention (`/admin`, `/field/:room`, `/dispatch/:room`, mirroring `/admin/api/*`). Single-letter or in-house-abbrev path segments are forbidden unless they ARE the industry term (e.g. `/ws`). When naming such a surface, cite one mainstream precedent in the design doc line.
 - **Rationale**: User ruling 2026-10-09 after `/a`+`/f`+`/d` were questioned as "abnormal paths" — the originals were arbitrary first-thought choices, self-inconsistent with the `/admin/api` REST surface in the same system; join links and console URLs are user-visible contracts.
 - **Check**: `grep -rnE 'path="/(a|d|f)(/|")|"/(a|d|f)/"' web/src web/e2e crates/talkservo-server/src 2>/dev/null` must be empty (the 2026-10-09 rename missed `web/e2e/floor.spec.ts` URL builders — the gate must cover e2e too); route table in docs/modules/08 lists only full-word paths.
 - **Source**: Route rename batch 2026-10-09 (web/src/main.tsx, admin.rs URL templates, e2e specs, modules/08); user directive "主流使用 admin 这样的路径…并记忆记录避免以后再犯". <!-- c1:allow-zh -->
+
+```bash
+out=$(grep -rnE 'path="/(a|d|f)(/|")|"/(a|d|f)/"' web/src web/e2e crates/talkservo-server/src 2>/dev/null)
+if [ -n "$out" ]; then echo "FAIL: single-letter route paths:"; echo "$out"; exit 1; fi
+echo PASS
+```

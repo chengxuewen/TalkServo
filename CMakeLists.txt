@@ -29,8 +29,10 @@ talkservo_crates()                      # P2: core+sfu+server stub lanes -> ctes
                                         # build-only artifact handle (test verb stays test-sfu until P3)
 include(cmake/TalkServoWeb.cmake)
 talkservo_web()                         # P2: web Node lane (npm scripts keep authority) -> ctest "web"
+include(cmake/TalkServoGates.cmake)
+talkservo_gates()                       # P3: gate-docs/fmt/clippy/deny + e2e-stub/live ctest labels
 # add_subdirectory(crates/...) stays off — lanes ride the helper surface; cargo keeps
 # its workspace authority (D65 equivalence, plan-8 red line 2: mediasoup worker build.rs-own).
 
 # Reserved wiring slots (lit per plan-8 phases, NOT speculative scaffolding):
-#   P3: gate face + e2e labels · P4: install tree
+#   P4: install tree
