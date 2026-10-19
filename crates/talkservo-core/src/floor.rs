@@ -479,6 +479,15 @@ impl FloorState {
                 generation: next.generation,
                 reason: None,
             });
+        } else if !next.grants.is_empty() {
+            // D12 grant-set gap: the set shrank (release/leave/media-down) with
+            // no head to promote but holders remaining — Exclusive-era callers only
+            // ever saw "promote" or "idle", so a multi-holder (Open/Hybrid) room
+            // left every mirror stale. Re-broadcast so all peers converge.
+            out.push(SignalingMessage::FloorGranted {
+                grants: next.grants.clone(),
+                generation: next.generation,
+            });
         }
     }
 

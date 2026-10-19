@@ -738,3 +738,27 @@ fn r2_promote_rebroadcasts_shifted_positions() {
     assert_eq!(emitted(&out), vec!["granted([\"q1\"])", "queued(0)", "queued(1)"]);
     assert_eq!(s.queue().len(), 2);
 }
+
+// ── P0 multi-web concurrent talk (Open mode) ───────────────────────────────
+
+#[test]
+fn open_concurrent_requests_all_granted_release_drops_only_that_peer() {
+    let req = |p: &str| FloorEvent::Request {
+        peer: pid(p),
+        priority: 0,
+        preempt: false,
+    };
+    let s = state(FloorMode::Open);
+    let (s, _) = s.apply(&req("a"), &FloorLimits::default());
+    let (s, _) = s.apply(&req("b"), &FloorLimits::default());
+    let (s, _) = s.apply(&req("c"), &FloorLimits::default());
+    assert_eq!(s.grants().len(), 3, "Open grants every concurrent request");
+
+    let (s, out) = s.apply(
+        &FloorEvent::Release { peer: pid("b") },
+        &FloorLimits::default(),
+    );
+    let names: Vec<String> = s.grants().iter().map(|g| g.to_string()).collect();
+    assert_eq!(names, vec!["a".to_string(), "c".to_string()], "release drops only b");
+    assert_eq!(emitted(&out), vec!["granted([\"a\", \"c\"])"]);
+}
