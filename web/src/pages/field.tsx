@@ -1,5 +1,10 @@
 // Field page — modules/08 §1: roster + hold-to-talk (pointer tri-state, Space
 // double-fire guard, keybind capture drawer, release-delay), aria-live floor
+// announcements, iOS AudioContext unlock, settings drawer with the
+// accessibility toggle (plan-review restore).
+// Audio cues (grant/deny/taken beeps) are an HONEST STUB — AudioCues renders
+// nothing; the a11y toggle governs the aria-live channel only.
+// double-fire guard, keybind capture drawer, release-delay), aria-live floor
 // announcements, audio cues (grant/deny/taken), iOS AudioContext unlock,
 // settings drawer with the accessibility toggle (plan-review restore).
 
@@ -17,9 +22,6 @@ import {
 } from "../lib/session.js";
 
 const { Text, Title } = Typography;
-
-/** Space double-fire guard: keydown repeats are swallowed (e.repeat). */
-const PREEMPT_PRIORITY = 5;
 
 export function FieldPage() {
   const { room = "demo" } = useParams();
@@ -183,7 +185,7 @@ export function FieldPage() {
         {holding ? "HOLDING — release to yield" : meHolder ? "SPEAKING (granted)" : "HOLD TO TALK"}
       </Button>
       <div className="mirror-note" style={{ marginTop: 8 }}>
-        press-and-hold (pointer or {keybind ?? "Space"}); preempt uses priority {PREEMPT_PRIORITY}
+        press-and-hold (pointer or {keybind ?? "Space"})
       </div>
 
       {/* a11y: screen-reader channel */}

@@ -21,7 +21,6 @@ function issueToken(sub: string, role: "dispatch" | "field"): string {
 
 function urlFor(role: "dispatch" | "field", sub: string): string {
   return `${process.env.TS_URL!}/${role}/${ROOM}?jwt=${issueToken(sub, role)}`;
-  return `${process.env.TS_URL!}/${role}/${ROOM}?jwt=${issueToken(sub, role === "d" ? "dispatch" : "field")}`;
 }
 
 async function joinField(page: Page, sub: string) {

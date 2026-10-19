@@ -90,6 +90,19 @@ describe("admin console", () => {
     expect(screen.getByText(/Backend stub/)).toBeTruthy();
   });
 
+  it("401 from an api call bounces to the gate and clears the stored jwt", async () => {
+    setAdminJwt("expired-token");
+    globalThis.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: "expired" }),
+    })) as never;
+    ui();
+    // first poll fires on mount -> 401 -> onUnauthorized -> gate re-renders
+    expect(await screen.findByText("Username")).toBeTruthy();
+    expect(adminJwt()).toBeNull();
+  });
+
   it("tokens form posts and shows copy-ready links", async () => {
     setAdminJwt("tok");
     mockFetch();

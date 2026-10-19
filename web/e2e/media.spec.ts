@@ -26,25 +26,19 @@ test.describe("media matrix (live host)", () => {
     await holder.keyboard.down("Space");
     await expect(holder.getByText(/HOLDING|SPEAKING/)).toBeVisible({ timeout: 10_000 });
 
-    // #12: before the listener is granted its uplink must carry no payload —
-    // assert via getStats on the listener's outbound (none) + inbound after
-    // consume below; the zero-idle-uplink check reads the HOLDER's stats.
-    const idleBytes = await holder.evaluate(async () => {
-      const pc: RTCPeerConnection | undefined = (
-        window as unknown as { __tsPc?: RTCPeerConnection }
-      ).__tsPc;
-      if (!pc) return -1; // PoC wire-only — getStats hook lands with the SDK pc expose
-      const stats = await pc.getStats();
-      let bytes = 0;
-      stats.forEach((r) => {
-        if (r.type === "outbound-rtp" && r.kind === "audio") bytes = r.bytesSent;
-      });
-      return bytes;
+    // #12 (D13 transmission gating): before the holder is granted, its mic
+    // producer must be server-paused — micTruth().serverPaused is the SDK's
+    // single source for that bit (D13 comment, media.ts:111). The raw-pc
+    // getStats byte-count lands when the SDK exposes the pc; until then the
+    // wire gate is asserted via this state, which flips server-driven only.
+    const preGrantPaused = await holder.evaluate(() => {
+      const s = (window as unknown as {
+        __tsSessions?: Map<string, { media: { micTruth(): { serverPaused: boolean } } }>
+      }).__tsSessions;
+      const session = [...(s?.values() ?? [])][0];
+      return session ? session.media.micTruth().serverPaused : null;
     });
-    // the SDK does not yet expose the raw pc; this row asserts the WIRE gate
-    // (server pauses non-granted producers) which is proven server-side —
-    // documented honestly here.
-    expect(idleBytes).toBeGreaterThanOrEqual(-1);
+    expect(preGrantPaused).toBe(true);
 
     const level = await audioLevel(listener, "m-holder");
     // consume chain settle: announcement -> consume -> ConsumeOk ->

@@ -40,6 +40,11 @@ test("Open mode: three web clients speak at once", async ({ browser }) => {
   await expect(d.getByText("mode: open")).toBeVisible();
 
   // 2. two participant shells + one field hold-to-talk, taken concurrently
+  // (the mode change from step 1 must have PROPAGATED to these non-actor
+  // mirrors — PIT-21 rule: wire-state assertions observe other peers' pages)
+  const p1 = await (await browser.newContext()).newPage();
+  await joinParticipant(p1, "alpha");
+  await expect(p1.getByText("mode: open")).toBeVisible({ timeout: 10_000 });
   const p1 = await (await browser.newContext()).newPage();
   await joinParticipant(p1, "alpha");
   await p1.getByRole("button", { name: "JOIN THE CONVERSATION" }).click();
@@ -64,10 +69,14 @@ test("Open mode: three web clients speak at once", async ({ browser }) => {
   await expect(p1.getByText("bravo")).toBeVisible(); // mutual rosters
   await expect(p1.getByText("Speakers (3)")).toBeVisible(); // all three granted at once
 
-  // 4. one yields — the others are unaffected (no cascade idle under Open)
+  // 4. one yields — the others are unaffected (no cascade idle under Open);
+  // the yield is asserted on a NON-ACTOR mirror too (PIT-21 rule: grant-set
+  // assertions must observe other peers' mirrors, not the acting client only)
   await p2.getByRole("button", { name: /ON AIR/ }).click();
   await expect(p2.getByText("JOIN THE CONVERSATION")).toBeVisible();
   await expect(p1.getByText("ON AIR — click to mute")).toBeVisible();
+  await expect(p1.getByText("Speakers (2)")).toBeVisible({ timeout: 5_000 }); // p1's mirror saw p2 leave
+  await expect(f3.getByText("Speakers (2)")).toBeVisible({ timeout: 5_000 }); // field page agrees
   await f3.keyboard.up("Space");
 
   await d.context().close();

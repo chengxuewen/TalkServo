@@ -4,7 +4,7 @@
 
 import { useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { Card, Col, Row, Tag, Button, Space, List, Typography, Slider, Switch, Badge } from "antd";
+import { Card, Col, Row, Tag, Button, Space, List, Typography, Switch, Badge } from "antd";
 import {
   AudioMutedOutlined,
   AudioOutlined,
@@ -109,7 +109,6 @@ export function DispatcherPage() {
                         sessionAction(key, { type: "mute_set", peer: p.id, on: !on })
                       }
                     />
-                    <Slider style={{ width: 90 }} defaultValue={80} min={0} max={100} />
                     {!isHolder(p.id) && (
                       <Button
                         size="small"
