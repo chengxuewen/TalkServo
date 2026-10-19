@@ -11,23 +11,27 @@
 #![cfg(feature = "stub-media")]
 
 use futures_util::{SinkExt, StreamExt};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use talkservo_core::wire::SignalingMessage;
+use talkservo_server::test_bridge;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use talkservo_server::test_bridge;
 
 type Ws = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn ws_connect(url: &str) -> Ws {
-    let (ws, _) = tokio_tungstenite::connect_async(url).await.expect("connect");
+    let (ws, _) = tokio_tungstenite::connect_async(url)
+        .await
+        .expect("connect");
     ws
 }
 
 async fn send(ws: &mut Ws, msg: &SignalingMessage) {
-    ws.send(WsMessage::Text(serde_json::to_string(msg).expect("ser").into()))
-        .await
-        .expect("send");
+    ws.send(WsMessage::Text(
+        serde_json::to_string(msg).expect("ser").into(),
+    ))
+    .await
+    .expect("send");
 }
 
 /// Drain every pending frame into the transcript with a peer label.
@@ -46,7 +50,9 @@ async fn record_canonical_transcript() {
     let config = test_bridge::config_for_test(&secret);
     let app_state = test_bridge::test_app(config);
     let app = test_bridge::build_router(app_state);
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
     let addr = listener.local_addr().expect("addr");
     tokio::spawn(async move { axum::serve(listener, app).await.expect("serve") });
     let base = format!("ws://{addr}/ws");
@@ -55,28 +61,60 @@ async fn record_canonical_transcript() {
 
     // ── J: dispatcher joins first ──────────────────────────────────────
     let mut disp = ws_connect(&base).await;
-    let jwt_d = test_bridge::issue_token(&secret, "chief", "rec-room", talkservo_core::wire::Role::Dispatch, 600);
+    let jwt_d = test_bridge::issue_token(
+        &secret,
+        "chief",
+        "rec-room",
+        talkservo_core::wire::Role::Dispatch,
+        600,
+    );
     send(&mut disp, &SignalingMessage::Join { v: 1, jwt: jwt_d }).await;
     record(&mut disp, "dispatcher", &mut transcript).await;
 
     // J: field joins (dispatcher sees PeerJoined delta)
     let mut alpha = ws_connect(&base).await;
-    let jwt_a = test_bridge::issue_token(&secret, "alpha", "rec-room", talkservo_core::wire::Role::Field, 600);
+    let jwt_a = test_bridge::issue_token(
+        &secret,
+        "alpha",
+        "rec-room",
+        talkservo_core::wire::Role::Field,
+        600,
+    );
     send(&mut alpha, &SignalingMessage::Join { v: 1, jwt: jwt_a }).await;
     record(&mut alpha, "alpha", &mut transcript).await;
     record(&mut disp, "dispatcher", &mut transcript).await;
 
     // ── P: exclusive switch + alpha requests, chief preempts ───────────
-    send(&mut disp, &SignalingMessage::ModeChange { mode: talkservo_core::wire::FloorMode::Exclusive }).await;
+    send(
+        &mut disp,
+        &SignalingMessage::ModeChange {
+            mode: talkservo_core::wire::FloorMode::Exclusive,
+        },
+    )
+    .await;
     record(&mut disp, "dispatcher", &mut transcript).await;
 
-    send(&mut alpha, &SignalingMessage::FloorRequest { priority: 0, preempt: false }).await;
+    send(
+        &mut alpha,
+        &SignalingMessage::FloorRequest {
+            priority: 0,
+            preempt: false,
+        },
+    )
+    .await;
     record(&mut alpha, "alpha", &mut transcript).await;
     record(&mut disp, "dispatcher", &mut transcript).await;
 
     // ── X: chief preempts alpha ────────────────────────────────────────
     tokio::time::sleep(std::time::Duration::from_millis(600)).await; // clear cooldown
-    send(&mut disp, &SignalingMessage::FloorRequest { priority: 9, preempt: true }).await;
+    send(
+        &mut disp,
+        &SignalingMessage::FloorRequest {
+            priority: 9,
+            preempt: true,
+        },
+    )
+    .await;
     record(&mut disp, "dispatcher", &mut transcript).await;
     record(&mut alpha, "alpha", &mut transcript).await;
 
@@ -93,9 +131,22 @@ async fn record_canonical_transcript() {
     // asserts announcement presence when a produce lands between joins.
     send(&mut disp, &SignalingMessage::TransportCreate { dir: None }).await;
     record(&mut disp, "dispatcher", &mut transcript).await;
-    send(&mut disp, &SignalingMessage::TransportConnect { dtls: serde_json::json!({}), dir: None }).await;
+    send(
+        &mut disp,
+        &SignalingMessage::TransportConnect {
+            dtls: serde_json::json!({}),
+            dir: None,
+        },
+    )
+    .await;
     record(&mut disp, "dispatcher", &mut transcript).await;
-    send(&mut disp, &SignalingMessage::Produce { rtp_parameters: serde_json::json!({}) }).await;
+    send(
+        &mut disp,
+        &SignalingMessage::Produce {
+            rtp_parameters: serde_json::json!({}),
+        },
+    )
+    .await;
     record(&mut disp, "dispatcher", &mut transcript).await;
     assert!(
         spine_has(&transcript, "producer_available") || true,
@@ -108,8 +159,14 @@ async fn record_canonical_transcript() {
         .filter_map(|e| e["msg"]["type"].as_str().map(String::from))
         .collect();
     for expected in [
-        "welcome", "router_caps", "peer_list", "server_snapshot", "peer_joined",
-        "floor_granted", "floor_taken", "floor_idle",
+        "welcome",
+        "router_caps",
+        "peer_list",
+        "server_snapshot",
+        "peer_joined",
+        "floor_granted",
+        "floor_taken",
+        "floor_idle",
     ] {
         assert!(
             spine.iter().any(|t| t == expected),
@@ -129,7 +186,11 @@ async fn record_canonical_transcript() {
         serde_json::to_string_pretty(&doc).expect("ser") + "\n",
     )
     .expect("write");
-    println!("transcript frames: {} → {}", transcript.len(), out_path.display());
+    println!(
+        "transcript frames: {} → {}",
+        transcript.len(),
+        out_path.display()
+    );
 }
 
 fn spine_has(t: &[Value], ty: &str) -> bool {
@@ -139,6 +200,5 @@ fn spine_has(t: &[Value], ty: &str) -> bool {
 fn path_fixtures() -> std::path::PathBuf {
     // crates/talkservo-server/../../docs/reference/fixtures/ws-transcript.json
     let manifest = env!("CARGO_MANIFEST_DIR");
-    std::path::Path::new(manifest)
-        .join("../../docs/reference/fixtures/ws-transcript.json")
+    std::path::Path::new(manifest).join("../../docs/reference/fixtures/ws-transcript.json")
 }

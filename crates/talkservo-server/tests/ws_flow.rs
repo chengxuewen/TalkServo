@@ -5,9 +5,9 @@
 
 use futures_util::{SinkExt, StreamExt};
 use talkservo_core::wire::SignalingMessage;
-use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::MaybeTlsStream;
 use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::tungstenite::Message as WsMessage;
 type Ws = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
 use talkservo_server::test_bridge;
@@ -44,15 +44,15 @@ impl TestServer {
 }
 
 async fn ws_connect(url: &str) -> Ws {
-    let (ws, _) = tokio_tungstenite::connect_async(url).await.expect("connect");
+    let (ws, _) = tokio_tungstenite::connect_async(url)
+        .await
+        .expect("connect");
     ws
 }
 
 async fn send_json(sink: &mut Ws, msg: &SignalingMessage) {
     let text = serde_json::to_string(msg).expect("ser");
-    sink.send(WsMessage::Text(text.into()))
-        .await
-        .expect("send");
+    sink.send(WsMessage::Text(text.into())).await.expect("send");
 }
 
 async fn recv_msg(stream: &mut Ws) -> SignalingMessage {
@@ -69,19 +69,19 @@ async fn recv_msg(stream: &mut Ws) -> SignalingMessage {
     }
 }
 
-fn join_msg(secret: &str, sub: &str, room: &str, role: talkservo_core::wire::Role) -> SignalingMessage {
+fn join_msg(
+    secret: &str,
+    sub: &str,
+    room: &str,
+    role: talkservo_core::wire::Role,
+) -> SignalingMessage {
     let jwt = talkservo_server_test_helpers::issue(secret, sub, room, role);
     SignalingMessage::Join { v: 1, jwt }
 }
 
 // helper indirection so tests can mint tokens with the harness secret
 mod talkservo_server_test_helpers {
-    pub fn issue(
-        secret: &str,
-        sub: &str,
-        room: &str,
-        role: talkservo_core::wire::Role,
-    ) -> String {
+    pub fn issue(secret: &str, sub: &str, room: &str, role: talkservo_core::wire::Role) -> String {
         // 1h token; tests never live that long
         talkservo_server::test_bridge::issue_token(secret, sub, room, role, 3600)
     }
@@ -91,7 +91,16 @@ mod talkservo_server_test_helpers {
 async fn join_welcome_caps_list_snapshot_sequence() {
     let srv = TestServer::start().await;
     let mut a = ws_connect(srv.ws_url()).await;
-    send_json(&mut a, &join_msg(&srv.secret, "peer-a", "room-1", talkservo_core::wire::Role::Field)).await;
+    send_json(
+        &mut a,
+        &join_msg(
+            &srv.secret,
+            "peer-a",
+            "room-1",
+            talkservo_core::wire::Role::Field,
+        ),
+    )
+    .await;
 
     // J sequence: Welcome → RouterCaps → PeerList → ServerSnapshot
     let w = recv_msg(&mut a).await;
@@ -101,24 +110,39 @@ async fn join_welcome_caps_list_snapshot_sequence() {
     let pl = recv_msg(&mut a).await;
     assert!(matches!(pl, SignalingMessage::PeerList { .. }));
     let snap = recv_msg(&mut a).await;
-    assert!(matches!(
-        snap,
-        SignalingMessage::ServerSnapshot { .. }
-    ));
+    assert!(matches!(snap, SignalingMessage::ServerSnapshot { .. }));
 }
 
 #[tokio::test]
 async fn identity_collision_rejects_second_join() {
     let srv = TestServer::start().await;
     let mut a = ws_connect(srv.ws_url()).await;
-    send_json(&mut a, &join_msg(&srv.secret, "dup", "room-1", talkservo_core::wire::Role::Field)).await;
+    send_json(
+        &mut a,
+        &join_msg(
+            &srv.secret,
+            "dup",
+            "room-1",
+            talkservo_core::wire::Role::Field,
+        ),
+    )
+    .await;
     let _ = recv_msg(&mut a).await; // welcome
     let _ = recv_msg(&mut a).await; // caps
     let _ = recv_msg(&mut a).await; // list
     let _ = recv_msg(&mut a).await; // snapshot
 
     let mut b = ws_connect(srv.ws_url()).await;
-    send_json(&mut b, &join_msg(&srv.secret, "dup", "room-1", talkservo_core::wire::Role::Field)).await;
+    send_json(
+        &mut b,
+        &join_msg(
+            &srv.secret,
+            "dup",
+            "room-1",
+            talkservo_core::wire::Role::Field,
+        ),
+    )
+    .await;
     let err = recv_msg(&mut b).await;
     match err {
         SignalingMessage::Error { code, .. } => assert_eq!(code, "already_joined"),
@@ -130,7 +154,12 @@ async fn identity_collision_rejects_second_join() {
 async fn bad_version_closes_with_error() {
     let srv = TestServer::start().await;
     let mut a = ws_connect(srv.ws_url()).await;
-    let jwt = talkservo_server_test_helpers::issue(&srv.secret, "p", "r", talkservo_core::wire::Role::Field);
+    let jwt = talkservo_server_test_helpers::issue(
+        &srv.secret,
+        "p",
+        "r",
+        talkservo_core::wire::Role::Field,
+    );
     send_json(&mut a, &SignalingMessage::Join { v: 99, jwt }).await;
     let err = recv_msg(&mut a).await;
     assert!(matches!(
@@ -143,7 +172,16 @@ async fn bad_version_closes_with_error() {
 async fn dispatch_sees_queue_field_does_not() {
     let srv = TestServer::start().await;
     let mut d = ws_connect(srv.ws_url()).await;
-    send_json(&mut d, &join_msg(&srv.secret, "disp", "room-1", talkservo_core::wire::Role::Dispatch)).await;
+    send_json(
+        &mut d,
+        &join_msg(
+            &srv.secret,
+            "disp",
+            "room-1",
+            talkservo_core::wire::Role::Dispatch,
+        ),
+    )
+    .await;
     // drain join burst (4 messages)
     for _ in 0..4 {
         let _ = recv_msg(&mut d).await;
@@ -168,18 +206,43 @@ async fn mute_set_survives_resync_snapshot() {
     // the mute roster on the floor. Peer ids come from the token sub.
     let srv = TestServer::start().await;
     let mut d = ws_connect(srv.ws_url()).await;
-    send_json(&mut d, &join_msg(&srv.secret, "disp", "room-m", talkservo_core::wire::Role::Dispatch)).await;
+    send_json(
+        &mut d,
+        &join_msg(
+            &srv.secret,
+            "disp",
+            "room-m",
+            talkservo_core::wire::Role::Dispatch,
+        ),
+    )
+    .await;
     for _ in 0..4 {
         let _ = recv_msg(&mut d).await;
     }
     let mut v = ws_connect(srv.ws_url()).await;
-    send_json(&mut v, &join_msg(&srv.secret, "quiet-guy", "room-m", talkservo_core::wire::Role::Field)).await;
+    send_json(
+        &mut v,
+        &join_msg(
+            &srv.secret,
+            "quiet-guy",
+            "room-m",
+            talkservo_core::wire::Role::Field,
+        ),
+    )
+    .await;
     for _ in 0..4 {
         let _ = recv_msg(&mut v).await;
     }
     // R8 precondition: mute governance applies to floor-active peers only —
     // victim must hold (or be queued) before MuteSet takes effect
-    send_json(&mut v, &SignalingMessage::FloorRequest { priority: 0, preempt: false }).await;
+    send_json(
+        &mut v,
+        &SignalingMessage::FloorRequest {
+            priority: 0,
+            preempt: false,
+        },
+    )
+    .await;
     let _ = recv_msg(&mut v).await; // FloorGranted
     send_json(
         &mut d,
@@ -237,14 +300,27 @@ async fn mute_set_survives_resync_snapshot() {
 async fn floor_request_grants_first_peer() {
     let srv = TestServer::start().await;
     let mut a = ws_connect(srv.ws_url()).await;
-    send_json(&mut a, &join_msg(&srv.secret, "pa", "room-1", talkservo_core::wire::Role::Field)).await;
+    send_json(
+        &mut a,
+        &join_msg(
+            &srv.secret,
+            "pa",
+            "room-1",
+            talkservo_core::wire::Role::Field,
+        ),
+    )
+    .await;
     for _ in 0..4 {
         let _ = recv_msg(&mut a).await;
     }
-    send_json(&mut a, &SignalingMessage::FloorRequest { priority: 0, preempt: false }).await;
+    send_json(
+        &mut a,
+        &SignalingMessage::FloorRequest {
+            priority: 0,
+            preempt: false,
+        },
+    )
+    .await;
     let m = recv_msg(&mut a).await;
-    assert!(matches!(
-        m,
-        SignalingMessage::FloorGranted { .. }
-    ));
+    assert!(matches!(m, SignalingMessage::FloorGranted { .. }));
 }

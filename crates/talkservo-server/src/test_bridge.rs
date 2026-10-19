@@ -47,4 +47,3 @@ pub fn issue_token(
     auth::issue(secret, sub, room, role, ttl_s)
         .expect("token issuance cannot fail with a valid secret")
 }
-

@@ -73,24 +73,44 @@ fn r3_higher_priority_jumps_ahead_fifo_within_tier() {
     // a (priority 1) granted (capacity 1); b (priority 2) queues at 0;
     // c (priority 2, same tier) FIFOs in behind b at 1 — nobody shifts
     let (s, out_a) = s.apply(
-        &FloorEvent::Request { peer: pid("a"), priority: 1, preempt: false },
+        &FloorEvent::Request {
+            peer: pid("a"),
+            priority: 1,
+            preempt: false,
+        },
         &FloorLimits::default(),
     );
     assert_eq!(emitted(&out_a), vec!["granted([\"a\"])"]);
     let (s, out_b) = s.apply(
-        &FloorEvent::Request { peer: pid("b"), priority: 2, preempt: false },
+        &FloorEvent::Request {
+            peer: pid("b"),
+            priority: 2,
+            preempt: false,
+        },
         &FloorLimits::default(),
     );
     assert_eq!(emitted(&out_b), vec!["queued(0)"]);
     let (s, out_c) = s.apply(
-        &FloorEvent::Request { peer: pid("c"), priority: 2, preempt: false },
+        &FloorEvent::Request {
+            peer: pid("c"),
+            priority: 2,
+            preempt: false,
+        },
         &FloorLimits::default(),
     );
-    assert_eq!(emitted(&out_c), vec!["queued(1)"], "FIFO within tier, no shifts");
+    assert_eq!(
+        emitted(&out_c),
+        vec!["queued(1)"],
+        "FIFO within tier, no shifts"
+    );
 
     // priority jump: d (priority 3) takes slot 0; b (was 0)→1, c (was 1)→2
     let (_, out_d) = s.apply(
-        &FloorEvent::Request { peer: pid("d"), priority: 3, preempt: false },
+        &FloorEvent::Request {
+            peer: pid("d"),
+            priority: 3,
+            preempt: false,
+        },
         &FloorLimits::default(),
     );
     assert_eq!(emitted(&out_d), vec!["queued(0)", "queued(1)", "queued(2)"]);
@@ -127,9 +147,17 @@ fn r4_duplicate_request_same_position_no_dup() {
         },
         &FloorLimits::default(),
     );
-    assert_eq!(emitted(&out2), vec!["queued(0)"], "re-queue echoes same position");
+    assert_eq!(
+        emitted(&out2),
+        vec!["queued(0)"],
+        "re-queue echoes same position"
+    );
     assert_eq!(s.queue().len(), 1, "no duplicate queue entry");
-    assert_eq!(generation(&s), gen_before, "idempotent re-request: no gen bump");
+    assert_eq!(
+        generation(&s),
+        gen_before,
+        "idempotent re-request: no gen bump"
+    );
 }
 
 // ── R2: release → auto-promote ──────────────────────────────────────────────
@@ -156,7 +184,10 @@ fn r2_release_promotes_head_with_granted_broadcast_only() {
             &FloorLimits::default(),
         );
     let gen_mid = generation(&s);
-    let (s, out) = s.apply(&FloorEvent::Release { peer: pid("a") }, &FloorLimits::default());
+    let (s, out) = s.apply(
+        &FloorEvent::Release { peer: pid("a") },
+        &FloorLimits::default(),
+    );
     // modules/01: promote emits FloorGranted only; FloorIdle ONLY when queue empties
     assert_eq!(emitted(&out), vec!["granted([\"b\"])"]);
     assert!(s.queue().is_empty());
@@ -175,7 +206,10 @@ fn r2_release_to_empty_emits_floor_idle() {
         },
         &FloorLimits::default(),
     );
-    let (s, out) = s.apply(&FloorEvent::Release { peer: pid("a") }, &FloorLimits::default());
+    let (s, out) = s.apply(
+        &FloorEvent::Release { peer: pid("a") },
+        &FloorLimits::default(),
+    );
     assert_eq!(emitted(&out), vec!["idle(None)"]);
     assert_eq!(s.grants().len(), 0);
 }
@@ -193,7 +227,10 @@ fn r6_media_down_releases_immediately_grace_is_server_domain() {
         },
         &FloorLimits::default(),
     );
-    let (s, out) = s.apply(&FloorEvent::MediaDown { peer: pid("a") }, &FloorLimits::default());
+    let (s, out) = s.apply(
+        &FloorEvent::MediaDown { peer: pid("a") },
+        &FloorLimits::default(),
+    );
     // modules/05 E11: grace timer lives in server; core applies MediaDown as immediate release
     assert_eq!(emitted(&out), vec!["idle(None)"]);
     assert_eq!(s.grants().len(), 0);
@@ -242,7 +279,10 @@ fn r8_no_ops_keep_generation_unchanged() {
     );
     let g = generation(&s);
 
-    let (s, out) = s.apply(&FloorEvent::Release { peer: pid("zz") }, &FloorLimits::default());
+    let (s, out) = s.apply(
+        &FloorEvent::Release { peer: pid("zz") },
+        &FloorLimits::default(),
+    );
     assert!(out.is_empty());
     assert_eq!(generation(&s), g, "release by non-granted = no-op");
 
@@ -257,7 +297,10 @@ fn r8_no_ops_keep_generation_unchanged() {
     assert!(out.is_empty());
     assert_eq!(generation(&s), g, "mute of non-member = no-op");
 
-    let (s, out) = s.apply(&FloorEvent::Leave { peer: pid("zz") }, &FloorLimits::default());
+    let (s, out) = s.apply(
+        &FloorEvent::Leave { peer: pid("zz") },
+        &FloorLimits::default(),
+    );
     assert!(out.is_empty());
     assert_eq!(generation(&s), g, "leave of absent peer = no-op");
 }
@@ -533,7 +576,10 @@ fn d16_leave_while_queued_purges_and_rebroadcasts_positions() {
         );
     assert_eq!(s.queue().len(), 2); // b(0), c(1)
     let g = generation(&s);
-    let (s, out) = s.apply(&FloorEvent::Leave { peer: pid("b") }, &FloorLimits::default());
+    let (s, out) = s.apply(
+        &FloorEvent::Leave { peer: pid("b") },
+        &FloorLimits::default(),
+    );
     assert_eq!(s.queue().len(), 1);
     assert_eq!(s.queue()[0].peer, pid("c"));
     // c was position 1 → now 0: rebroadcast. b left: gets nothing.
@@ -562,7 +608,10 @@ fn d16_leave_of_granted_peer_promotes_like_release() {
             },
             &FloorLimits::default(),
         );
-    let (s, out) = s.apply(&FloorEvent::Leave { peer: pid("a") }, &FloorLimits::default());
+    let (s, out) = s.apply(
+        &FloorEvent::Leave { peer: pid("a") },
+        &FloorLimits::default(),
+    );
     assert_eq!(emitted(&out), vec!["granted([\"b\"])"]);
     assert_eq!(s.grants(), &[pid("b")]);
 }
@@ -733,9 +782,15 @@ fn r2_promote_rebroadcasts_shifted_positions() {
             &FloorLimits::default(),
         );
     assert_eq!(s.queue().len(), 3);
-    let (s, out) = s.apply(&FloorEvent::Release { peer: pid("h") }, &FloorLimits::default());
+    let (s, out) = s.apply(
+        &FloorEvent::Release { peer: pid("h") },
+        &FloorLimits::default(),
+    );
     // q1 promoted (granted); q2,q3 shift → rebroadcast 0,1
-    assert_eq!(emitted(&out), vec!["granted([\"q1\"])", "queued(0)", "queued(1)"]);
+    assert_eq!(
+        emitted(&out),
+        vec!["granted([\"q1\"])", "queued(0)", "queued(1)"]
+    );
     assert_eq!(s.queue().len(), 2);
 }
 
@@ -759,6 +814,10 @@ fn open_concurrent_requests_all_granted_release_drops_only_that_peer() {
         &FloorLimits::default(),
     );
     let names: Vec<String> = s.grants().iter().map(|g| g.to_string()).collect();
-    assert_eq!(names, vec!["a".to_string(), "c".to_string()], "release drops only b");
+    assert_eq!(
+        names,
+        vec!["a".to_string(), "c".to_string()],
+        "release drops only b"
+    );
     assert_eq!(emitted(&out), vec!["granted([\"a\", \"c\"])"]);
 }

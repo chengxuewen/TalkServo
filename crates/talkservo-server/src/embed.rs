@@ -1,7 +1,7 @@
 //! Embedded web dist (feature `embedded-web`): serves `web/dist` at `/` so the
 //! server binary is a single deployable artifact. Same-origin WS/REST — no CORS.
 
-use axum::http::{header, StatusCode};
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// Compile-time embed of the Vite output. `web/dist` must exist at `cargo

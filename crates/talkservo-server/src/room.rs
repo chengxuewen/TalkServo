@@ -109,10 +109,9 @@ impl RoomState {
                 // grants/denials); keep it simple: field peers receive queued
                 // messages too (their own position acks) — scoping applies to
                 // ServerSnapshot payloads only (D12).
-                (
-                    Role::Field,
-                    SignalingMessage::ServerSnapshot { payload, .. },
-                ) => matches!(payload, ServerSnapshotPayload::Field(_)),
+                (Role::Field, SignalingMessage::ServerSnapshot { payload, .. }) => {
+                    matches!(payload, ServerSnapshotPayload::Field(_))
+                }
                 _ => true,
             };
             if visible {
@@ -131,8 +130,8 @@ impl RoomState {
         let peers: Vec<PeerInfo> = self.members.values().map(|m| m.info.clone()).collect();
         let generation = self.floor.generation();
         let payload = match role {
-            Role::Dispatch => ServerSnapshotPayload::Dispatch(
-                talkservo_core::wire::DispatchSnapshot {
+            Role::Dispatch => {
+                ServerSnapshotPayload::Dispatch(talkservo_core::wire::DispatchSnapshot {
                     queue: self
                         .floor
                         .queue()
@@ -149,8 +148,8 @@ impl RoomState {
                         generation,
                         peers,
                     },
-                },
-            ),
+                })
+            }
             Role::Field => ServerSnapshotPayload::Field(talkservo_core::wire::FieldSnapshot {
                 mode: self.floor.mode(),
                 grants: self.floor.grants().to_vec(),
@@ -185,7 +184,10 @@ impl RoomState {
                         reason: talkservo_core::wire::DenyReason::RateLimited,
                         generation,
                     });
-                    return FloorOutcome { direct, mutated: false };
+                    return FloorOutcome {
+                        direct,
+                        mutated: false,
+                    };
                 }
                 self.last_request.insert(from.clone(), Instant::now());
                 self.pending_requests
@@ -260,9 +262,7 @@ impl RoomState {
             && self
                 .producers_by_peer
                 .iter()
-                .any(|(peer, pid)| {
-                    pid == producer_id && self.floor.grants().contains(peer)
-                })
+                .any(|(peer, pid)| pid == producer_id && self.floor.grants().contains(peer))
     }
 
     /// Snapshot of the producer registry (late-joiner announcements).
@@ -285,7 +285,12 @@ impl RoomState {
 
     /// Read-only admin snapshot (plan-5 S1): RoomState only, no SFU calls.
     pub fn admin_report(&self) -> crate::ws::RoomReport {
-        let holders: Vec<String> = self.floor.grants().iter().map(|p| p.0.to_string()).collect();
+        let holders: Vec<String> = self
+            .floor
+            .grants()
+            .iter()
+            .map(|p| p.0.to_string())
+            .collect();
         let holder_ids: Vec<PeerId> = self.floor.grants().to_vec();
         let speaking: Vec<String> = holder_ids
             .iter()
@@ -318,10 +323,9 @@ impl RoomState {
     /// E11 (F-sequence): apply MediaDown for a granted peer whose grace
     /// elapsed — core releases + promotes; broadcast handled by caller.
     pub fn apply_media_down(&mut self, peer: &PeerId) -> Vec<SignalingMessage> {
-        let (next, emitted) = self.floor.apply(
-            &FloorEvent::MediaDown { peer: peer.clone() },
-            &self.limits,
-        );
+        let (next, emitted) = self
+            .floor
+            .apply(&FloorEvent::MediaDown { peer: peer.clone() }, &self.limits);
         self.floor = next;
         emitted
     }
@@ -340,7 +344,13 @@ impl RoomState {
     }
 
     /// Join a validated identity. `Err(code)` = AlreadyJoined.
-    pub fn join(&mut self, peer: PeerId, role: Role, sink: Sink, since_ms: u64) -> Result<(), &'static str> {
+    pub fn join(
+        &mut self,
+        peer: PeerId,
+        role: Role,
+        sink: Sink,
+        since_ms: u64,
+    ) -> Result<(), &'static str> {
         if self.members.contains_key(&peer) {
             return Err("already_joined");
         }
@@ -364,10 +374,9 @@ impl RoomState {
     pub fn leave(&mut self, peer: &PeerId) -> Option<SignalingMessage> {
         self.members.remove(peer)?;
         let gen_before = self.floor.generation();
-        let (next, _emitted) = self.floor.apply(
-            &FloorEvent::Leave { peer: peer.clone() },
-            &self.limits,
-        );
+        let (next, _emitted) = self
+            .floor
+            .apply(&FloorEvent::Leave { peer: peer.clone() }, &self.limits);
         self.floor = next;
         self.last_request.remove(peer);
         self.pending_requests.remove(peer);
@@ -378,4 +387,3 @@ impl RoomState {
         })
     }
 }
-

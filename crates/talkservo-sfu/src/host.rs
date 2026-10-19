@@ -16,8 +16,6 @@ pub enum ActivityState {
     Silent,
 }
 
-
-
 /// Opaque producer id (wire carries it as JSON value; mediasoup `ProducerId`
 /// stringifies). Kept as owned string to stay backend-agnostic.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

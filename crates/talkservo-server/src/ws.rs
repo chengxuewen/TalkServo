@@ -4,8 +4,8 @@ use crate::auth;
 use crate::config::Config;
 use crate::obs;
 use crate::room::{RoomState, Sink};
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::IntoResponse;
 use futures_util::{SinkExt, StreamExt};
 use std::collections::HashMap;
@@ -76,10 +76,7 @@ pub struct PeerEntry {
     pub connected_since_ms: u64,
 }
 
-pub async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(app): State<Arc<App>>,
-) -> impl IntoResponse {
+pub async fn ws_handler(ws: WebSocketUpgrade, State(app): State<Arc<App>>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, app))
 }
 
@@ -115,7 +112,9 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                 detail: "undeserializable message or unsupported version".into(),
             };
             let _ = tx
-                .send(Message::Text(serde_json::to_string(&err).expect("ser").into()))
+                .send(Message::Text(
+                    serde_json::to_string(&err).expect("ser").into(),
+                ))
                 .await;
             let _ = tx
                 .send(Message::Close(Some(axum::extract::ws::CloseFrame {
@@ -135,7 +134,9 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                 detail: "first message must be Join".into(),
             };
             let _ = tx
-                .send(Message::Text(serde_json::to_string(&err).expect("ser").into()))
+                .send(Message::Text(
+                    serde_json::to_string(&err).expect("ser").into(),
+                ))
                 .await;
             return;
         }
@@ -146,7 +147,9 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
             detail: format!("unsupported protocol version {wire_v}"),
         };
         let _ = tx
-            .send(Message::Text(serde_json::to_string(&err).expect("ser").into()))
+            .send(Message::Text(
+                serde_json::to_string(&err).expect("ser").into(),
+            ))
             .await;
         let _ = tx
             .send(Message::Close(Some(axum::extract::ws::CloseFrame {
@@ -171,7 +174,9 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                 detail: e.to_string(),
             };
             let _ = tx
-                .send(Message::Text(serde_json::to_string(&err).expect("ser").into()))
+                .send(Message::Text(
+                    serde_json::to_string(&err).expect("ser").into(),
+                ))
                 .await;
             let _ = tx
                 .send(Message::Close(Some(axum::extract::ws::CloseFrame {
@@ -239,7 +244,9 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                 detail: "identity already connected".into(),
             };
             let _ = tx
-                .send(Message::Text(serde_json::to_string(&err).expect("ser").into()))
+                .send(Message::Text(
+                    serde_json::to_string(&err).expect("ser").into(),
+                ))
                 .await;
             return;
         }
@@ -317,10 +324,7 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
 }
 
 /// Validate JWT; returns claims (room comes from the aud claim).
-fn extract_room_and_validate(
-    config: &Config,
-    jwt: &str,
-) -> Result<auth::Claims, auth::AuthError> {
+fn extract_room_and_validate(config: &Config, jwt: &str) -> Result<auth::Claims, auth::AuthError> {
     // Two-step: decode WITHOUT aud check to read the room, then re-validate
     // with the right audience (JWT carries room in `room` claim; aud mirrors).
     let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
@@ -348,9 +352,8 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
         let tx = tx.clone();
         let cfg = app.config.clone();
         tokio::spawn(async move {
-            let mut watchdog = tokio::time::interval(std::time::Duration::from_millis(
-                cfg.no_rtp_watchdog_ms,
-            ));
+            let mut watchdog =
+                tokio::time::interval(std::time::Duration::from_millis(cfg.no_rtp_watchdog_ms));
             let mut maxhold = tokio::time::interval(std::time::Duration::from_millis(
                 cfg.floor_max_hold_ms.unwrap_or(u64::MAX),
             ));
@@ -360,9 +363,8 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
             // tokio intervals fire the FIRST tick immediately — skip it so the
             // room doesn't get timer commands before any member exists
             // idle sweep: fine-grained enough to respect TTL within 30s
-            let mut idle = tokio::time::interval(std::time::Duration::from_secs(
-                cfg.room_idle_ttl_s.min(30),
-            ));
+            let mut idle =
+                tokio::time::interval(std::time::Duration::from_secs(cfg.room_idle_ttl_s.min(30)));
             watchdog.tick().await;
             maxhold.tick().await;
             refresh.tick().await;
@@ -380,11 +382,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
 
     let tx_probe = tx.clone(); // channel-identity guard for the reaper
     tokio::spawn(async move {
-        let mut state = RoomState::new(
-            room_id.clone(),
-            app.config.max_peers,
-            app.config.max_queue,
-        );
+        let mut state = RoomState::new(room_id.clone(), app.config.max_peers, app.config.max_queue);
         let media = app.media.clone();
         let mut media_ctx = crate::media::MediaCtx::default();
         let cfg_media_grace_ms = app.config.floor_media_grace_ms;
@@ -436,23 +434,17 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                                 turn_creds,
                             });
                             let caps = media.router_caps(&state.id).await;
-                            let _ = conn_sink.send(SignalingMessage::RouterCaps {
-                                media_codecs: caps,
-                            });
+                            let _ =
+                                conn_sink.send(SignalingMessage::RouterCaps { media_codecs: caps });
                             let delta = SignalingMessage::PeerJoined {
                                 info: state.members[&peer].info.clone(),
                                 generation,
                             };
                             state.broadcast_except(&delta, Some(&peer));
-                            let peers: Vec<talkservo_core::wire::PeerInfo> = state
-                                .members
-                                .values()
-                                .map(|m| m.info.clone())
-                                .collect();
-                            let _ = conn_sink.send(SignalingMessage::PeerList {
-                                peers,
-                                generation,
-                            });
+                            let peers: Vec<talkservo_core::wire::PeerInfo> =
+                                state.members.values().map(|m| m.info.clone()).collect();
+                            let _ =
+                                conn_sink.send(SignalingMessage::PeerList { peers, generation });
                             let snap = state.snapshot_for(&peer);
                             let _ = conn_sink.send(snap);
                             // late-joiner catch-up: announce every EXISTING
@@ -511,7 +503,9 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                         // modules/05 media-plane events (transport_create/
                         // produce_ok/transport_fail) with full room/peer/gen
                         let media_event = match &msg {
-                            SignalingMessage::TransportCreate { .. } => Some(obs::Event::TransportCreate),
+                            SignalingMessage::TransportCreate { .. } => {
+                                Some(obs::Event::TransportCreate)
+                            }
                             SignalingMessage::Produce { .. } => Some(obs::Event::ProduceOk),
                             _ => None,
                         };
@@ -599,7 +593,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                         drop(rooms);
                         drop(tx_probe);
                         return; // task ends (tx stays owned by the closure —
-                                // its drop closes the channel for the registry)
+                        // its drop closes the channel for the registry)
                     }
                 }
                 RoomCommand::AdminInspect(tx) => {
@@ -652,9 +646,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             m.info.role,
                             refresh_ttl_s,
                         ) {
-                            let _ = m
-                                .sink
-                                .send(SignalingMessage::TokenRefresh { jwt });
+                            let _ = m.sink.send(SignalingMessage::TokenRefresh { jwt });
                         }
                     }
                 }

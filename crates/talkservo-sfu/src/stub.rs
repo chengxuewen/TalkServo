@@ -4,22 +4,42 @@
 
 use crate::error::SfuError;
 use crate::host::{ActivityState, ProducerId, Sfu};
-use talkservo_core::wire::TransportInfo;
 use crate::stub_internal::{MediaPeer, StubState};
 use std::sync::Mutex;
 use talkservo_core::floor::FloorState;
 use talkservo_core::ids::{PeerId, RoomId};
+use talkservo_core::wire::TransportInfo;
 
 /// Recorded host calls — assertions read this instead of poking media objects.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Call {
-    CreateTransport { room: String, peer: String },
-    ConnectTransport { room: String, peer: String },
-    Produce { room: String, peer: String },
-    Consume { room: String, peer: String, producer: String },
+    CreateTransport {
+        room: String,
+        peer: String,
+    },
+    ConnectTransport {
+        room: String,
+        peer: String,
+    },
+    Produce {
+        room: String,
+        peer: String,
+    },
+    Consume {
+        room: String,
+        peer: String,
+        producer: String,
+    },
     /// apply_floor diff outcome: which peers ended resumed / paused.
-    ApplyFloor { room: String, resumed: Vec<String>, paused: Vec<String> },
-    PeerLeft { room: String, peer: String },
+    ApplyFloor {
+        room: String,
+        resumed: Vec<String>,
+        paused: Vec<String>,
+    },
+    PeerLeft {
+        room: String,
+        peer: String,
+    },
 }
 
 /// Stub host: deterministic, `Mutex`-guarded world.
@@ -94,10 +114,10 @@ impl Sfu for StubSfu {
             }
             let count = st.transport_count.entry(room.to_string()).or_insert(0);
             *count += 1;
-            st.rooms.entry(room.to_string()).or_default().insert(
-                peer.to_string(),
-                MediaPeer::default(),
-            );
+            st.rooms
+                .entry(room.to_string())
+                .or_default()
+                .insert(peer.to_string(), MediaPeer::default());
             st.calls.push(Call::CreateTransport {
                 room: room.to_string(),
                 peer: peer.to_string(),
@@ -194,10 +214,7 @@ impl Sfu for StubSfu {
             let mut paused = Vec::new();
             if let Some(peers) = st.rooms.get_mut(room.0.as_ref()) {
                 for (peer_str, mp) in peers.iter_mut() {
-                    let granted = state
-                        .grants()
-                        .iter()
-                        .any(|g| g.0.as_ref() == peer_str);
+                    let granted = state.grants().iter().any(|g| g.0.as_ref() == peer_str);
                     // set desired pause state wholesale (idempotent diff target:
                     // granted → resumed, everyone else paused — D13)
                     for flag in mp.producers.values_mut() {
@@ -291,8 +308,12 @@ mod tests {
         let room = rid("r1");
         let (a, b) = (pid("a"), pid("b"));
 
-        sfu.create_transport(&room, &a, "send").await_or_block().expect("ta");
-        sfu.create_transport(&room, &b, "send").await_or_block().expect("tb");
+        sfu.create_transport(&room, &a, "send")
+            .await_or_block()
+            .expect("ta");
+        sfu.create_transport(&room, &b, "send")
+            .await_or_block()
+            .expect("tb");
         sfu.connect_transport(&room, &a, "send", serde_json::json!({}))
             .await_or_block()
             .expect("connect");
@@ -324,15 +345,15 @@ mod tests {
         // E11: default activity Active; script Silent
         sfu.set_activity(&room, &a, ActivityState::Silent);
         smol_block(async {
-            assert_eq!(
-                sfu.media_activity(&room, &a).await,
-                ActivityState::Silent
-            );
+            assert_eq!(sfu.media_activity(&room, &a).await, ActivityState::Silent);
         });
 
         // cascade: peer_left removes the media peer
         smol_block(sfu.peer_left(&room, &b));
-        assert!(calls_contains(&sfu, |c| matches!(c, Call::PeerLeft { peer, .. } if peer == "b")));
+        assert!(calls_contains(
+            &sfu,
+            |c| matches!(c, Call::PeerLeft { peer, .. } if peer == "b")
+        ));
 
         // E6 hook counts kills
         smol_block(sfu.kill_worker());

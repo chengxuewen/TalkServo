@@ -5,19 +5,19 @@ pub async fn healthz() -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") }))
 }
 
+pub mod accounts;
+pub mod admin;
+pub mod auth;
+pub mod config;
 #[cfg(feature = "embedded-web")]
 pub mod embed;
-pub mod admin;
-pub mod lifecycle;
-pub mod accounts;
-pub mod auth;
 pub mod kdf;
-pub mod turn;
+pub mod lifecycle;
 pub mod media;
-pub mod config;
 pub mod obs;
 pub mod room;
-pub mod timers;
 #[cfg(feature = "stub-media")]
 pub mod test_bridge;
+pub mod timers;
+pub mod turn;
 pub mod ws;

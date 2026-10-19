@@ -30,8 +30,14 @@ pub fn router() -> Router<Arc<App>> {
         .route("/admin/api/rooms", get(rooms))
         .route("/admin/api/tokens", post(tokens))
         .route("/admin/api/login", post(login))
-        .route("/admin/api/accounts", get(accounts_list).post(accounts_create))
-        .route("/admin/api/accounts/{user}", axum::routing::delete(accounts_delete))
+        .route(
+            "/admin/api/accounts",
+            get(accounts_list).post(accounts_create),
+        )
+        .route(
+            "/admin/api/accounts/{user}",
+            axum::routing::delete(accounts_delete),
+        )
 }
 
 fn guard<'a>(app: &'a App, headers: &'a HeaderMap) -> Result<(), (StatusCode, &'static str)> {
@@ -74,17 +80,18 @@ async fn fan_out(app: &App) -> Vec<(String, serde_json::Value)> {
     out
 }
 
-async fn overview(
-    State(app): State<Arc<App>>,
-    headers: HeaderMap,
-) -> Response {
+async fn overview(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
     if let Err(e) = guard(&app, &headers) {
         return e.into_response();
     }
     let reports = fan_out(&app).await;
     let peers: usize = reports
         .iter()
-        .map(|(_, r)| r.get("peers").and_then(|p| p.as_array().map(Vec::len)).unwrap_or(0))
+        .map(|(_, r)| {
+            r.get("peers")
+                .and_then(|p| p.as_array().map(Vec::len))
+                .unwrap_or(0)
+        })
         .sum();
     (
         StatusCode::OK,
@@ -186,8 +193,18 @@ async fn login(
     let Some(secret) = app.config.admin_secret.as_deref() else {
         return (StatusCode::SERVICE_UNAVAILABLE, "admin surface disabled").into_response();
     };
-    if app.config.admin_password_hash.is_none() && app.config.accounts_file.as_ref().is_none_or(|p| crate::accounts::load(p).is_empty()) {
-        return (StatusCode::SERVICE_UNAVAILABLE, "no admin credentials configured").into_response();
+    if app.config.admin_password_hash.is_none()
+        && app
+            .config
+            .accounts_file
+            .as_ref()
+            .is_none_or(|p| crate::accounts::load(p).is_empty())
+    {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no admin credentials configured",
+        )
+            .into_response();
     }
     // user/pwd against the accounts registry (D22 sister shape: implicit
     // "admin" from server.yaml until accounts.yaml is materialized)
@@ -197,7 +214,11 @@ async fn login(
     }
     match auth::issue_admin(secret, &req.user, app.config.admin_login_ttl_s) {
         Ok(jwt) => {
-            tracing::info!(event = "admin_login", ttl_s = app.config.admin_login_ttl_s, "session minted");
+            tracing::info!(
+                event = "admin_login",
+                ttl_s = app.config.admin_login_ttl_s,
+                "session minted"
+            );
             Json(serde_json::json!({ "jwt": jwt })).into_response()
         }
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "token mint failed").into_response(),
@@ -232,7 +253,11 @@ async fn accounts_create(
         Err(_) => return (StatusCode::BAD_REQUEST, "malformed body").into_response(),
     };
     if !crate::accounts::valid_user(&req.user) {
-        return (StatusCode::BAD_REQUEST, "user must be 1-64 chars of [A-Za-z0-9._-]").into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            "user must be 1-64 chars of [A-Za-z0-9._-]",
+        )
+            .into_response();
     }
     if req.password.len() < 8 {
         return (StatusCode::BAD_REQUEST, "password must be at least 8 chars").into_response();
@@ -249,7 +274,11 @@ async fn accounts_create(
     }
 }
 
-async fn accounts_delete(State(app): State<Arc<App>>, headers: HeaderMap, axum::extract::Path(user): axum::extract::Path<String>) -> Response {
+async fn accounts_delete(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    axum::extract::Path(user): axum::extract::Path<String>,
+) -> Response {
     if let Err(e) = guard(&app, &headers) {
         return e.into_response();
     }
@@ -290,7 +319,10 @@ async fn tokens(
     if !rate_ok(&app) {
         return (StatusCode::TOO_MANY_REQUESTS, "60 issuances/min exceeded").into_response();
     }
-    let ttl = req.ttl_s.unwrap_or(app.config.jwt_ttl_s).clamp(1, app.config.jwt_ttl_s);
+    let ttl = req
+        .ttl_s
+        .unwrap_or(app.config.jwt_ttl_s)
+        .clamp(1, app.config.jwt_ttl_s);
     let jwt = match auth::issue(&app.config.jwt_secret, &req.sub, &req.room, req.role, ttl) {
         Ok(j) => j,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),

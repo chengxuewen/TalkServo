@@ -31,7 +31,8 @@ async fn main() {
     {
         let argv: Vec<String> = std::env::args().skip(1).collect();
         let sub = argv.first().map(|s| s.as_str()).unwrap_or("run");
-        let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("talkservo-server"));
+        let exe = std::env::current_exe()
+            .unwrap_or_else(|_| std::path::PathBuf::from("talkservo-server"));
         let dir = argv
             .get(1)
             .filter(|a| !a.starts_with("--"))
@@ -39,20 +40,18 @@ async fn main() {
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| talkservo_server::lifecycle::default_instance_dir(&exe));
         let code = match sub {
-            "init" => {
-                match crate_ok(talkservo_server::lifecycle::init_instance(&dir, &exe)) {
-                    Ok(lines) => {
-                        for l in lines {
-                            println!("init: {l}");
-                        }
-                        0
+            "init" => match crate_ok(talkservo_server::lifecycle::init_instance(&dir, &exe)) {
+                Ok(lines) => {
+                    for l in lines {
+                        println!("init: {l}");
                     }
-                    Err(e) => {
-                        eprintln!("init failed: {e}");
-                        1
-                    }
+                    0
                 }
-            }
+                Err(e) => {
+                    eprintln!("init failed: {e}");
+                    1
+                }
+            },
             "start" => {
                 let only = argv.iter().any(|a| a == "--no-web");
                 if only {
@@ -78,7 +77,10 @@ async fn main() {
             }
             "status" => {
                 let bind = talkservo_server::lifecycle::instance_bind(&dir);
-                if talkservo_server::lifecycle::probe_healthz(&bind, std::time::Duration::from_millis(800)) {
+                if talkservo_server::lifecycle::probe_healthz(
+                    &bind,
+                    std::time::Duration::from_millis(800),
+                ) {
                     println!("status: healthy ({bind})");
                     0
                 } else {
@@ -89,7 +91,10 @@ async fn main() {
             "monit" | "ui" => talkservo_server::lifecycle::oxmgr_forward(&dir, &["ui"]),
             "ps" => talkservo_server::lifecycle::oxmgr_forward(&dir, &["list"]),
             "logs" => {
-                let svc = argv.get(2).cloned().unwrap_or_else(|| talkservo_server::lifecycle::SERVER_APP.into());
+                let svc = argv
+                    .get(2)
+                    .cloned()
+                    .unwrap_or_else(|| talkservo_server::lifecycle::SERVER_APP.into());
                 talkservo_server::lifecycle::oxmgr_forward(&dir, &["logs", &svc])
             }
             "hash-password" => {
@@ -97,7 +102,9 @@ async fn main() {
                 // appear in shell literals or the process table.
                 let mut pw = String::new();
                 if std::io::stdin().read_line(&mut pw).unwrap_or(0) == 0 {
-                    eprintln!("hash-password: empty stdin — pipe the password: printf '%s' PW | talkservo-server hash-password");
+                    eprintln!(
+                        "hash-password: empty stdin — pipe the password: printf '%s' PW | talkservo-server hash-password"
+                    );
                     1
                 } else {
                     let pw = pw.trim_end_matches(['\n', '\r']);
@@ -121,11 +128,12 @@ async fn main() {
                     .and_then(|i| argv.get(i + 1))
                     .cloned();
                 let config = match cfg_arg {
-                    Some(p) => config::Config::load_yaml(std::path::Path::new(&p))
-                        .unwrap_or_else(|e| {
+                    Some(p) => {
+                        config::Config::load_yaml(std::path::Path::new(&p)).unwrap_or_else(|e| {
                             eprintln!("FATAL: {e}");
                             std::process::exit(1);
-                        }),
+                        })
+                    }
                     None => config::Config::from_env(),
                 };
                 serve(config).await;
@@ -140,11 +148,10 @@ async fn main() {
                         .position(|a| a == "--config")
                         .and_then(|i| argv.get(i + 1))
                         .expect("--config needs a value");
-                    config::Config::load_yaml(std::path::Path::new(p))
-                        .unwrap_or_else(|e| {
-                            eprintln!("FATAL: {e}");
-                            std::process::exit(1);
-                        })
+                    config::Config::load_yaml(std::path::Path::new(p)).unwrap_or_else(|e| {
+                        eprintln!("FATAL: {e}");
+                        std::process::exit(1);
+                    })
                 } else {
                     config::Config::from_env()
                 };
@@ -161,7 +168,6 @@ fn crate_ok<T, E: std::fmt::Display>(r: Result<T, E>) -> Result<T, String> {
 }
 
 async fn serve(config: config::Config) {
-
     // SFU backend: exactly one (feature-gated; stub under stub-media).
     #[cfg(feature = "stub-media")]
     let media_handle: std::sync::Arc<talkservo_sfu::StubSfu> =
@@ -170,14 +176,21 @@ async fn serve(config: config::Config) {
     let supervisor_handle: std::sync::Arc<talkservo_sfu::Supervisor> =
         std::sync::Arc::new(talkservo_sfu::Supervisor::new());
     #[cfg(not(feature = "stub-media"))]
-    let media_handle: std::sync::Arc<talkservo_sfu::MediasoupSfu> =
-        std::sync::Arc::new(talkservo_sfu::MediasoupSfu::new(Arc::clone(
-            &supervisor_handle,
-        )));
-    tracing::info!(backend = media_handle.backend(), version = VERSION, "talkservo-server starting");
+    let media_handle: std::sync::Arc<talkservo_sfu::MediasoupSfu> = std::sync::Arc::new(
+        talkservo_sfu::MediasoupSfu::new(Arc::clone(&supervisor_handle)),
+    );
+    tracing::info!(
+        backend = media_handle.backend(),
+        version = VERSION,
+        "talkservo-server starting"
+    );
 
-    if config.admin_secret.is_some() && config.admin_secret.as_deref() == Some(config.jwt_secret.as_str()) {
-        eprintln!("FATAL: TS_ADMIN_SECRET must differ from TS_JWT_SECRET (independent rotation, D18)");
+    if config.admin_secret.is_some()
+        && config.admin_secret.as_deref() == Some(config.jwt_secret.as_str())
+    {
+        eprintln!(
+            "FATAL: TS_ADMIN_SECRET must differ from TS_JWT_SECRET (independent rotation, D18)"
+        );
         std::process::exit(1);
     }
     let app_state = Arc::new(ws::App {
@@ -203,7 +216,10 @@ async fn serve(config: config::Config) {
                 // holding it across send().await is a deadlock window
                 let snapshot: Vec<_> = {
                     let rooms = rooms_registry.rooms.lock().await;
-                    rooms.iter().map(|(id, tx)| (id.clone(), tx.clone())).collect()
+                    rooms
+                        .iter()
+                        .map(|(id, tx)| (id.clone(), tx.clone()))
+                        .collect()
                 };
                 for (room_id, tx) in &snapshot {
                     let _ = tx
@@ -232,9 +248,14 @@ async fn serve(config: config::Config) {
     #[cfg(feature = "embedded-web")]
     let app = app
         .route("/", axum::routing::get(talkservo_server::embed::index))
-        .route("/{*path}", axum::routing::get(talkservo_server::embed::asset));
+        .route(
+            "/{*path}",
+            axum::routing::get(talkservo_server::embed::asset),
+        );
     // admin surface always mounted (fail-closed by guard, plan-5 S1)
-    let app = app.merge(talkservo_server::admin::router()).with_state(app_state);
+    let app = app
+        .merge(talkservo_server::admin::router())
+        .with_state(app_state);
 
     let bind = std::env::var("TS_BIND").unwrap_or_else(|_| "0.0.0.0:8080".into());
     let listener = tokio::net::TcpListener::bind(&bind)
@@ -243,4 +264,3 @@ async fn serve(config: config::Config) {
     tracing::info!(%bind, "listening");
     axum::serve(listener, app).await.expect("server run");
 }
-

@@ -16,7 +16,6 @@ pub struct MediaCtx {
     pub dtls_connected: HashSet<(String, String, String)>,
 }
 
-
 /// Route one media wire message through the sfu host.
 /// Returns direct replies for the requester.
 #[allow(clippy::too_many_arguments)]
@@ -57,14 +56,21 @@ pub async fn handle_media_message<M: Sfu + Sync + 'static>(
             match media.connect_transport(room, from, dir, dtls.clone()).await {
                 Ok(()) => vec![],
                 Err(e) => {
-                    ctx.dtls_connected
-                        .remove(&(room.to_string(), from.to_string(), dir.to_string()));
+                    ctx.dtls_connected.remove(&(
+                        room.to_string(),
+                        from.to_string(),
+                        dir.to_string(),
+                    ));
                     media_error(e, from)
                 }
             }
         }
         SignalingMessage::Produce { rtp_parameters } => {
-            if !ctx.dtls_connected.contains(&(room.to_string(), from.to_string(), "send".to_string())) {
+            if !ctx.dtls_connected.contains(&(
+                room.to_string(),
+                from.to_string(),
+                "send".to_string(),
+            )) {
                 return vec![SignalingMessage::Error {
                     code: "bad_order".into(),
                     detail: "Produce before TransportConnect".into(),
@@ -81,10 +87,7 @@ pub async fn handle_media_message<M: Sfu + Sync + 'static>(
             // wire producer_id is a JSON string value — as_str(), not
             // to_string() (which would embed the quotes)
             let pid_str = producer_id.as_str().unwrap_or_default().to_string();
-            match media
-                .consume(room, from, &ProducerId(pid_str))
-                .await
-            {
+            match media.consume(room, from, &ProducerId(pid_str)).await {
                 Ok((consumer_id, params)) => vec![SignalingMessage::ConsumeOk {
                     producer_id: producer_id.clone(),
                     consumer_id: serde_json::json!(consumer_id),

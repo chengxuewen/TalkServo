@@ -1,6 +1,6 @@
 //! JWT issuance/validation (modules/06 auth ladder rung 1: HS256).
 
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use talkservo_core::wire::Role;
 
@@ -25,7 +25,13 @@ pub enum AuthError {
     Invalid(String),
 }
 
-pub fn issue(secret: &str, sub: &str, room: &str, role: Role, ttl_s: u64) -> Result<String, AuthError> {
+pub fn issue(
+    secret: &str,
+    sub: &str,
+    room: &str,
+    role: Role,
+    ttl_s: u64,
+) -> Result<String, AuthError> {
     // exp from the real clock — jsonwebtoken validates against it; tests use
     // short TTLs instead of fake clocks (verification honesty).
     let now = std::time::SystemTime::now()

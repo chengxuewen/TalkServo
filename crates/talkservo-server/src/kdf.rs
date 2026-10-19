@@ -64,7 +64,10 @@ pub fn hash_password(pw: &str) -> String {
 /// count back from the string, so the full parse path stays exercised).
 pub fn hash_password_with_iters(pw: &str, iters: u32) -> String {
     let mut salt = [0u8; 16];
-    if std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut salt)).is_err() {
+    if std::fs::File::open("/dev/urandom")
+        .and_then(|mut f| f.read_exact(&mut salt))
+        .is_err()
+    {
         // loud fallback per gen_secret precedent — time/pid mixed salt
         eprintln!("WARN: urandom unavailable — weak salt fallback, RE-hash before production");
         let seed = std::time::SystemTime::now()
@@ -90,11 +93,15 @@ pub fn verify_password(pw: &str, stored: &str) -> bool {
     if *tag != "pbkdf2" || parts.len() != 4 {
         return false;
     }
-    let Ok(iters) = iters.parse::<u32>() else { return false };
+    let Ok(iters) = iters.parse::<u32>() else {
+        return false;
+    };
     if iters == 0 {
         return false;
     }
-    let (Some(salt), Some(expect)) = (unhex(salt), unhex(hash)) else { return false };
+    let (Some(salt), Some(expect)) = (unhex(salt), unhex(hash)) else {
+        return false;
+    };
     if expect.len() != DK_LEN || salt.is_empty() {
         return false;
     }
@@ -114,7 +121,11 @@ mod tests {
             (2, "ea6c014dc72d6f8ccd1ed92ace1d41f0d8de8957"),
             (4096, "4b007901b765489abead49d926f721d065a429c1"),
         ] {
-            assert_eq!(hex(&pbkdf2_block(b"password", b"salt", iters)), want, "c={iters}");
+            assert_eq!(
+                hex(&pbkdf2_block(b"password", b"salt", iters)),
+                want,
+                "c={iters}"
+            );
         }
     }
 
@@ -128,9 +139,12 @@ mod tests {
         assert!(verify_password("correct horse", &stored));
         assert!(!verify_password("battery sting", &stored));
         // malformed / tampered stored values fail closed
-        assert!(!verify_password("x", "pbkdf2$0${}{}", ));
+        assert!(!verify_password("x", "pbkdf2$0${}{}",));
         assert!(!verify_password("x", "garbage"));
-        assert!(!verify_password("x", &format!("pbkdf2$4096${}${}", hex(&salt), "abcd")));
+        assert!(!verify_password(
+            "x",
+            &format!("pbkdf2$4096${}${}", hex(&salt), "abcd")
+        ));
     }
 
     #[test]

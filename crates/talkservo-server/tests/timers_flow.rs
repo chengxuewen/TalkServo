@@ -3,11 +3,11 @@
 #![cfg(feature = "stub-media")]
 
 use futures_util::{SinkExt, StreamExt};
+use std::sync::Arc;
 use talkservo_core::wire::SignalingMessage;
+use talkservo_server::test_bridge;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use std::sync::Arc;
-use talkservo_server::test_bridge;
 
 type Ws = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
@@ -35,22 +35,35 @@ impl TestServer {
             media: media.clone(),
         });
         let app = test_bridge::build_router(app_state);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
         let addr = listener.local_addr().expect("addr");
         tokio::spawn(async move { axum::serve(listener, app).await.expect("serve") });
-        Self { url: format!("ws://{addr}/ws"), secret, media }
+        Self {
+            url: format!("ws://{addr}/ws"),
+            secret,
+            media,
+        }
     }
-    fn ws_url(&self) -> &str { &self.url }
+    fn ws_url(&self) -> &str {
+        &self.url
+    }
 }
 
 async fn ws_connect(url: &str) -> Ws {
-    let (ws, _) = tokio_tungstenite::connect_async(url).await.expect("connect");
+    let (ws, _) = tokio_tungstenite::connect_async(url)
+        .await
+        .expect("connect");
     ws
 }
 
 async fn send_json(sink: &mut Ws, msg: &SignalingMessage) {
-    sink.send(WsMessage::Text(serde_json::to_string(msg).expect("ser").into()))
-        .await.expect("send");
+    sink.send(WsMessage::Text(
+        serde_json::to_string(msg).expect("ser").into(),
+    ))
+    .await
+    .expect("send");
 }
 
 /// Timer ticks interleave protocol messages (TokenRefresh push runs on a 1s
@@ -75,8 +88,8 @@ async fn recv_msg(stream: &mut Ws) -> Option<SignalingMessage> {
     loop {
         let m = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
             .await // Result<Option<Result<frame>>>
-            .ok()?  // silence → None
-            ?       // stream ended
+            .ok()?? // silence → None
+            // stream ended
             .ok()?; // ws error → None
         if let WsMessage::Text(t) = m {
             return serde_json::from_str(&t).ok();
@@ -85,9 +98,17 @@ async fn recv_msg(stream: &mut Ws) -> Option<SignalingMessage> {
 }
 
 async fn join_and_drain(ws: &mut Ws, srv: &TestServer, sub: &str) {
-    let jwt = test_bridge::issue_token(&srv.secret, sub, "room-1", talkservo_core::wire::Role::Field, 3600);
+    let jwt = test_bridge::issue_token(
+        &srv.secret,
+        sub,
+        "room-1",
+        talkservo_core::wire::Role::Field,
+        3600,
+    );
     send_json(ws, &SignalingMessage::Join { v: 1, jwt }).await;
-    for _ in 0..4 { recv_msg(ws).await.expect("burst"); }
+    for _ in 0..4 {
+        recv_msg(ws).await.expect("burst");
+    }
 }
 
 #[tokio::test]
@@ -113,16 +134,28 @@ async fn e11_silence_past_grace_releases_and_promotes() {
             media: media.clone(),
         });
         let app = test_bridge::build_router(app_state);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
         let addr = listener.local_addr().expect("addr");
         tokio::spawn(async move { axum::serve(listener, app).await.expect("serve") });
-        TestServer { url: format!("ws://{addr}/ws"), secret, media }
+        TestServer {
+            url: format!("ws://{addr}/ws"),
+            secret,
+            media,
+        }
     };
     let mut a = ws_connect(srv.ws_url()).await;
     join_and_drain(&mut a, &srv, "holder").await;
     let mut b = ws_connect(srv.ws_url()).await;
     {
-        let jwt = test_bridge::issue_token(&srv.secret, "queued", "room-1", talkservo_core::wire::Role::Field, 3600);
+        let jwt = test_bridge::issue_token(
+            &srv.secret,
+            "queued",
+            "room-1",
+            talkservo_core::wire::Role::Field,
+            3600,
+        );
         send_json(&mut b, &SignalingMessage::Join { v: 1, jwt }).await;
         for i in 0..4 {
             let m = recv_msg(&mut b).await.expect("burst msg");
@@ -133,15 +166,50 @@ async fn e11_silence_past_grace_releases_and_promotes() {
 
     // switch to Exclusive (default room mode is Hybrid, cap 2 — both would
     // grant straight away); a drains the mode_change echo, b sees nothing
-    send_json(&mut a, &SignalingMessage::ModeChange { mode: talkservo_core::wire::FloorMode::Exclusive }).await;
-    let _ = recv_until(&mut a, |m| matches!(m, SignalingMessage::FloorIdle { .. }), 6).await;
+    send_json(
+        &mut a,
+        &SignalingMessage::ModeChange {
+            mode: talkservo_core::wire::FloorMode::Exclusive,
+        },
+    )
+    .await;
+    let _ = recv_until(
+        &mut a,
+        |m| matches!(m, SignalingMessage::FloorIdle { .. }),
+        6,
+    )
+    .await;
 
     // both request; exclusive cap 1: holder granted, queued queued
-    send_json(&mut a, &SignalingMessage::FloorRequest { priority: 0, preempt: false }).await;
-    let g = recv_until(&mut a, |m| matches!(m, SignalingMessage::FloorGranted { .. }), 4).await;
+    send_json(
+        &mut a,
+        &SignalingMessage::FloorRequest {
+            priority: 0,
+            preempt: false,
+        },
+    )
+    .await;
+    let g = recv_until(
+        &mut a,
+        |m| matches!(m, SignalingMessage::FloorGranted { .. }),
+        4,
+    )
+    .await;
     assert!(g.is_some());
-    send_json(&mut b, &SignalingMessage::FloorRequest { priority: 0, preempt: false }).await;
-    let q = recv_until(&mut b, |m| matches!(m, SignalingMessage::FloorQueued { .. }), 10).await;
+    send_json(
+        &mut b,
+        &SignalingMessage::FloorRequest {
+            priority: 0,
+            preempt: false,
+        },
+    )
+    .await;
+    let q = recv_until(
+        &mut b,
+        |m| matches!(m, SignalingMessage::FloorQueued { .. }),
+        10,
+    )
+    .await;
     assert!(q.is_some());
 
     // script holder's uplink silent; watchdog(200ms)+grace(300ms) → MediaDown
@@ -153,10 +221,23 @@ async fn e11_silence_past_grace_releases_and_promotes() {
 
     // holder sees MediaFailed + FloorIdle; queued sees promote FloorGranted
     // (and its own queued position rebroadcasts may arrive — filter)
-    let failed = recv_until(&mut a, |m| matches!(m, SignalingMessage::MediaFailed { .. }), 8).await;
+    let failed = recv_until(
+        &mut a,
+        |m| matches!(m, SignalingMessage::MediaFailed { .. }),
+        8,
+    )
+    .await;
     assert!(failed.is_some(), "holder must see MediaFailed");
-    let promoted = recv_until(&mut b, |m| matches!(m, SignalingMessage::FloorGranted { .. }), 8).await;
-    assert!(promoted.is_some(), "queued peer must be promoted after E11 release");
+    let promoted = recv_until(
+        &mut b,
+        |m| matches!(m, SignalingMessage::FloorGranted { .. }),
+        8,
+    )
+    .await;
+    assert!(
+        promoted.is_some(),
+        "queued peer must be promoted after E11 release"
+    );
 }
 
 #[tokio::test]
@@ -165,8 +246,20 @@ async fn max_hold_timeout_releases_floor() {
     let mut a = ws_connect(srv.ws_url()).await;
     join_and_drain(&mut a, &srv, "longholder").await;
 
-    send_json(&mut a, &SignalingMessage::FloorRequest { priority: 0, preempt: false }).await;
-    let granted = recv_until(&mut a, |m| matches!(m, SignalingMessage::FloorGranted { .. }), 4).await;
+    send_json(
+        &mut a,
+        &SignalingMessage::FloorRequest {
+            priority: 0,
+            preempt: false,
+        },
+    )
+    .await;
+    let granted = recv_until(
+        &mut a,
+        |m| matches!(m, SignalingMessage::FloorGranted { .. }),
+        4,
+    )
+    .await;
     assert!(granted.is_some(), "grant must arrive (noise-tolerant recv)");
 
     // max-hold 400ms → Timeout → FloorIdle(reason=timeout)
@@ -186,7 +279,12 @@ async fn token_refresh_pushed_proactively() {
     join_and_drain(&mut a, &srv, "refresher").await;
 
     // ttl 2s, lead 1s → refresh arrives within ~1-2s
-    let got = recv_until(&mut a, |m| matches!(m, SignalingMessage::TokenRefresh { .. }), 8).await;
+    let got = recv_until(
+        &mut a,
+        |m| matches!(m, SignalingMessage::TokenRefresh { .. }),
+        8,
+    )
+    .await;
     assert!(got.is_some(), "TokenRefresh must be pushed before expiry");
 }
 
@@ -197,18 +295,48 @@ async fn cooldown_second_rapid_request_denied_rate_limited() {
     join_and_drain(&mut a, &srv, "spammer").await;
 
     // NOTE: server cooldown is 500ms fixed (Config::for_test); two rapid sends
-    send_json(&mut a, &SignalingMessage::FloorRequest { priority: 0, preempt: false }).await;
-    let first = recv_until(&mut a, |m| matches!(m, SignalingMessage::FloorGranted { .. }), 4).await;
+    send_json(
+        &mut a,
+        &SignalingMessage::FloorRequest {
+            priority: 0,
+            preempt: false,
+        },
+    )
+    .await;
+    let first = recv_until(
+        &mut a,
+        |m| matches!(m, SignalingMessage::FloorGranted { .. }),
+        4,
+    )
+    .await;
     assert!(first.is_some());
 
     // second request within cooldown → RateLimited (deterministic: cooldown
     // gate runs before the already-granted idempotency check)
-    send_json(&mut a, &SignalingMessage::FloorRequest { priority: 0, preempt: false }).await;
+    send_json(
+        &mut a,
+        &SignalingMessage::FloorRequest {
+            priority: 0,
+            preempt: false,
+        },
+    )
+    .await;
     let denied = recv_until(
         &mut a,
-        |m| matches!(m, SignalingMessage::FloorDenied { reason: talkservo_core::wire::DenyReason::RateLimited, .. }),
+        |m| {
+            matches!(
+                m,
+                SignalingMessage::FloorDenied {
+                    reason: talkservo_core::wire::DenyReason::RateLimited,
+                    ..
+                }
+            )
+        },
         4,
     )
     .await;
-    assert!(denied.is_some(), "rapid re-request must hit the cooldown gate");
+    assert!(
+        denied.is_some(),
+        "rapid re-request must hit the cooldown gate"
+    );
 }

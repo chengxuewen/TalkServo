@@ -13,7 +13,7 @@ use std::sync::Arc;
 use talkservo_core::floor::FloorState;
 use talkservo_core::ids::{PeerId, RoomId};
 use talkservo_core::wire::TransportInfo;
-use tokio::sync::{broadcast, Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, broadcast};
 
 /// Server-facing notification after a W-sequence rebuild.
 #[derive(Debug, Clone)]
@@ -212,8 +212,18 @@ impl Sfu for MediasoupSfu {
         // candidate is dialable with no announced translation); deploy sets
         // TS_ANNOUNCED_IP to switch to 0.0.0.0-bind + announced public IP.
         let (bind_ip, announced) = match std::env::var("TS_ANNOUNCED_IP") {
-            Ok(ip) => ("0.0.0.0".parse::<std::net::IpAddr>().map_err(|e| sfu_err(e, "ip"))?, Some(ip)),
-            Err(_) => ("127.0.0.1".parse::<std::net::IpAddr>().map_err(|e| sfu_err(e, "ip"))?, None),
+            Ok(ip) => (
+                "0.0.0.0"
+                    .parse::<std::net::IpAddr>()
+                    .map_err(|e| sfu_err(e, "ip"))?,
+                Some(ip),
+            ),
+            Err(_) => (
+                "127.0.0.1"
+                    .parse::<std::net::IpAddr>()
+                    .map_err(|e| sfu_err(e, "ip"))?,
+                None,
+            ),
         };
         let listen = mediasoup::webrtc_transport::WebRtcTransportListenInfos::new(
             mediasoup::prelude::ListenInfo {
@@ -288,10 +298,8 @@ impl Sfu for MediasoupSfu {
         };
         let params: mediasoup_types::rtp_parameters::RtpParameters =
             serde_json::from_value(rtp_parameters).map_err(|e| sfu_err(e, "rtp parameters"))?;
-        let mut options = mediasoup::producer::ProducerOptions::new(
-            mediasoup::prelude::MediaKind::Audio,
-            params,
-        );
+        let mut options =
+            mediasoup::producer::ProducerOptions::new(mediasoup::prelude::MediaKind::Audio, params);
         options.paused = true; // D13: created paused; apply_floor gates
         let producer = transport
             .produce(options)
@@ -328,13 +336,11 @@ impl Sfu for MediasoupSfu {
             .map_err(|e| sfu_err(e, "producer id"))?;
         // Finalized → plain caps: the finalized form IS a valid RtpCapabilities
         // superset; serde round-trip converts the newtype cleanly.
-        let caps_plain: mediasoup_types::rtp_parameters::RtpCapabilities =
-            serde_json::from_value(serde_json::to_value(router.rtp_capabilities()).map_err(
-                |e| sfu_err(e, "caps ser"),
-            )?)
-            .map_err(|e| sfu_err(e, "caps convert"))?;
-        let options =
-            mediasoup::consumer::ConsumerOptions::new(producer_mid, caps_plain);
+        let caps_plain: mediasoup_types::rtp_parameters::RtpCapabilities = serde_json::from_value(
+            serde_json::to_value(router.rtp_capabilities()).map_err(|e| sfu_err(e, "caps ser"))?,
+        )
+        .map_err(|e| sfu_err(e, "caps convert"))?;
+        let options = mediasoup::consumer::ConsumerOptions::new(producer_mid, caps_plain);
         let consumer = transport
             .consume(options)
             .await
@@ -343,10 +349,10 @@ impl Sfu for MediasoupSfu {
         let params = serde_json::to_value(consumer.rtp_parameters())
             .map_err(|e| sfu_err(e, "consumer params ser"))?;
         // keep the consumer alive (drop = close); registry for future pause
-        self.consumers
-            .write()
-            .await
-            .insert((room.clone(), peer.clone(), consumer.id().to_string()), consumer);
+        self.consumers.write().await.insert(
+            (room.clone(), peer.clone(), consumer.id().to_string()),
+            consumer,
+        );
         Ok((consumer_id, params))
     }
 
@@ -408,9 +414,7 @@ impl Sfu for MediasoupSfu {
         if !is_granted_resumed {
             return ActivityState::Silent;
         }
-        let producer_id = producers
-            .get(&(room.clone(), peer.clone()))
-            .map(|p| p.id());
+        let producer_id = producers.get(&(room.clone(), peer.clone())).map(|p| p.id());
         let speaking = self.supervisor.inner.speaking.read().await;
         match producer_id {
             Some(id) if speaking.contains_key(&id) => ActivityState::Active,
@@ -494,7 +498,10 @@ mod tests {
         let sfu = MediasoupSfu::new(sup);
         let room = RoomId::from("t-room");
         let peer = PeerId::from("t-peer");
-        let info = sfu.create_transport(&room, &peer, "send").await.expect("transport");
+        let info = sfu
+            .create_transport(&room, &peer, "send")
+            .await
+            .expect("transport");
         assert!(info.ice.get("usernameIsEqual").is_none()); // shape probe — real fields exist
         assert!(info.ice.is_object());
         assert_eq!(sfu.backend(), "mediasoup");

@@ -2,12 +2,12 @@
 #![cfg(feature = "stub-media")]
 
 use futures_util::{SinkExt, StreamExt};
+use std::sync::Arc;
 use talkservo_core::wire::SignalingMessage;
-use tokio_tungstenite::tungstenite::Message as WsMessage;
+use talkservo_server::test_bridge;
 use tokio_tungstenite::MaybeTlsStream;
 use tokio_tungstenite::WebSocketStream;
-use std::sync::Arc;
-use talkservo_server::test_bridge;
+use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 type Ws = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
@@ -30,37 +30,56 @@ impl TestServer {
             media: media.clone(),
         });
         let app = test_bridge::build_router(app_state);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
         let addr = listener.local_addr().expect("addr");
         tokio::spawn(async move { axum::serve(listener, app).await.expect("serve") });
-        Self { url: format!("ws://{addr}/ws"), secret, media }
+        Self {
+            url: format!("ws://{addr}/ws"),
+            secret,
+            media,
+        }
     }
-    fn ws_url(&self) -> &str { &self.url }
+    fn ws_url(&self) -> &str {
+        &self.url
+    }
 }
 
 async fn ws_connect(url: &str) -> Ws {
-    let (ws, _) = tokio_tungstenite::connect_async(url).await.expect("connect");
+    let (ws, _) = tokio_tungstenite::connect_async(url)
+        .await
+        .expect("connect");
     ws
 }
 
 async fn send_json(sink: &mut Ws, msg: &SignalingMessage) {
-    sink.send(WsMessage::Text(serde_json::to_string(msg).expect("ser").into()))
-        .await
-        .expect("send");
+    sink.send(WsMessage::Text(
+        serde_json::to_string(msg).expect("ser").into(),
+    ))
+    .await
+    .expect("send");
 }
 
 async fn recv_msg(stream: &mut Ws) -> SignalingMessage {
     loop {
         let m = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
-            .await.expect("timeout")
-            .expect("stream").expect("ws");
+            .await
+            .expect("timeout")
+            .expect("stream")
+            .expect("ws");
         if let WsMessage::Text(t) = m {
             return serde_json::from_str(&t).expect("deser");
         }
     }
 }
 
-async fn join_and_drain(ws: &mut Ws, srv: &TestServer, sub: &str, role: talkservo_core::wire::Role) {
+async fn join_and_drain(
+    ws: &mut Ws,
+    srv: &TestServer,
+    sub: &str,
+    role: talkservo_core::wire::Role,
+) {
     let jwt = test_bridge::issue_token(&srv.secret, sub, "room-1", role, 3600);
     send_json(ws, &SignalingMessage::Join { v: 1, jwt }).await;
     // J burst = Welcome, RouterCaps, PeerList, ServerSnapshot (PeerJoined goes
@@ -78,15 +97,34 @@ async fn transport_create_connect_produce_flow() {
 
     // J-step 3: TransportCreate → TransportInfo
     send_json(&mut a, &SignalingMessage::TransportCreate { dir: None }).await;
-    assert!(matches!(recv_msg(&mut a).await, SignalingMessage::TransportInfo { .. }));
+    assert!(matches!(
+        recv_msg(&mut a).await,
+        SignalingMessage::TransportInfo { .. }
+    ));
 
     // J-step 5: connect
-    send_json(&mut a, &SignalingMessage::TransportConnect { dtls: serde_json::json!({}), dir: None }).await;
+    send_json(
+        &mut a,
+        &SignalingMessage::TransportConnect {
+            dtls: serde_json::json!({}),
+            dir: None,
+        },
+    )
+    .await;
     // no reply on success
 
     // J-step 6: Produce → ProduceOk
-    send_json(&mut a, &SignalingMessage::Produce { rtp_parameters: serde_json::json!({}) }).await;
-    assert!(matches!(recv_msg(&mut a).await, SignalingMessage::ProduceOk { .. }));
+    send_json(
+        &mut a,
+        &SignalingMessage::Produce {
+            rtp_parameters: serde_json::json!({}),
+        },
+    )
+    .await;
+    assert!(matches!(
+        recv_msg(&mut a).await,
+        SignalingMessage::ProduceOk { .. }
+    ));
     // additive announcement follows ProduceOk (pull-model consume wire)
     assert!(matches!(
         recv_msg(&mut a).await,
@@ -95,7 +133,11 @@ async fn transport_create_connect_produce_flow() {
 
     // sfu saw the calls
     let calls = srv.media.calls();
-    assert!(calls.iter().any(|c| matches!(c, talkservo_sfu::stub::Call::Produce { peer, .. } if peer == "peer-a")));
+    assert!(
+        calls.iter().any(
+            |c| matches!(c, talkservo_sfu::stub::Call::Produce { peer, .. } if peer == "peer-a")
+        )
+    );
 }
 
 #[tokio::test]
@@ -104,7 +146,13 @@ async fn produce_before_connect_rejected() {
     let mut a = ws_connect(srv.ws_url()).await;
     join_and_drain(&mut a, &srv, "peer-b", talkservo_core::wire::Role::Field).await;
 
-    send_json(&mut a, &SignalingMessage::Produce { rtp_parameters: serde_json::json!({}) }).await;
+    send_json(
+        &mut a,
+        &SignalingMessage::Produce {
+            rtp_parameters: serde_json::json!({}),
+        },
+    )
+    .await;
     match recv_msg(&mut a).await {
         SignalingMessage::Error { code, .. } => assert_eq!(code, "bad_order"),
         other => panic!("expected bad_order, got {other:?}"),
@@ -122,7 +170,10 @@ async fn transport_guardrail_capacity_reject() {
     for i in 0..50 {
         send_json(&mut a, &SignalingMessage::TransportCreate { dir: None }).await;
         let m = recv_msg(&mut a).await;
-        assert!(matches!(m, SignalingMessage::TransportInfo { .. }), "create {i} failed");
+        assert!(
+            matches!(m, SignalingMessage::TransportInfo { .. }),
+            "create {i} failed"
+        );
     }
     // 51st → media_capacity
     send_json(&mut a, &SignalingMessage::TransportCreate { dir: None }).await;
@@ -139,11 +190,15 @@ async fn e4_transport_timeout_emits_media_failed() {
     join_and_drain(&mut a, &srv, "peer-d", talkservo_core::wire::Role::Field).await;
 
     // script E4: next transport for peer-d fails
-    srv.media.fail_next_transport(&talkservo_core::ids::PeerId::from("peer-d"));
+    srv.media
+        .fail_next_transport(&talkservo_core::ids::PeerId::from("peer-d"));
     send_json(&mut a, &SignalingMessage::TransportCreate { dir: None }).await;
     // first response: MediaFailed broadcast (to self, sole member)
     let m = recv_msg(&mut a).await;
-    assert!(matches!(m, SignalingMessage::MediaFailed { .. }), "got {m:?}");
+    assert!(
+        matches!(m, SignalingMessage::MediaFailed { .. }),
+        "got {m:?}"
+    );
     // then the error
     match recv_msg(&mut a).await {
         SignalingMessage::Error { code, .. } => assert_eq!(code, "transport_timeout"),
@@ -160,16 +215,28 @@ async fn r_f15_apply_floor_invoked_on_grant_path() {
     join_and_drain(&mut a, &srv, "gater", talkservo_core::wire::Role::Field).await;
 
     srv.media.clear_calls();
-    send_json(&mut a, &SignalingMessage::FloorRequest { priority: 0, preempt: false }).await;
+    send_json(
+        &mut a,
+        &SignalingMessage::FloorRequest {
+            priority: 0,
+            preempt: false,
+        },
+    )
+    .await;
     let mut granted = false;
     for _ in 0..6 {
         let m = recv_msg(&mut a).await;
-        if matches!(m, SignalingMessage::FloorGranted { .. }) { granted = true; break; }
+        if matches!(m, SignalingMessage::FloorGranted { .. }) {
+            granted = true;
+            break;
+        }
     }
     assert!(granted);
     let calls = srv.media.calls();
     assert!(
-        calls.iter().any(|c| matches!(c, talkservo_sfu::stub::Call::ApplyFloor { .. })),
+        calls
+            .iter()
+            .any(|c| matches!(c, talkservo_sfu::stub::Call::ApplyFloor { .. })),
         "apply_floor must be invoked on the grant path (R-F15): {calls:?}"
     );
 }
@@ -192,7 +259,9 @@ async fn r_f16_peer_left_media_cascade() {
 
     let calls = srv.media.calls();
     assert!(
-        calls.iter().any(|c| matches!(c, talkservo_sfu::stub::Call::PeerLeft { peer, .. } if peer == "leaver")),
+        calls.iter().any(
+            |c| matches!(c, talkservo_sfu::stub::Call::PeerLeft { peer, .. } if peer == "leaver")
+        ),
         "peer_left must fire on disconnect (R-F16): {calls:?}"
     );
 }
@@ -210,12 +279,28 @@ async fn r_f14_consume_of_ungranted_producer_denied() {
     // holder transport up + produce (no floor request — grants stay empty)
     send_json(&mut a, &SignalingMessage::TransportCreate { dir: None }).await;
     let _ = recv_msg(&mut a).await; // TransportInfo
-    send_json(&mut a, &SignalingMessage::TransportConnect { dtls: serde_json::json!({}), dir: None }).await;
-    send_json(&mut a, &SignalingMessage::Produce { rtp_parameters: serde_json::json!({}) }).await;
+    send_json(
+        &mut a,
+        &SignalingMessage::TransportConnect {
+            dtls: serde_json::json!({}),
+            dir: None,
+        },
+    )
+    .await;
+    send_json(
+        &mut a,
+        &SignalingMessage::Produce {
+            rtp_parameters: serde_json::json!({}),
+        },
+    )
+    .await;
     let mut producer_id: Option<String> = None;
     for _ in 0..4 {
         let m = recv_msg(&mut a).await;
-        if let SignalingMessage::ProduceOk { producer_id: pid_val } = m {
+        if let SignalingMessage::ProduceOk {
+            producer_id: pid_val,
+        } = m
+        {
             producer_id = Some(pid_val.to_string());
             break;
         }
@@ -229,7 +314,13 @@ async fn r_f14_consume_of_ungranted_producer_denied() {
     ));
 
     // then the consume gate denies the ungranted producer
-    send_json(&mut b, &SignalingMessage::Consume { producer_id: serde_json::json!(pid) }).await;
+    send_json(
+        &mut b,
+        &SignalingMessage::Consume {
+            producer_id: serde_json::json!(pid),
+        },
+    )
+    .await;
     let reply = recv_msg(&mut b).await;
     match reply {
         SignalingMessage::Error { code, .. } => assert_eq!(code, "consume_denied"),

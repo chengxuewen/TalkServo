@@ -4,8 +4,8 @@
 
 use talkservo_core::ids::{PeerId, RoomId};
 use talkservo_core::wire::{
-    DenyReason, DispatchSnapshot, FieldSnapshot, FloorMode, PeerInfo, Role,
-    ServerSnapshotPayload, SignalingMessage,
+    DenyReason, DispatchSnapshot, FieldSnapshot, FloorMode, PeerInfo, Role, ServerSnapshotPayload,
+    SignalingMessage,
 };
 
 fn pid(s: &str) -> PeerId {
@@ -186,15 +186,24 @@ fn error_variant_roundtrip() {
 #[test]
 fn all_tags_are_snake_case() {
     let probes = vec![
-        (SignalingMessage::FloorRequest {
-            priority: 1,
-            preempt: false,
-        }, "floor_request"),
-        (SignalingMessage::TransportCreate { dir: None }, "transport_create"),
-        (SignalingMessage::MediaRestart {
-            room: RoomId::from("r"),
-            reason: String::new(),
-        }, "media_restart"),
+        (
+            SignalingMessage::FloorRequest {
+                priority: 1,
+                preempt: false,
+            },
+            "floor_request",
+        ),
+        (
+            SignalingMessage::TransportCreate { dir: None },
+            "transport_create",
+        ),
+        (
+            SignalingMessage::MediaRestart {
+                room: RoomId::from("r"),
+                reason: String::new(),
+            },
+            "media_restart",
+        ),
     ];
     for (m, tag) in probes {
         assert_tag(&m, tag);

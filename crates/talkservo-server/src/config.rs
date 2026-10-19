@@ -45,34 +45,35 @@ pub struct Config {
 
 /// server.yaml snake_case keys → environment names (single source; tests
 /// assert every env key a yaml can set; modules/06 documents the table).
-pub static YAML_ENV_KEYS: std::sync::LazyLock<std::collections::HashMap<&'static str, &'static str>> =
-    std::sync::LazyLock::new(|| {
-        std::collections::HashMap::from([
-            ("jwt_secret", "TS_JWT_SECRET"),
-            ("admin_secret", "TS_ADMIN_SECRET"),
-            ("public_base", "TS_PUBLIC_BASE"),
-            ("bind", "TS_BIND"),
-            ("announced_ip", "TS_ANNOUNCED_IP"),
-            ("turn_secret", "TURN_SECRET"),
-            ("turn_uri", "TURN_URI"),
-            ("jwt_ttl_s", "TS_JWT_TTL_S"),
-            ("turn_ttl_s", "TURN_TTL_S"),
-            ("floor_max_hold_ms", "FLOOR_MAX_HOLD_MS"),
-            ("floor_media_grace_ms", "FLOOR_MEDIA_GRACE_MS"),
-            ("floor_request_cooldown_ms", "FLOOR_REQUEST_COOLDOWN_MS"),
-            ("heartbeat_s", "HEARTBEAT_S"),
-            ("rtc_port_min", "RTC_PORT_MIN"),
-            ("rtc_port_max", "RTC_PORT_MAX"),
-            ("transport_guardrail", "TRANSPORT_GUARDRAIL"),
-            ("no_rtp_watchdog_ms", "NO_RTP_WATCHDOG_MS"),
-            ("room_idle_ttl_s", "ROOM_IDLE_TTL_S"),
-            ("max_peers", "MAX_PEERS"),
-            ("max_queue", "MAX_QUEUE"),
-            ("max_frame_bytes", "MAX_FRAME_BYTES"),
-            ("admin_password_hash", "TS_ADMIN_PASSWORD_HASH"),
-            ("admin_login_ttl_s", "TS_ADMIN_LOGIN_TTL_S"),
-        ])
-    });
+pub static YAML_ENV_KEYS: std::sync::LazyLock<
+    std::collections::HashMap<&'static str, &'static str>,
+> = std::sync::LazyLock::new(|| {
+    std::collections::HashMap::from([
+        ("jwt_secret", "TS_JWT_SECRET"),
+        ("admin_secret", "TS_ADMIN_SECRET"),
+        ("public_base", "TS_PUBLIC_BASE"),
+        ("bind", "TS_BIND"),
+        ("announced_ip", "TS_ANNOUNCED_IP"),
+        ("turn_secret", "TURN_SECRET"),
+        ("turn_uri", "TURN_URI"),
+        ("jwt_ttl_s", "TS_JWT_TTL_S"),
+        ("turn_ttl_s", "TURN_TTL_S"),
+        ("floor_max_hold_ms", "FLOOR_MAX_HOLD_MS"),
+        ("floor_media_grace_ms", "FLOOR_MEDIA_GRACE_MS"),
+        ("floor_request_cooldown_ms", "FLOOR_REQUEST_COOLDOWN_MS"),
+        ("heartbeat_s", "HEARTBEAT_S"),
+        ("rtc_port_min", "RTC_PORT_MIN"),
+        ("rtc_port_max", "RTC_PORT_MAX"),
+        ("transport_guardrail", "TRANSPORT_GUARDRAIL"),
+        ("no_rtp_watchdog_ms", "NO_RTP_WATCHDOG_MS"),
+        ("room_idle_ttl_s", "ROOM_IDLE_TTL_S"),
+        ("max_peers", "MAX_PEERS"),
+        ("max_queue", "MAX_QUEUE"),
+        ("max_frame_bytes", "MAX_FRAME_BYTES"),
+        ("admin_password_hash", "TS_ADMIN_PASSWORD_HASH"),
+        ("admin_login_ttl_s", "TS_ADMIN_LOGIN_TTL_S"),
+    ])
+});
 
 impl Config {
     /// Read from environment; missing `TS_JWT_SECRET` aborts startup with a
@@ -85,28 +86,41 @@ impl Config {
     /// std::env::set_var is only safe there (edition-2024 rule). Unknown keys
     /// warn (typo visibility beats silent no-op; doctor re-surfaces them).
     pub fn load_yaml(path: &std::path::Path) -> Result<Self, String> {
-        let text = std::fs::read_to_string(path)
-            .map_err(|e| format!("read {}: {e}", path.display()))?;
+        let text =
+            std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
         let doc: serde_yaml::Value =
             serde_yaml::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))?;
-        let map = doc.as_mapping().ok_or_else(|| "server.yaml must be a flat mapping".to_string())?;
+        let map = doc
+            .as_mapping()
+            .ok_or_else(|| "server.yaml must be a flat mapping".to_string())?;
         // B sidecar: <config_dir>/../identity/env holds the 0600 secrets
         // (and, on legacy instances, TS_BIND). Both file layers apply ONLY to
         // keys the REAL process env never had — 12-factor authority is
         // snapshotted before any injection.
-        let real_env: std::collections::HashSet<std::ffi::OsString> = std::env::vars_os().map(|(k, _)| k).collect();
-        if let Some(sc) = path.parent().and_then(|etc| etc.parent()).map(|root| root.join("identity/env")) {
+        let real_env: std::collections::HashSet<std::ffi::OsString> =
+            std::env::vars_os().map(|(k, _)| k).collect();
+        if let Some(sc) = path
+            .parent()
+            .and_then(|etc| etc.parent())
+            .map(|root| root.join("identity/env"))
+        {
             Self::apply_identity_sidecar(&sc, &real_env);
         }
         for (k, v) in map {
-            let key = k.as_str().ok_or_else(|| "yaml keys must be strings".to_string())?;
+            let key = k
+                .as_str()
+                .ok_or_else(|| "yaml keys must be strings".to_string())?;
             // B2: keys the facade renders for OTHER processes (caddy) are
             // valid yaml but not env-mapped here — skip, no unknown-key warn.
             if key == "front_port" {
                 continue;
             }
             let Some(env_name) = YAML_ENV_KEYS.get(key) else {
-                tracing::warn!(event = "config_unknown_key", key, "ignored (check spelling)");
+                tracing::warn!(
+                    event = "config_unknown_key",
+                    key,
+                    "ignored (check spelling)"
+                );
                 continue;
             };
             if real_env.contains(std::ffi::OsStr::new(env_name)) {
@@ -118,7 +132,9 @@ impl Config {
                 serde_yaml::Value::Bool(flag) => flag.to_string(),
                 other => {
                     let _ = other;
-                    return Err(format!("yaml key {key}: only flat scalars supported (null/nested rejected)"));
+                    return Err(format!(
+                        "yaml key {key}: only flat scalars supported (null/nested rejected)"
+                    ));
                 }
             };
             // SAFETY: single-threaded startup (main before any spawn), see doc comment.
@@ -128,9 +144,7 @@ impl Config {
         // registry default: next to the operator file (<instance>/etc/
         // accounts.yaml); an explicit TS_ACCOUNTS_FILE env keeps authority.
         if cfg.accounts_file.is_none() {
-            cfg.accounts_file = path
-                .parent()
-                .map(|etc| etc.join("accounts.yaml"));
+            cfg.accounts_file = path.parent().map(|etc| etc.join("accounts.yaml"));
         }
         Ok(cfg)
     }
@@ -139,10 +153,17 @@ impl Config {
     /// the key AND the value is non-empty (an empty TURN_SECRET slot must NOT
     /// clobber; set_var cannot unset). Values arrive verbatim: `=` inside
     /// base64 secrets is not a separator.
-    fn apply_identity_sidecar(path: &std::path::Path, real_env: &std::collections::HashSet<std::ffi::OsString>) {
-        let Ok(text) = std::fs::read_to_string(path) else { return };
+    fn apply_identity_sidecar(
+        path: &std::path::Path,
+        real_env: &std::collections::HashSet<std::ffi::OsString>,
+    ) {
+        let Ok(text) = std::fs::read_to_string(path) else {
+            return;
+        };
         for line in text.lines() {
-            let Some((k, v)) = line.split_once('=') else { continue };
+            let Some((k, v)) = line.split_once('=') else {
+                continue;
+            };
             if v.is_empty() || real_env.contains(std::ffi::OsStr::new(k)) {
                 continue;
             }
@@ -176,14 +197,23 @@ impl Config {
             transport_guardrail: env_u64("TRANSPORT_GUARDRAIL", 50) as usize,
             no_rtp_watchdog_ms: env_u64("NO_RTP_WATCHDOG_MS", 2000),
             room_idle_ttl_s: env_u64("ROOM_IDLE_TTL_S", 600),
-            admin_secret: std::env::var("TS_ADMIN_SECRET").ok().filter(|v| !v.is_empty()),
-            public_base: std::env::var("TS_PUBLIC_BASE").ok().filter(|v| !v.is_empty()),
+            admin_secret: std::env::var("TS_ADMIN_SECRET")
+                .ok()
+                .filter(|v| !v.is_empty()),
+            public_base: std::env::var("TS_PUBLIC_BASE")
+                .ok()
+                .filter(|v| !v.is_empty()),
             max_peers: env_u64("MAX_PEERS", 10) as usize,
             max_queue: env_u64("MAX_QUEUE", 8) as usize,
             max_frame_bytes: env_u64("MAX_FRAME_BYTES", 65536) as usize,
-            admin_password_hash: std::env::var("TS_ADMIN_PASSWORD_HASH").ok().filter(|v| !v.is_empty()),
+            admin_password_hash: std::env::var("TS_ADMIN_PASSWORD_HASH")
+                .ok()
+                .filter(|v| !v.is_empty()),
             admin_login_ttl_s: env_u64("TS_ADMIN_LOGIN_TTL_S", 43_200),
-            accounts_file: std::env::var("TS_ACCOUNTS_FILE").ok().filter(|v| !v.is_empty()).map(std::path::PathBuf::from),
+            accounts_file: std::env::var("TS_ACCOUNTS_FILE")
+                .ok()
+                .filter(|v| !v.is_empty())
+                .map(std::path::PathBuf::from),
         }
     }
 
@@ -288,17 +318,34 @@ mod tests {
             dir.join("identity/env"),
             "TS_JWT_SECRET=side-car\nTS_ADMIN_SECRET=sc-admin\nTS_BIND=127.0.0.1:9199\nTURN_SECRET=\nTURN_URI=turn:sidecar\n",
         ).unwrap();
-        let p = write_yaml(&dir, "bind: \"127.0.0.1:9200\"\nheartbeat_s: 31\njwt_secret: from-yaml\n");
+        let p = write_yaml(
+            &dir,
+            "bind: \"127.0.0.1:9200\"\nheartbeat_s: 31\njwt_secret: from-yaml\n",
+        );
         unsafe { std::env::set_var("MAX_PEERS", "4") }; // real env beats every file layer
         unsafe { std::env::set_var("TS_ADMIN_SECRET", "real-env-admin") };
         let c = Config::load_yaml(&p).expect("sidecar load");
         unsafe { std::env::remove_var("MAX_PEERS") };
-        assert_eq!(c.jwt_secret, "from-yaml", "yaml outranks sidecar for shared keys");
-        assert_eq!(c.admin_secret.as_deref(), Some("real-env-admin"), "real env keeps authority over identity sidecar");
+        assert_eq!(
+            c.jwt_secret, "from-yaml",
+            "yaml outranks sidecar for shared keys"
+        );
+        assert_eq!(
+            c.admin_secret.as_deref(),
+            Some("real-env-admin"),
+            "real env keeps authority over identity sidecar"
+        );
         assert_eq!(c.turn_uri, "turn:sidecar", "sidecar-only key loads");
         unsafe { std::env::remove_var("TS_ADMIN_SECRET") };
-        assert_eq!(std::env::var("TS_BIND").unwrap(), "127.0.0.1:9200", "yaml bind beats legacy identity bind");
-        assert!(c.turn_secret.as_deref().unwrap_or_default().is_empty(), "empty sidecar slot never clobbers env");
+        assert_eq!(
+            std::env::var("TS_BIND").unwrap(),
+            "127.0.0.1:9200",
+            "yaml bind beats legacy identity bind"
+        );
+        assert!(
+            c.turn_secret.as_deref().unwrap_or_default().is_empty(),
+            "empty sidecar slot never clobbers env"
+        );
         clear_config_env();
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -328,13 +375,15 @@ mod tests {
             .keys()
             .map(|k| match *k {
                 "jwt_secret" => "jwt_secret: s\n".to_string(),
-                "turn_secret" | "admin_secret" | "public_base" | "bind" | "announced_ip" =>
-                    format!("{k}: v\n").replace(": v bind", ": 127.0.0.1:9999")
+                "turn_secret" | "admin_secret" | "public_base" | "bind" | "announced_ip" => {
+                    format!("{k}: v\n")
+                        .replace(": v bind", ": 127.0.0.1:9999")
                         .replace(": v public_base", ": http://x")
                         .replace(": v bind", ": 127.0.0.1:9999")
                         .replace(": v turn_secret", ": ts")
                         .replace(": v admin_secret", ": as")
-                        .replace(": v announced_ip", ": 10.0.0.1"),
+                        .replace(": v announced_ip", ": 10.0.0.1")
+                }
                 "turn_uri" => "turn_uri: turn:10.0.0.1:3478\n".into(),
                 "floor_max_hold_ms" => "floor_max_hold_ms: off\n".into(),
                 _ => format!("{k}: 5\n"),

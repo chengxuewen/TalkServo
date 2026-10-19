@@ -67,7 +67,9 @@ pub fn save(path: &std::path::Path, accounts: &[Account]) -> Result<(), String> 
         use std::os::unix::fs::OpenOptionsExt;
         opts.mode(0o600);
     }
-    let mut f = opts.open(&tmp).map_err(|e| format!("write {}: {e}", tmp.display()))?;
+    let mut f = opts
+        .open(&tmp)
+        .map_err(|e| format!("write {}: {e}", tmp.display()))?;
     std::io::Write::write_all(&mut f, body.as_bytes())
         .and_then(|()| f.sync_all())
         .and_then(|()| std::fs::rename(&tmp, path))
@@ -198,13 +200,20 @@ mod tests {
         upsert(&cfg, "ops-1", "secretpw").unwrap(); // no bootstrap to carry
         assert!(authenticate(&cfg, "ops-1", "secretpw"));
         assert!(!authenticate(&cfg, "ops-1", "wrong-pw"));
-        assert!(!authenticate(&cfg, "ghost", "secretpw"), "unknown user on non-empty file");
+        assert!(
+            !authenticate(&cfg, "ghost", "secretpw"),
+            "unknown user on non-empty file"
+        );
         let v = list_view(&cfg);
         assert_eq!(v.len(), 1);
         assert_eq!(v[0]["user"], "ops-1");
         assert!(v[0].get("hash").is_none(), "list never exposes hashes");
         assert_eq!(remove(&cfg, "ops-1").unwrap(), 1);
-        assert_eq!(remove(&cfg, "ops-1").unwrap(), 0, "double remove => 404 path");
+        assert_eq!(
+            remove(&cfg, "ops-1").unwrap(),
+            0,
+            "double remove => 404 path"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -223,7 +232,10 @@ mod tests {
         upsert(&cfg, "ops-2", "otherpw").unwrap();
         let raw = std::fs::read_to_string(cfg.accounts_file.as_ref().unwrap()).unwrap();
         assert!(raw.contains("admin"), "bootstrap row carried:\n{raw}");
-        assert!(authenticate(&cfg, "admin", "bootpw"), "bootstrap still valid via file");
+        assert!(
+            authenticate(&cfg, "admin", "bootpw"),
+            "bootstrap still valid via file"
+        );
         assert!(authenticate(&cfg, "ops-2", "otherpw"));
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -235,7 +247,10 @@ mod tests {
         std::fs::create_dir_all(dir.join("etc")).unwrap();
         let path = dir.join("etc/accounts.yaml");
         std::fs::write(&path, "NOT-YAML: [").unwrap();
-        assert!(load(&path).is_empty(), "corrupt store reads empty, never panics");
+        assert!(
+            load(&path).is_empty(),
+            "corrupt store reads empty, never panics"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -257,7 +272,10 @@ mod tests {
         // API upsert on the same user wins with a hash and clears plaintext
         upsert(&cfg, "admin", "api-reset-pw-123").unwrap();
         let raw = std::fs::read_to_string(cfg.accounts_file.as_ref().unwrap()).unwrap();
-        assert!(raw.contains("pbkdf2$") && !raw.contains("operator-typed"), "{raw}");
+        assert!(
+            raw.contains("pbkdf2$") && !raw.contains("operator-typed"),
+            "{raw}"
+        );
         assert!(authenticate(&cfg, "admin", "api-reset-pw-123"));
         // list view never leaks either field
         assert_eq!(list_view(&cfg)[0].get("password"), None);
@@ -270,11 +288,23 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("etc")).unwrap();
         let path = dir.join("etc/accounts.yaml");
-        save(&path, &[Account { user: "a".into(), hash: String::new(), password: "p".into(), role: "admin".into() }]).unwrap();
+        save(
+            &path,
+            &[Account {
+                user: "a".into(),
+                hash: String::new(),
+                password: "p".into(),
+                role: "admin".into(),
+            }],
+        )
+        .unwrap();
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+            assert_eq!(
+                std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
         }
         std::fs::remove_dir_all(&dir).ok();
     }

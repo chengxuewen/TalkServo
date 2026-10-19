@@ -4,9 +4,9 @@
 
 use crate::config::Config;
 use crate::obs;
-use talkservo_core::ids::PeerId;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use talkservo_core::ids::PeerId;
 
 /// E11 watch state per peer (room-task-owned).
 #[derive(Default)]

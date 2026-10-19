@@ -14,10 +14,7 @@ pub enum CoreError {
     ReservedGeneration(u64),
     /// FloorLimits invariant violated (max_queue must be >= max nonzero grants capacity).
     #[error("invalid floor limits: max_peers={max_peers}, max_queue={max_queue}")]
-    InvalidLimits {
-        max_peers: usize,
-        max_queue: usize,
-    },
+    InvalidLimits { max_peers: usize, max_queue: usize },
 }
 
 #[cfg(test)]

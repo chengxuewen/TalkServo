@@ -18,8 +18,8 @@ pub fn issue(secret: &str, ttl_s: u64, now_s: u64, uri: &str) -> Option<serde_js
     }
     let expiry = now_s.saturating_add(ttl_s);
     let username = expiry.to_string();
-    let mut mac = Hmac::<Sha1>::new_from_slice(secret.as_bytes())
-        .expect("HMAC accepts any key length");
+    let mut mac =
+        Hmac::<Sha1>::new_from_slice(secret.as_bytes()).expect("HMAC accepts any key length");
     mac.update(username.as_bytes());
     let digest = mac.finalize().into_bytes();
     let credential = base64::engine::general_purpose::STANDARD.encode(digest);
@@ -47,8 +47,7 @@ mod tests {
         // ttl 0 → expiry == now
         assert_eq!(creds["username"], "1790740000");
         assert_eq!(
-            creds["credential"],
-            "4r5xxcZjEWd0Cs3HRaz1ikUYxEE=",
+            creds["credential"], "4r5xxcZjEWd0Cs3HRaz1ikUYxEE=",
             "HMAC-SHA1 base64 must match the openssl reference"
         );
         assert_eq!(creds["uris"], serde_json::json!([URI]));
