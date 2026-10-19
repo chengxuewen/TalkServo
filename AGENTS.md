@@ -57,7 +57,7 @@ Unmeasured — zero source files; no LSP/codegraph index applicable pre-code. Sy
 
 ```bash
 # gates (run before claiming doc/config work complete)
-grep -rnP '[\x{4e00}-\x{9fff}]' --exclude-dir=node_modules --exclude-dir=.git \
+grep -rnP '[\x{4e00}-\x{9fff}]' --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist --exclude-dir=coverage \
   .agents .opencode .omo docs web 2>/dev/null | grep -v c1:allow-zh        # C1: must be empty
 test -f docs/reference/README.md && test -d docs/modules && ! ls docs/research 2>/dev/null && echo C2-OK
 python3 - <<'E'  # docs link integrity

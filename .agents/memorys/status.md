@@ -1,6 +1,6 @@
 # TalkServo Status
 
-**Generated**: 2026-10-09 | Decisions: 21 entries | Phase: plan-4 LAN slice COMPLETE + SIGNOFF (11 pass/1 partial-deferred #8 of 12; D13 consumer reuse fix → keydown p50 ~320ms budget revised 350/600; #9 ICE matrix pass vs LAN coturn; #8 FEC deferred to real impaired network per ruling; public posture = Alpha) | Branch: main
+**Generated**: 2026-10-10 | Decisions: 21 entries | Phase: plan-4 LAN slice COMPLETE + SIGNOFF (11 pass/1 partial-deferred #8 of 12; D13 consumer reuse fix → keydown p50 ~320ms budget revised 350/600; #9 ICE matrix pass vs LAN coturn; #8 FEC deferred to real impaired network per ruling; public posture = Alpha); P0 multi-web talk LANDED (participant /room shell + Open-concurrency e2e + PIT-21 grant-set rebroadcast fix) | Branch: main
 
 > TalkServo is a sister project of MediaServo (same RTC domain). Engineering lessons are accumulated from scratch;
 > MediaServo's historical ledgers live in its own repository under `.agents/memorys/` — they are not migrated here and must not impersonate this project's history.
@@ -10,8 +10,8 @@
 | Crate / Module | Tests | Notes |
 |-------|:----:|------|
 | packages/client (TS SDK, unpublished D14) | 16 | wire mirror + signal transport + store + facade + media manager; coverage 78.9% |
-| web/ (SPA, Vite+React18+AntD5) | 2 | dispatcher + field pages, S-3 session bridge, dark theme; embedded via feature `embedded-web` |
-| crates/talkservo-core | 38 | ids + wire contract (27-variant, D16) + FloorState apply() rules 1-9; floor.rs coverage 87.5% |
+| web/ (SPA, Vite+React18+AntD5) | 7 | dispatcher + field + participant pages, S-3 session bridge, dark theme; embedded via feature `embedded-web`; e2e: floor/talk/admin specs |
+| crates/talkservo-core | 39 | ids + wire contract (27-variant, D16) + FloorState apply() rules 1-9 + grant-set shrink rebroadcast (PIT-21); floor.rs coverage 87.5% |
 | crates/talkservo-sfu | 1 | Sfu trait (create/connect/produce/consume/apply_floor diff/peer_left/media_activity E11 seam) + StubSfu call-log backend + MediasoupSfu skeleton (supervisor seam) |
 | crates/talkservo-sfu | 1 | Sfu trait + exactly-one-backend compile gate (mediasoup|stub) |
 | crates/talkservo-server | 37 | WS signaling (J burst, cooldown, AlreadyJoined, bad_version), media routing (E4/E10), timers (E11/max-hold/TokenRefresh) — stub path; mediasoup worker builds natively (3m52s) |
