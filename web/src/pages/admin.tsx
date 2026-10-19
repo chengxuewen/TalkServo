@@ -276,6 +276,7 @@ export function AdminPage(): React.ReactElement {
                   [
                     ["field", issued.field_url],
                     ["dispatch", issued.dispatch_url],
+                    ["participant", issued.participant_url],
                     ["jwt", issued.jwt],
                   ] as const
                 ).map(([label, value]) => (

@@ -47,6 +47,7 @@ export interface Issued {
   jwt: string;
   field_url: string;
   dispatch_url: string;
+  participant_url: string;
 }
 
 export class AdminApi {

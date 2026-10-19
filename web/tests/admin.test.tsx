@@ -104,15 +104,19 @@ describe("admin console", () => {
             status: 200,
             json: async () => ({
               jwt: "eyJmock",
-              field_url: "https://lan:8443/f/ops-01?jwt=eyJmock",
-              dispatch_url: "https://lan:8443/d/ops-01?jwt=eyJmock",
+              field_url: "https://lan:8443/field/ops-01?jwt=eyJmock",
+              dispatch_url: "https://lan:8443/dispatch/ops-01?jwt=eyJmock",
+              participant_url: "https://lan:8443/room/ops-01?jwt=eyJmock",
             }),
           }
         : { ok: true, status: 200, json: async () => routes[String(url)] },
     );
     fireEvent.click(screen.getByRole("button", { name: /^Issue$/ }));
     await waitFor(() =>
-      expect(screen.getByText(/field: https:\/\/lan:8443\/f\/ops-01\?jwt=/)).toBeTruthy(),
+      expect(screen.getByText(/field: https:\/\/lan:8443\/field\/ops-01\?jwt=/)).toBeTruthy(),
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/participant: https:\/\/lan:8443\/room\/ops-01\?jwt=/)).toBeTruthy(),
     );
   });
 });

@@ -310,6 +310,7 @@ async fn tokens(
             "jwt": jwt,
             "field_url": format!("{base}/field/{}?jwt={jwt}", req.room),
             "dispatch_url": format!("{base}/dispatch/{}?jwt={jwt}", req.room),
+            "participant_url": format!("{base}/room/{}?jwt={jwt}", req.room),
         })),
     )
         .into_response()

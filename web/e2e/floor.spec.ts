@@ -19,17 +19,18 @@ function issueToken(sub: string, role: "dispatch" | "field"): string {
   return out.stdout.trim();
 }
 
-function urlFor(role: "d" | "f", sub: string): string {
+function urlFor(role: "dispatch" | "field", sub: string): string {
+  return `${process.env.TS_URL!}/${role}/${ROOM}?jwt=${issueToken(sub, role)}`;
   return `${process.env.TS_URL!}/${role}/${ROOM}?jwt=${issueToken(sub, role === "d" ? "dispatch" : "field")}`;
 }
 
 async function joinField(page: Page, sub: string) {
-  await page.goto(urlFor("f", sub));
+  await page.goto(urlFor("field", sub));
   await expect(page.getByText("connected")).toBeVisible({ timeout: 10_000 });
 }
 
 async function joinDispatch(page: Page, sub: string) {
-  await page.goto(urlFor("d", sub));
+  await page.goto(urlFor("dispatch", sub));
   await expect(page.getByText("connected")).toBeVisible({ timeout: 10_000 });
 }
 

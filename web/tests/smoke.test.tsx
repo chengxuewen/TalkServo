@@ -20,7 +20,7 @@ let locationOverride = "/";
 
 describe("dispatcher smoke", () => {
   it("renders grid + queue strip + event log scaffold", () => {
-    locationOverride = "/d/demo";
+    locationOverride = "/dispatch/demo";
     ui(<DispatcherPage />);
     expect(screen.getByText(/Dispatch — demo/)).toBeTruthy();
     expect(screen.getByText("Targets")).toBeTruthy();
@@ -33,7 +33,7 @@ describe("dispatcher smoke", () => {
 
 describe("field smoke", () => {
   it("renders roster + hold-to-talk + settings", () => {
-    locationOverride = "/f/demo";
+    locationOverride = "/field/demo";
     ui(<FieldPage />);
     expect(screen.getByText(/Field — demo/)).toBeTruthy();
     expect(screen.getByText("Roster")).toBeTruthy();

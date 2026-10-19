@@ -184,6 +184,7 @@ async fn token_issuance_end_to_end_and_guards() {
     assert_eq!(st, 200, "issue: {body}");
     let expected = format!("https://test.lan:8443/field/issued-room?jwt={}", body["jwt"].as_str().unwrap());
     assert_eq!(body["field_url"], serde_json::json!(expected));
+    assert_eq!(body["participant_url"], serde_json::json!(expected.replace("/field/", "/room/")));
     let jwt = body["jwt"].as_str().unwrap().to_string();
     let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/ws")).await.unwrap();
     ws.send(tungstenite_text(
