@@ -66,6 +66,12 @@ secrets:      scripts/scan-hardcode.sh            # path already referenced by s
 
 ## 5. Decision hooks
 
+> **D25 pointer (2026-10-19)**: the build ENTRY migrates to a PolyOrch CMake graph (submodule
+> embed, Rust/Node/gate/install lanes — full blueprint + P1-P4 schedule in
+> docs/plans/2026-10-19-plan8-polyorch-build-assembly.md). pixi remains environment
+> single-source; this module's task tables stay current until their phase retires them.
+
+
 D11 (this posture) · D5/D7 (default-features discipline + member gating) · D6 (mediasoup is why meson/ninja/clang exist at all) · platform.md/docker.md rule files annotated to defer to this module.
 
 **Lockfile rule (review O-§3)**: `pixi.lock` commit is mandatory alongside `Cargo.lock` — conda-side meson/clang/openssl versions must not float across machines (that float is precisely the MESON_ARGS pitfall surface above).
