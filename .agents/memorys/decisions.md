@@ -183,3 +183,39 @@
 **Date**: 2026-10-09 | **Amends**: D19 (config precedence + literal secret rendering — see its Amendment B), D20 (its limit ":8443 fixed default port, edit the Caddyfile" is SUPERSEDED).
 **Limits**: front port change flow = edit yaml -> deploy (re-renders Caddyfile) -> restart (no hot-swap); NO 301 for old SPA routes (PoC has no installed link base — C3 renames went full-word instead); multi-instance global-name collision stays PIT-12 (single-instance contract).
 **Source**: user ruling chain 2026-10-09 「主流项目都是放在一个 yaml…分析」->「b方案，配置文件有哪些？端口、ip 等等如何配置？」->「当前 server 和 web 配置是分散的…说人话」->「执行」; verification = 28 lib tests + live closed loop (`https://192.168.2.127:8443/field/demo?jwt=…` issued via /admin). <!-- c1:allow-zh -->
+
+## D23: Alpha wave 1 = trust & control — room authority chain, audit log, role tiers, intervention kit (2026-10-19)
+
+**Decision**: four sub-decisions adjudicated one by one (user-adjudicated walkthrough protocol 2026-10-19, "B/A/A/A/B"):
+1. **Room authority = token-carried moderator chain (option B)**: JWT claims gain `mod: [room]` list; server-side authorization check ADDED for command messages — today ModeChange/MuteSet drop the actor (`let _ = actor;` floor.rs) so ANY field token can flip modes (verified gap, never formalized). Per-room authority (creator/moderator per Zello model, competitor lesson 3) chosen over global-dispatch superuser; claims-shape change ripples to SDK types/auth/tests.
+2. **Audit = JSONL append files (option A)**: `out/live/logs/audit.jsonl` (rotating), one line per floor/admin/auth event (grant/taken/idle/mode_change/mute/login-fail/join/leave/token-issue); admin REST `/admin/api/audit` + Logs tab; zero new deps; SQLite deferred until a real query need exists (format migrates losslessly).
+3. **Account tiers = admin + operator (option A)**: `role` field activated — admin (accounts/rooms/audit config) vs operator (issue tokens, monitor, act as room moderator); viewer tier deferred (YAGNI, no stated consumer); changes concentrate in admin guard.
+4. **Intervention = full kit of three (option A, user upgraded from recommended B)**: kick (DELETE /admin/api/rooms/{room}/peers/{peer}, reusing the Leave cleanup path) + forced floor release + per-peer detail panel (transport stats via AdminInspect extension); detail panel accepted despite SFU-stats chain cost.
+5. **Order = audit skeleton FIRST (option B)**: audit writer lands first so every later step (authz denials, 403s, kicks) auto-leaves evidence — no bare-window where power acts are unlogged; intervention kit lands last with gate+audit in place.
+**Date**: 2026-10-19 | **Amends**: D18 (audit persistence + roles + user-store items pulled forward from Alpha non-goals — this is the Alpha wave-1 scope ruling); consumes the actor-authorization gap discovered 2026-10-19 (floor.rs `let _ = actor;`).
+**UI annex (same day, three rulings B/A/A/A/B walkthrough + UI walkthrough)**: admin console = five tabs `Monitor | Rooms | Tokens | Accounts | Logs`, admin.tsx split into `pages/admin/` (index/monitor/rooms/tokens/accounts/logs, each <=150 lines); intervention = Monitor row-expandable peer list, kick/force-release behind Popconfirm, peer detail Drawer (AdminInspect per-peer extension); role tiering is layout-visible (Accounts tab admin-only, server 403 is the real gate); operator-audible Listen button = wave-2 (requires wire AdminListen/Role + SFU admin consume path — deferred WITH AdminEvent WS push as the wave-2 protocol batch).
+**Team-review annex (same day, U1-U3 walkthrough)**: U1 = dead code + tautology tests fixed
+IMMEDIATELY, not plan-gated (fake acceptance evidence does not wait for a plan; media.spec #12
+`>= -1` tautology -> real micTruth().serverPaused assertion, dead gain Slider/PREEMPT_PRIORITY/
+AudioCues-header honesty, floor.spec dead line, talk.spec cross-client `Speakers (2)` + `mode:
+open` non-actor assertions per PIT-21 rule, admin.test 401-bounce, playwright config parity
+retries:0/forbidOnly/trace); U2 = all three borrow items absorbed into wave-1 (Discord audit
+5-tuple -> S1 schema; Jitsi kick contract -> S6; Mumble suppress deny!=mute -> S7.5);
+U3 = behavioral-contract tests fixed now, UI-position tests reborn with the S7 rebuild (each
+test line survives refactor day).
+**Plan-review annex (same day, R1-R4 walkthrough)**: R1 = registry takes the clean name
+`/admin/api/rooms[/{room}]`, live poll renames to `rooms/live` (six call sites; one-time while
+no external consumers — D14 unpublished); R2 = kick reason is AUDIT-only, room broadcast reuses
+PeerLeft with an additive `left:removed` kind marker (no reason/actor over the wire — privacy
++ awareness, old clients valid); R3 = deny!=mute copy is its own slice S7.5 (separate commit,
+droppable without touching the S7 mainline); R4 = gates gain a 4-identity x 3-endpoint
+permission-matrix truth table, audit fail-visible fault injection (write failure MUST count +
+tracing::error, never panic, never silently drop — PIT-13 lesson), legacy-token compat test
+(mod_rooms-less token = empty set); static grep gate REJECTED (compile-time struct already
+pins the schema). Docs-gap ruling same day: modules/02 claims-debt payoff + modules/01 Rule 10
+IN as sync obligations; modules/06/03 + architecture-acceptance rows NOT adopted (explicit,
+ledgered here).
+Full plan: docs/plans/2026-10-19-alpha-wave1-trust-control.md (18 adjudications, all closed).
+
+**Limits**: single-room PoC heritage — multi-room authority shapes (mod lists per token) need the claims change verified against SDK wire mirror; FEC/netem acceptance #8 still outstanding; these four items are Alpha wave 1, NOT Beta scope.
+**Source**: brainstorming full-landscape review (2026-10-19): whitepaper §11 roadmap Alpha items already proven by PoC core (R1-R9) → strategic re-aim at "trust & control" dimension; competitor lessons 2/3 (audit+priority are what buyers pay; flat rooms are toy-grade); oss-voice-infra precedents (Mumble ACL / LiveKit grants / Janus admin / Jitsi affiliation — all server-enforced, all ≥2 tiers); user rulings in 5-adjudication walkthrough (plain-text protocol per adjudication-walkthrough skill).
