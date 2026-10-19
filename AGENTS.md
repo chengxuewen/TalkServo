@@ -68,7 +68,7 @@ print(sum(not os.path.exists(os.path.normpath(os.path.join(os.path.dirname(p),m)
   for p in glob.glob("docs/**/*.md",recursive=True)
   for m in re.findall(r'\]\(([^)h][^)]*\.md)',open(p).read()))) # must print 0
 E
-~/.pixi/bin/pixi run test    # workspace tests (core+server, stub lane)
+~/.pixi/bin/pixi run test    # graph: ctest -L rust|web (P2 forwarder; direct parity = cargo test --workspace)
 ~/.pixi/bin/pixi run cmake-probe && ~/.pixi/bin/pixi run ctest --test-dir out/cmake-build -L rust   # plan-8 graph (P1: core lane)
 ~/.pixi/bin/pixi run lint    # fmt+clippy
 cd web && npx vitest run && npx tsc --noEmit   # web unit + types

@@ -70,6 +70,16 @@ secrets:      scripts/scan-hardcode.sh            # path already referenced by s
 > embed, Rust/Node/gate/install lanes — full blueprint + P1-P4 schedule in
 > docs/plans/2026-10-19-plan8-polyorch-build-assembly.md). pixi remains environment
 > single-source; this module's task tables stay current until their phase retires them.
+- **P2 state (plan-8, 2026-10-19)**: `build`/`test`/`web-build`/`web-test` are now graph
+  forwarders (`cmake --build --target talkservo-*-build` / `ctest -L "rust|web"`);
+  `check`/`lint`/`format`/`audit`/`test-sfu` stay direct-cargo TOOLCHAIN tasks (no graph
+  equivalent for `cargo check`; clippy/deny are toolchain probes). Web-lane toolchain pins
+  discovered in P2: `packageManager` field in both package.json files (corepack offline
+  resolution - without it, corepack fetches `npm/latest` through the proxy and dies),
+  conda `nodejs >=22,<23` (node 26 breaks jsdom: unimplemented getComputedStyle kills the
+  AntD admin gate test), and the lanes' `CARGO_TARGET_<triple>_LINKER` = conda `cc` (NOT
+  the CMake CXX driver: clang++-23 resolves the conda-prefixed cross-ld whose built-in
+  sysroot lacks `__libc_single_threaded` that the mediasoup-sys static objects need).
 - **P1.0 posture (plan-8)**: `polyorch_pixi_setup` runs WITHOUT `COPY_SCRIPTS` — our
   `pixi.sh`/`pixi.bat` stay repo-owned (subshell-entry semantics per §4 above; PolyOrch's
   template is a source-activate file, swapping it would change the daily ritual). Sister

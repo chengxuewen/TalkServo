@@ -49,7 +49,10 @@ function(talkservo_ensure_polyorch_rust)
     if(NOT COMMAND polyorch_pixi_setup)
       message(FATAL_ERROR "TALKSERVO_USE_PIXI needs the PolyOrch pixi helper face")
     endif()
-    polyorch_pixi_setup(REPORT)
+    # ENVIRONMENT dev: the conda toolchain tuning (CC/CXX clang++-23,
+    # LD_LIBRARY_PATH, libclang) lives in the dev env (modules/09 §3); the
+    # default env only carries cmake (P1.0) - linking mediasoup needs dev.
+    polyorch_pixi_setup(ENVIRONMENT dev REPORT)
     polyorch_rust_setup(FROM pixi REQUIRED)
   else()
     polyorch_rust_setup(FROM system REQUIRED)

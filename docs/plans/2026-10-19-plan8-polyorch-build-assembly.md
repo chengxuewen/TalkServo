@@ -1,6 +1,6 @@
 # Plan-8: PolyOrch build assembly — CMake total graph, scripts as thin wrappers
 
-> **STATUS: approved (Momus OKAY + user 2026-10-19); P1 LANDED, P2 not started.**
+> **STATUS: P1+P2 LANDED (2026-10-19: 6 lanes green - rust x3+web via ctest, mediasoup artifact links; P3 not started).**
 > Rulings locked 2026-10-19 (D25: adopt-now / blueprint v2 phased / submodule embed).
 > Implementation not started; commit ccffabc holds the spec, this revision is pending user approval.
 > Sibling design truth: `docs/modules/09-dev-toolchain.md` (pixi posture; §PolyOrch pointer).
@@ -93,9 +93,10 @@ proven on two sibling repos. Decision: adopt now, phased, with the blueprint set
 
 ### P2-P4 (task-level detail lands at each phase start; scope fixed here)
 
-- **P2 lanes**: sfu+server lanes x dual feature configs (stub / sfu-mediasoup+embedded-web);
-  web lane (build/vitest/tsc via Node helpers); pixi build-verbs become thin forwarders
-  (names kept, CI untouched). Exit: full daily flow via cmake/ctest verbs.
+- [x] **P2 lanes** LANDED: five cargo lanes (core/sfu/server-lib/server-bin stub config +
+  server-mediasoup artifact, feature column + per-config target dirs) + web Node lane; pixi
+  build-verbs -> forwarders (names kept, CI untouched). Exit GREEN: ctest -L "rust|web" 4/4
+  (39 core / 1 sfu / 79 server-stub / vitest 8) + vite build 8.9s through the graph.
 - **P3 gates+e2e**: gate face -> ctest `-L gate` (C1/C2/C3/link + fmt/clippy/deny, managed
   regions); Playwright stub -> `-L e2e-stub` default, live -> `-L e2e-live` label-gated
   (TS_E2E_FEATURES/TS_COTURN semantics unchanged). Exit: one verb table covers build/test/gate.

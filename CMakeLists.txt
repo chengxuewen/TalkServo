@@ -25,9 +25,12 @@ talkservo_ensure_polyorch()             # sentinel embed: outer scope first-wins
 talkservo_ensure_polyorch_rust()        # TALKSERVO_USE_PIXI -> polyorch_rust_setup(FROM pixi)
 
 include(cmake/TalkServoCrates.cmake)
-talkservo_crates()                      # P1: core lane -> ctest label "rust" (P2 adds sfu/server x dual features)
+talkservo_crates()                      # P2: core+sfu+server stub lanes -> ctest "rust"; mediasoup =
+                                        # build-only artifact handle (test verb stays test-sfu until P3)
+include(cmake/TalkServoWeb.cmake)
+talkservo_web()                         # P2: web Node lane (npm scripts keep authority) -> ctest "web"
 # add_subdirectory(crates/...) stays off — lanes ride the helper surface; cargo keeps
 # its workspace authority (D65 equivalence, plan-8 red line 2: mediasoup worker build.rs-own).
 
 # Reserved wiring slots (lit per plan-8 phases, NOT speculative scaffolding):
-#   P2: web lane (polyorch_node_build/test) · P3: gate face + e2e labels · P4: install tree
+#   P3: gate face + e2e labels · P4: install tree

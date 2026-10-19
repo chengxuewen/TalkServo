@@ -99,7 +99,7 @@ describe("admin console", () => {
     })) as never;
     ui();
     // first poll fires on mount -> 401 -> onUnauthorized -> gate re-renders
-    expect(await screen.findByText("Username")).toBeTruthy();
+    expect(await screen.findByPlaceholderText("Username")).toBeTruthy();
     expect(adminJwt()).toBeNull();
   });
 
