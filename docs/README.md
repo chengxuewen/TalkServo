@@ -1,6 +1,6 @@
 # TalkServo Documentation Index
 
-> Updated: 2026-09-28 | Organization: Diataxis-inspired (specification / reference / research archive), mirroring the MediaServo docs layout.
+> Updated: 2026-10-19 | Organization: Diataxis-inspired (specification / reference / research archive), mirroring the MediaServo docs layout.
 
 ## Core documents
 

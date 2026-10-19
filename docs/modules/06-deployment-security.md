@@ -33,7 +33,7 @@
 | 2 | JWT (asymmetric RS/ES) | private-sign/public-verify; verifier keys distributable | Alpha-optional (if a separate issuance service appears) |
 | 3 | API Key+Secret pair (kid) | paired keys, rotate/revoke without downtime | Alpha (rotation vehicle, review O-F1; LiveKit precedent) |
 | 4 | PSK / static-secret HMAC | shared secret; short-term creds = HMAC(secret, timestamp) | **PoC: TURN creds** (static-auth-secret, 1h) |
-| 5 | Username/Password | server stores argon2 hash; verification issues token (password never on the wire) | Alpha (admin issuance + tester-console login upgrade) |
+| 5 | Username/Password | server stores PBKDF2-HMAC-SHA1 hash (600k iters, zero-dep choice, D22); verification issues token (password never on the wire); argon2 upgrade revisits if a hash crate lands (D22 Limits) | **PoC live** (D22 admin login; user store + tiers = Alpha wave-1 per D23) |
 | 6 | OIDC/OAuth2 (external IdP) | enterprise IdP (AD/Feishu/WeCom) issues; we only verify | Production (product decision) |
 | 7 | mTLS (client certs) | mutual cert verification | Production (converged gateway face) |
 | 8 | Device-embedded credentials | factory keys/certs + pairing flow | Beta+ (with C/C++ OEM consumers, D8) |

@@ -3,7 +3,7 @@
 
 ## 1. Screens, layout, visualization (evidence: ui research dossiers)
 
-Two PoC screens, one SPA (`web/`, Vite+React18+TS+AntD5+zustand, rust-embed served — D196-style packaging precedent):
+Three role screens + one admin console, one SPA (`web/`, Vite+React18+TS+AntD5+zustand, rust-embed served — D196-style packaging precedent):
 
 | Route | Role | Layout (normalized from research) |
 |-------|------|-----------------------------------|
@@ -31,6 +31,8 @@ SPA is a THIN VIEW over `packages/client` (D14) — views + theming + input hand
 First-party desktop dispatcher = **Electron shell wrapping `web/` unchanged**: renderer runs the same SPA with embedded Chromium WebRTC (behavior parity with browser acceptance; Discord desktop is the working precedent); main process contributes OS integration only — `globalShortcut` (closes hard gap #5; `register()` returns false when the accelerator is occupied — surface the conflict in settings, review C-4), tray, autostart, `backgroundThrottling:false` hidden-window receive. Shell mechanics (C-7): `requestSingleInstanceLock()`; `render-process-gone → reload()` + R-sequence recovery; Linux auto-update format (AppImage/deb + feed) = Alpha decision; SPA must not gate media on `visibilitychange` (Electron ≥28). No Rust client code in the desktop path; no new UI stack. Tauri evaluated and rejected on WebView media fragmentation; costs accepted (~90 MB, Chromium CVE following, electron-updater in scope). Target: Alpha after PoC web slice; field-agent mobile stays on the D8 native-SDK track.
 
 ## Admin surface (PoC-tail, D18)
+
+> **wave-1 note (2026-10-19)**: audit log / room registry / command authorization / role tiers / intervention kit are ADJUDICATED (D23 + docs/plans/2026-10-19-alpha-wave1-trust-control.md) — this section pre-dates wave-1; implementation has NOT started.
 
 _Landed 2026-10-08 (plan-5 S1/S2): tests `admin_api.rs` + `e2e/admin.spec.ts`. Monitor poll/Tokens link click-through verified._
 

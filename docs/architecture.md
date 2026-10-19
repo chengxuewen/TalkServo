@@ -62,6 +62,8 @@ Design principles:
 
 ## 4. Acceptance (normative)
 
+> **wave-1 note (2026-10-19)**: audit log / room registry / command authorization / role tiers / intervention kit are ADJUDICATED (D23 + docs/plans/2026-10-19-alpha-wave1-trust-control.md) — this section pre-dates wave-1; implementation has NOT started.
+
 Functional (§9 of v0.1 retained): A holds → B/C denied; A audible to B/C; release → Idle; strictly-higher preempt works; holder drop → auto-release.
 
 Additional (from design session):

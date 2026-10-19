@@ -20,6 +20,8 @@
 
 ### Admin console (`/admin/api/*`, plan-5 D18)
 
+> **wave-1 note (2026-10-19)**: audit log / room registry / command authorization / role tiers / intervention kit are ADJUDICATED (D23 + docs/plans/2026-10-19-alpha-wave1-trust-control.md) — this section pre-dates wave-1; implementation has NOT started.
+
 All routes ALWAYS mounted; fail-closed `503` while `TS_ADMIN_SECRET` unset. Auth: `Authorization: Bearer <admin JWT>` — HS256, `aud:"admin"`, NO room claim (structural audience isolation; `/ws` can never accept an admin token). Credential sources: `init` bootstraps `etc/accounts.yaml` with user `admin` + **plaintext password** (sister ops shape — the file is 0600, gitignored, hand-editable, hot: edits take effect on the next login without restart); `POST /admin/api/accounts` mints/rotates rows as PBKDF2 `hash:` (API never writes plaintext; upsert clears any plaintext row so the new hash rules); logins accept either (`password:` constant-time compare, else PBKDF2 verify). `scripts/issue-admin-token.sh` stays as the ops escape hatch.
 
 | Endpoint | Body / params | Response |
@@ -30,7 +32,7 @@ All routes ALWAYS mounted; fail-closed `503` while `TS_ADMIN_SECRET` unset. Auth
 | `GET /admin/api/accounts` | — -> `[{user, role}]` (hashes never listed) |
 | `POST /admin/api/accounts` | `{user, password}` -> 201 — upsert = create OR password-reset; user 1-64 `[A-Za-z0-9._-]`, password >= 8 (boundary-checked) |
 | `DELETE /admin/api/accounts/{user}` | -> 204 / 404 — existing stateless-JWT sessions survive until expiry (documented D22 limit) |
-| `POST /admin/api/tokens` | `{sub, room, role:"dispatch"\|"field", ttl_s?}` (ids: 1-64 `[A-Za-z0-9._-]`; ttl clamped `1..=TS_JWT_TTL_S`) | `{jwt, field_url, dispatch_url}`; base = `TS_PUBLIC_BASE` (scheme-inclusive; Host-header fallback is loopback-dev only). Rate: 60/min ⇒ 429. Issues no audit trail beyond the `admin_token_issued` log line (token value never logged) |
+| `POST /admin/api/tokens` | `{sub, room, role:"dispatch"\|"field", ttl_s?}` (ids: 1-64 `[A-Za-z0-9._-]`; ttl clamped `1..=TS_JWT_TTL_S`) | `{jwt, field_url, dispatch_url, participant_url}` (participant link added with the /room shell, 2026-10-10); base = `TS_PUBLIC_BASE` (scheme-inclusive; Host-header fallback is loopback-dev only). Rate: 60/min ⇒ 429. Issues no audit trail beyond the `admin_token_issued` log line (token value never logged) |
 
 REST contract of record = this table (`openapi.yaml` deferred to Alpha external-API work with CI validation — plan-2 /healthz precedent, adjudicated 2026-10-08).
 

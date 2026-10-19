@@ -3,6 +3,8 @@
 
 ## 1. Floor state machine (talkservo-core)
 
+> **wave-1 note (2026-10-19)**: audit log / room registry / command authorization / role tiers / intervention kit are ADJUDICATED (D23 + docs/plans/2026-10-19-alpha-wave1-trust-control.md) — this section pre-dates wave-1; implementation has NOT started.
+
 ### 1.1 State machine (v2, D12)
 
 ```text
