@@ -9,27 +9,27 @@ const REPO = path.resolve(new URL("../..", import.meta.url).pathname);
 
 /** Mint through the repo script with the harness secret (env-injected by
  *  global-setup — the module import would re-evaluate a fresh secret). */
-function issueToken(sub: string, role: "dispatch" | "field"): string {
+function issueToken(sub: string, role: "dispatch" | "field", room = ROOM): string {
   const out = spawnSync(
     "bash",
-    [path.join(REPO, "scripts", "issue-token.sh"), sub, ROOM, role, "3600"],
+    [path.join(REPO, "scripts", "issue-token.sh"), sub, room, role, "3600"],
     { encoding: "utf8", env: { ...process.env, TS_JWT_SECRET: process.env.TS_E2E_SECRET } },
   );
   if (out.status !== 0) throw new Error(`issue-token: ${out.stderr}`);
   return out.stdout.trim();
 }
 
-function urlFor(role: "dispatch" | "field", sub: string): string {
-  return `${process.env.TS_URL!}/${role}/${ROOM}?jwt=${issueToken(sub, role)}`;
+function urlFor(role: "dispatch" | "field", sub: string, room = ROOM): string {
+  return `${process.env.TS_URL!}/${role}/${room}?jwt=${issueToken(sub, role, room)}`;
 }
 
-async function joinField(page: Page, sub: string) {
-  await page.goto(urlFor("field", sub));
+async function joinField(page: Page, sub: string, room = ROOM) {
+  await page.goto(urlFor("field", sub, room));
   await expect(page.getByText("connected")).toBeVisible({ timeout: 10_000 });
 }
 
-async function joinDispatch(page: Page, sub: string) {
-  await page.goto(urlFor("dispatch", sub));
+async function joinDispatch(page: Page, sub: string, room = ROOM) {
+  await page.goto(urlFor("dispatch", sub, room));
   await expect(page.getByText("connected")).toBeVisible({ timeout: 10_000 });
 }
 
@@ -128,4 +128,68 @@ test("E11: silent uplink surfaces MediaFailed (server-synthetic)", async ({ brow
   // skipped until the browser slice wires a kill-switch endpoint (plan-3 T5
   // dependency note). This test documents the gap honestly.
   test.skip(true, "E11 e2e needs a kill-switch test endpoint (next slice)");
+});
+
+test("Mute takes the seat live, and the field page says mute - never \"denied\"", async ({
+  browser,
+}) => {
+  // plan-7 S7.5 (A1/A2/A3): the operator switch is a privilege revocation, it is
+  // told to the peer without a resync, and it reads differently from a refusal.
+  const room = "e2e-mute";
+  const a = await browser.newContext();
+  const pa = await a.newPage();
+  await joinField(pa, "mic-guy", room);
+  const d = await browser.newContext();
+  const pd = await d.newPage();
+  await joinDispatch(pd, "chief", room);
+
+  // Exclusive: one seat, so "the seat went away" is unambiguous
+  await pd.getByRole("button", { name: "Exclusive" }).click();
+  await expect(pd.getByText("mode: exclusive")).toBeVisible({ timeout: 5_000 });
+
+  await pa.keyboard.down("Space");
+  await expect(pa.getByText("Floor granted. You may speak.")).toBeVisible({ timeout: 5_000 });
+  await pa.keyboard.up("Space");
+
+  // the switch INSIDE mic-guy's card (roster order is a HashMap, so never an index)
+  const micCard = pd
+    .locator(".ant-card")
+    .filter({ has: pd.locator(".ant-card-head-title", { hasText: "mic-guy" }) })
+    .last();
+  await expect(micCard.locator("[role='switch']")).toHaveCount(1, { timeout: 5_000 });
+  await micCard.locator("[role='switch']").click();
+
+  // LIVE - no resync, no reload: the peer is told it is a mute, by two channels
+  await expect(pa.getByTestId("floor-state")).toContainText("Muted by dispatcher", {
+    timeout: 5_000,
+  });
+  await expect(pa.getByText("muted by dispatcher", { exact: true })).toBeVisible({
+    timeout: 5_000,
+  });
+  await expect(pd.locator(".tally-ring.holder")).toHaveCount(0, { timeout: 5_000 });
+
+  // pressing again while muted: still the mute sentence, and still no seat
+  // wait the 500ms request cooldown out ON PURPOSE: pressed straight away, the
+  // server's rate gate answers `rate_limited` first and this step would measure the
+  // cooldown instead of the Rule 2 mute refusal.
+  await pa.waitForTimeout(650);
+  await pa.keyboard.down("Space");
+  await expect(pa.getByTestId("floor-state")).toContainText("Muted by dispatcher", {
+    timeout: 5_000,
+  });
+  await expect(pa.getByText("Floor granted. You may speak.")).toHaveCount(0);
+  await pa.keyboard.up("Space");
+
+  // A3: un-mute hands back the PRIVILEGE only. The line clears with no grant
+  // attached, and the next press is what takes the seat.
+  await micCard.locator("[role='switch']").click();
+  await expect(pa.getByTestId("floor-state")).toBeHidden({ timeout: 5_000 });
+  // same cooldown reason as the press above: ask for the seat, do not rate-limit it
+  await pa.waitForTimeout(650);
+  await pa.keyboard.down("Space");
+  await expect(pa.getByText("Floor granted. You may speak.")).toBeVisible({ timeout: 5_000 });
+  await pa.keyboard.up("Space");
+
+  await a.close();
+  await d.close();
 });

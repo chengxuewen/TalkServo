@@ -15,6 +15,7 @@ import {
   useSessionStatus,
   jwtFromQuery,
 } from "../lib/session.js";
+import { MUTED_BY_DISPATCHER, denialCopy } from "../lib/floorCopy.js";
 
 const { Title, Text } = Typography;
 
@@ -60,7 +61,18 @@ export function ParticipantPage() {
     }
   }, [key, micOn]);
 
+  // A refusal must not leave the toggle stuck on "REQUESTING FLOOR…" (the optimistic
+  // micOn has no server answer behind it once the floor says no). Keyed on the event
+  // stream: two refusals carry the same reason string, which would not re-fire this.
+  useEffect(() => {
+    if (status.events[0]?.kind === "denied") setMicOn(false);
+  }, [status.events]);
+
   const speaking = status.selfId ? mirror.grants.includes(status.selfId) : false;
+  // S7.5 deny != mute: standing ban (roster) and one-off refusal are different lines
+  const meMuted = !!status.selfId && mirror.muted.includes(status.selfId);
+  const refusal =
+    !meMuted && !speaking && status.lastDenial ? denialCopy(status.lastDenial, false) : null;
   const speakers = mirror.peers.filter((p) => mirror.grants.includes(p.id));
 
   return (
@@ -97,17 +109,30 @@ export function ParticipantPage() {
       >
         {!status.connected
           ? "WAITING FOR CONNECTION"
-          : speaking
-            ? "ON AIR — click to mute"
-            : micOn
-              ? "REQUESTING FLOOR…"
-              : "JOIN THE CONVERSATION"}
+          : meMuted
+            ? "MUTED BY DISPATCHER"
+            : speaking
+              ? "ON AIR — click to mute"
+              : micOn
+                ? "REQUESTING FLOOR…"
+                : "JOIN THE CONVERSATION"}
       </Button>
 
       <div className="mirror-note" style={{ marginTop: 8 }}>
         gen {mirror.generation} — you speak only while granted ({mirror.mode} mode;
         dispatcher can open the floor to everyone)
       </div>
+      {(meMuted || refusal) && (
+        <Text
+          type={meMuted ? "danger" : "warning"}
+          style={{ display: "block", marginTop: 8 }}
+          data-testid="floor-state"
+        >
+          {meMuted
+            ? `${MUTED_BY_DISPATCHER} — the floor will refuse you until it is lifted`
+            : refusal}
+        </Text>
+      )}
       <div id="ts-audio-pool" style={{ display: "none" }} />
     </div>
   );

@@ -63,14 +63,28 @@ is an Alpha decision).
 
 ## Floor control
 
-- `FloorRequest{priority, preempt}` → cooldown-gated (`FLOOR_REQUEST_COOLDOWN_MS`,
-  default 500 ms) → within window: `FloorDenied{reason:"rate_limited"}`.
+- `FloorRequest{priority, preempt}` → cooldown-gated FIRST (`FLOOR_REQUEST_COOLDOWN_MS`,
+  default 500 ms) → within window: `FloorDenied{reason:"rate_limited"}`. The cooldown
+  is an EARLIER gate than the mute refusal below, so a rapid re-press by a muted peer
+  answers `rate_limited`, not `unauthorized` — tests that assert the mute refusal must
+  wait the window out or they measure the cooldown (PIT-25).
 - Grant/deny/promote semantics = core `apply()` (modules/01 rules 1-9); broadcasts
   fan out per wire contract (`FloorGranted`/`FloorTaken`/`FloorDenied`/`FloorQueued`/
   `FloorIdle` — all carry `generation`).
 - `FloorRelease` → auto-promote head; empty room → `FloorIdle`.
-- `ModeChange{mode}` → R9 transitions; `MuteSet{peer,on}` (authorized roles; core
-  trusts actor, server enforces claim checks before routing).
+- `ModeChange{mode}` → R9 transitions.
+- `MuteSet{peer,on}` (authorized roles - Rule 10): **S7.5 rewrote what it does.**
+  `on:true` adds the name to the roster AND takes away everything the floor grants:
+  the grant and the queue slot; the freed capacity promotes the queue head and the
+  shrink rebroadcasts (`FloorGranted`/`FloorIdle`) to every peer. `on:false` clears
+  the ban ONLY - no re-grant, the peer asks again (modules/01 Rule 2/8).
+  Target must be a room member - the core holds no roster, so `room.rs` answers
+  `Error{code:"unknown_peer"}` instead of swallowing it. A muted member's own
+  `FloorRequest` is refused with `FloorDenied{reason:"unauthorized"}` (the variant is
+  shared with Rule 10 deliberately: a new reason value would be unparsable by older
+  clients). Roster changes reach clients live through the role-scoped
+  `ServerSnapshot` push that `ModeChange` already used - there is no mute message
+  and none was added (plan-7 §4).
 
 ## Media plane (J-steps 3-7)
 

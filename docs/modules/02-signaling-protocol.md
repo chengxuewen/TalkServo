@@ -28,7 +28,19 @@ Additive-only evolution within a version; unknown fields rejected in debug, igno
 
 - **F holder-media-failure (D12/E11)**: transport close / consent expiry (`iceConsentTimeout` 30 s default) or silent-RTP watchdog → `MediaDown{peer}` FloorEvent → grace `floor_media_grace_ms` → release + promote + broadcast; `MediaFailed{peer}` visible to all. Closes the zombie-holder path W/R/E4 cannot.
 
-Server→client table footnote: `*` = authorized-role messages (D12); `Error` codes include `AlreadyJoined`.
+- **M mute (S7.5, 2026-10-20)**: `MuteSet{peer,on}` (authorized sender) -> roster +
+  `grants`/`queue` revocation -> `FloorGranted`/`FloorIdle` rebroadcast to everyone +
+  a role-scoped `ServerSnapshot` push carrying the new `muted` list (the roster rides
+  no message of its own; there is deliberately no mute message). `on:false` emits
+  NOTHING - the freed peer must send a fresh `FloorRequest`. An unknown target gets
+  `Error{unknown_peer}` back to the sender, never silence.
+
+Server→client table footnote: `*` = authorized-role messages (D12); `Error` codes include
+`AlreadyJoined`, `unknown_peer` (S7.5: mute naming an absent member). `FloorDenied` with
+`reason=unauthorized` answers TWO different asks - an unauthorized COMMAND (Rule 10) and a
+FLOOR REQUEST by a muted member (Rule 2) - and the wire does not split them (a new reason
+value would be unparsable by clients predating S7.5); the recipient tells them apart by
+which message it sent and by whether its own id sits in the `muted` roster.
 
 ## 3. Join credential — the `Join{jwt}` claims shape (plan-7 S4 debt payoff)
 

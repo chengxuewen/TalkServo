@@ -9,7 +9,22 @@ Three role screens + one admin console, one SPA (`web/`, Vite+React18+TS+AntD5+z
 |-------|------|-----------------------------------|
 | `/dispatch/:room` | dispatcher | target grid (tile per peer, tally ring red=holder) + event log side panel (grant/taken/idle + generation shown ONLY here) + per-line listen mute/gain + **grant-queue strip** (industry gap — differentiator) + authorized actions (preempt-broadcast / mute-all / ModeChange) |
 | `/field/:room` | field agent | compact live roster (speaking peer highlighted) + one oversized **hold-to-talk** button (pointerdown/up/cancel, thumb zone) + settings drawer (keybind capture rejecting Ctrl/Cmd+letter, release-delay slider, accessibility toggle; `preventDefault` keydown on the HTT to avoid Space double-fire C-5; polite `aria-live` floor announcements C-11) |
+
 | `/room/:room` | participant (conference shell, P0 2026-10-10) | room header + mode tag + Speakers grid (granted peers as red tags, "(me)" marked) + a single mic **toggle** (requestFloor/releaseFloor — ON AIR only while self ∈ grants, server-driven per the one-state law); rides the field role's session shell, zero protocol additions; multi-client concurrency proven by `web/e2e/talk.spec.ts` |
+
+> **deny ≠ mute (S7.5, 2026-10-20)**: the field and participant surfaces read these two
+> states apart, because the wire carries ONE shared reason value for both (`unauthorized`
+> — a new variant would be unparsable by pre-S7.5 clients). Standing ban = the peer's own
+> id sits in the mirrored `muted` roster: the toggle reads `MUTED BY DISPATCHER`, the
+> roster row reads "muted by dispatcher", and the aria-live channel announces the ban.
+> One-off refusal = `session.lastDenial` (kept until the floor grants this peer, or until
+> the roster lifts the mute it described): `lib/floorCopy.ts` words every `DenyReason` and
+> never blanks on an unknown one. When both are true the standing state wins the sentence.
+> A refusal also clears the optimistic hold (`holding`/`micOn` key off the event stream, not
+> off the reason string — two refusals in a row carry the same value). The dispatcher's mute
+> switch is bound to the roster rather than to its own last click, and un-mute hands back
+> the privilege only. Pinned by `web/tests/denial.test.tsx` (copy) and the
+> `e2e/floor.spec.ts` mute row (real browser, real server, live delivery).
 
 Browser matrix (BCD-verified, C-1/C-2/C-3): Chrome/Edge/Firefox/Safari≥12 (mediasoup-client Safari12 handler; Unified Plan only) ⊂ acceptance #9; `setSinkId` all desktop engines, absent on Android browser (field mobile = D8 native); one `<audio>` element per consumer for sink routing; `devicechange` + `replaceTrack` handles headset hotplug.
 

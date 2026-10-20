@@ -103,6 +103,11 @@ export function DispatcherPage() {
                   <Space>
                     <Switch
                       size="small"
+                      // S7.5: bind the position to the roster, not to the last click -
+                      // mute now really takes the seat, and a peer can be muted before
+                      // ever speaking (Rule 8 rewrite), so an uncontrolled toggle would
+                      // read "can speak" for a peer who cannot.
+                      checked={!mirror.muted.includes(p.id)}
                       unCheckedChildren={<AudioMutedOutlined />}
                       checkedChildren={<AudioOutlined />}
                       onChange={(on) =>

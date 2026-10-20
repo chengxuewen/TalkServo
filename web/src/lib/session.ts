@@ -24,6 +24,10 @@ export interface RoomSession {
    *  SAME attempt instead of minting a second transport (which would trip
    *  already_joined and leave a dead handle on the session). */
   connectPromise: Promise<void> | null;
+  /** S7.5: reason of the last refused request (transient). Kept until the floor
+   *  grants this peer, so a surface can show the refusal without ever confusing
+   *  it with the standing `muted` roster the mirror already carries. */
+  lastDenial: string | null;
 }
 
 interface SessionKey {
@@ -78,6 +82,7 @@ export function ensureSession(
     connected: false,
     selfId: null,
     connectPromise: null,
+    lastDenial: null,
   };
   media.attach(client);
     if (typeof window !== "undefined") {
@@ -88,6 +93,20 @@ export function ensureSession(
       switch (e.kind) {
         case "state":
           session.mirror = e.mirror;
+          // a grant washes the refusal away — copy must not outlive the thing it refused
+          if (session.selfId && e.mirror.grants.includes(session.selfId)) {
+            session.lastDenial = null;
+          }
+          // S7.5: an `unauthorized` refusal IS the mute on the wire (one shared reason
+          // value, D16 compat), so once the roster lifts the ban the refusal sentence
+          // is stale — drop it rather than let it outlive the mute it described.
+          if (
+            session.lastDenial === "unauthorized" &&
+            session.selfId != null &&
+            !e.mirror.muted.includes(session.selfId)
+          ) {
+            session.lastDenial = null;
+          }
         break;
       case "connected":
         session.connected = true;
@@ -101,6 +120,7 @@ export function ensureSession(
     }
     if (e.kind === "denied" || e.kind === "taken" || e.kind === "error") {
       session.events = [e, ...session.events].slice(0, 100);
+      if (e.kind === "denied") session.lastDenial = e.reason;
     }
     notify(key);
   });
@@ -238,9 +258,15 @@ export interface SessionStatus {
   connected: boolean;
   selfId: string | null;
   events: ClientEvent[];
+  lastDenial: string | null;
 }
 
-const EMPTY_STATUS: SessionStatus = { connected: false, selfId: null, events: EMPTY_EVENTS };
+const EMPTY_STATUS: SessionStatus = {
+  connected: false,
+  selfId: null,
+  events: EMPTY_EVENTS,
+  lastDenial: null,
+};
 
 /** Cached status objects: getSnapshot must return a STABLE reference between
  *  notifications, or React re-renders forever. */
@@ -254,6 +280,7 @@ function statusOf(key: string): SessionStatus {
       connected: s?.connected ?? false,
       selfId: s?.selfId ?? null,
       events: s?.events ?? EMPTY_EVENTS,
+      lastDenial: s?.lastDenial ?? null,
     };
     statusCache.set(key, st);
   }

@@ -20,6 +20,7 @@ import {
   useSessionStatus,
   jwtFromQuery,
 } from "../lib/session.js";
+import { MUTED_BY_DISPATCHER, denialCopy } from "../lib/floorCopy.js";
 
 const { Text, Title } = Typography;
 
@@ -76,16 +77,30 @@ export function FieldPage() {
   }, [room]);
 
   // aria-live announcements from mirror transitions (grant/taken/deny cues)
+  // aria-live announcements from mirror transitions. S7.5: the standing mute and a
+  // one-off refusal are DIFFERENT sentences — the roster says "you may not speak",
+  // the denial says "that request was refused", and they must not share wording.
   useEffect(() => {
     if (!a11y || !status.selfId) return;
-    if (mirror.grants.includes(status.selfId)) {
+    if (mirror.muted.includes(status.selfId)) {
+      setAnnouncement(`${MUTED_BY_DISPATCHER}. Pressing talk will be refused.`);
+    } else if (status.lastDenial && !mirror.grants.includes(status.selfId)) {
+      setAnnouncement(denialCopy(status.lastDenial, false));
+    } else if (mirror.grants.includes(status.selfId)) {
       setAnnouncement("Floor granted. You may speak.");
     } else if (mirror.grants.length > 0) {
       setAnnouncement(`Floor held by ${mirror.grants[0]}`);
     } else {
       setAnnouncement("Floor idle.");
     }
-  }, [mirror.grants, a11y, status.selfId]);
+  }, [mirror.grants, mirror.muted, a11y, status.selfId, status.lastDenial]);
+
+  // a refusal ends the hold honestly. Keyed on the event stream, not the reason
+  // string: pressing twice and being refused twice yields the SAME reason, so a
+  // value dependency would not re-fire and the button would keep guessing HOLDING.
+  useEffect(() => {
+    if (status.events[0]?.kind === "denied") setHolding(false);
+  }, [status.events]);
 
   const startHold = useCallback(() => {
     const s = getSession(key);
@@ -141,6 +156,12 @@ export function FieldPage() {
   }, [keybind, keybindCapture, startHold, endHold]);
 
   const meHolder = status.selfId ? mirror.grants.includes(status.selfId) : false;
+  // S7.5 deny != mute: the roster is the standing ban, lastDenial is one refusal
+  const meMuted = !!status.selfId && mirror.muted.includes(status.selfId);
+  const refusal =
+    !meMuted && !meHolder && status.lastDenial
+      ? denialCopy(status.lastDenial, false)
+      : null;
 
   return (
     <div style={{ padding: 16, userSelect: "none" }}>
@@ -151,6 +172,7 @@ export function FieldPage() {
         <Tag color={status.connected ? "green" : "red"}>
           {status.connected ? "connected" : "offline"}
         </Tag>
+        {meMuted && <Tag color="volcano">{MUTED_BY_DISPATCHER}</Tag>}
         <Badge count={`gen ${mirror.generation}`} color="blue" style={{ display: a11y ? "inline-block" : "none" }} />
         <Button icon={<SettingOutlined />} size="small" onClick={() => setDrawerOpen(true)} />
       </Space>
@@ -164,7 +186,11 @@ export function FieldPage() {
             <List.Item>
               <span className={`tally-ring ${mirror.grants.includes(p.id) ? "holder" : ""}`} />
               {p.id} {p.id === status.selfId ? "(me)" : ""}
-              {mirror.muted.includes(p.id) && <Tag style={{ marginLeft: 8 }}>muted</Tag>}
+              {mirror.muted.includes(p.id) && (
+                <Tag style={{ marginLeft: 8 }}>
+                  {p.id === status.selfId ? "muted by dispatcher" : "muted"}
+                </Tag>
+              )}
             </List.Item>
           )}
         />
@@ -187,6 +213,17 @@ export function FieldPage() {
       <div className="mirror-note" style={{ marginTop: 8 }}>
         press-and-hold (pointer or {keybind ?? "Space"})
       </div>
+      {(meMuted || refusal) && (
+        <Text
+          type={meMuted ? "danger" : "warning"}
+          style={{ display: "block", marginTop: 8 }}
+          data-testid="floor-state"
+        >
+          {meMuted
+            ? `${MUTED_BY_DISPATCHER} — the floor will refuse you until it is lifted`
+            : refusal}
+        </Text>
+      )}
 
       {/* a11y: screen-reader channel */}
       <div aria-live="polite" role="status" style={{ position: "absolute", left: -9999 }}>
