@@ -24,7 +24,7 @@ SPA is a THIN VIEW over `packages/client` (D14) — views + theming + input hand
 | parity/lite (8) | tally viz, HTT, per-line mute, cues, roster status, keybind UX, deny feedback, single-transmit control |
 | differentiator (1) | grant-queue strip (no surveyed product exposes arbitration state) |
 | hard browser gaps (2) | OS-global hotkeys — resolved on desktop by the D10 Electron shell; background/lockscreen receive on mobile — owned by the D8 native SDK track ("native-only acceptance #1") |
-| deliberate deferrals | multi-line monitoring / room tree (Alpha; PoC = dispatcher-assigned single room), GPS/SOS workflow, SIP/radio gateway, recording, text chat — admin: minimal Monitor/Tokens surface pulled forward (D18, §Admin surface), full admin console stays Alpha |
+| deliberate deferrals | multi-line monitoring / room tree (Alpha; PoC = dispatcher-assigned single room), GPS/SOS workflow, SIP/radio gateway, recording, text chat — admin: Monitor/Tokens pulled forward (D18), grown into the wave-1 five-tab trust & control console (D23, §Admin surface); AdminEvent WS push + keys/limits/drain UI stay Alpha |
 
 ## Desktop shell (D10, 2026-09-28)
 
@@ -32,38 +32,39 @@ First-party desktop dispatcher = **Electron shell wrapping `web/` unchanged**: r
 
 ## Admin surface (PoC-tail, D18)
 
-> **wave-1 note (2026-10-19)**: audit log / room registry / command authorization / role tiers / intervention kit are ADJUDICATED (D23 + docs/plans/2026-10-19-alpha-wave1-trust-control.md) — this section pre-dates wave-1; implementation has NOT started.
+> **wave-1 note (updated 2026-10-20)**: audit log / room registry / command authorization / role tiers / intervention kit + this console are **LANDED** (D23 + docs/plans/2026-10-19-alpha-wave1-trust-control.md, slices S1-S7). Still open: S7.5 (deny≠mute copy on the field/participant pages) and the deferred cross-client admin e2e rows (§Acceptance).
 
 _Landed 2026-10-08 (plan-5 S1/S2): tests `admin_api.rs` + `e2e/admin.spec.ts`. Monitor poll/Tokens link click-through verified._
+_Landed 2026-10-20 (plan-7 S1-S7): server lanes `audit_flow` / `authz_flow` / `permission_matrix` / `rooms_registry` / `mod_claims` / `intervention` / `crash_recovery`; web lane `tests/admin.test.tsx` (10 cases) + `e2e/admin.spec.ts`. Test-lane knob `TS_KDF_ITERS` — a debug-build PBKDF2 verify costs ~9 s and starved every browser assertion (PIT-23)._
 
-Minimal admin for LAN operators: **live floor Monitor + token issuance** — the two surfaces the admin dossier §3 flagged PoC-candidate. Out-of-band REST + the same SPA gains `/admin`; zero additions to the signaling wire, zero media-plane change; fail-closed (`TS_ADMIN_SECRET` unset ⇒ 503).
+Minimal admin for LAN operators, grown into the wave-1 trust & control surface: **live floor Monitor + room registry + token issuance + account tiers + intervention kit + audit trail**. Out-of-band REST + the same SPA gains `/admin`; zero additions to the signaling wire, zero media-plane change; fail-closed (`TS_ADMIN_SECRET` unset ⇒ 503).
 
-**Server** (`crates/talkservo-server/src/admin.rs`): `GET /admin/api/overview` (rooms/peers/uptime/backend), `GET /admin/api/rooms` (per-room mode, holders, queue length, peers, muted set, per-holder speaking activity — the speaking bit cached by the watchdog probe tick, muted from FloorState via the snapshot fix; read via read-only `RoomCommand::AdminInspect(oneshot)` with clone-drop-lock fan-out + 1s per-room timeout stale marking, no shared-state restructure, zero SFU calls on the inspect path), `POST /admin/api/tokens` `{sub,room,role,ttl_s}` → `{jwt, field_url, dispatch_url, participant_url}` (wraps the existing auth issue; participant link added with the P0 shell, 2026-10-10). Auth: admin JWT `aud:"admin"`, separate `TS_ADMIN_SECRET` (MediaServo D196 dual-token rule, verbatim); bootstrap = `scripts/issue-admin-token.sh`; 401 without token / wrong audience / wrong secret, no leak.
+**Server** (`crates/talkservo-server/src/admin.rs`): `GET /admin/api/overview` (rooms/peers/uptime/backend); `GET /admin/api/rooms` = registry rows (`etc/rooms.yaml`, plan-7 S2: owner/mode/max_peers/max_queue/locked) with `POST /admin/api/rooms` create + `DELETE /admin/api/rooms/{room}` delete; `GET /admin/api/rooms/live` = the poll shape (per-room mode, holders, queue length, peers carrying role/`mod_rooms`/granted/muted, muted set, per-holder speaking activity — speaking cached by the watchdog probe tick, muted from FloorState via the snapshot fix; read via read-only `RoomCommand::AdminInspect(oneshot)` with clone-drop-lock fan-out + 1s per-room timeout stale marking, no shared-state restructure, zero SFU calls on the inspect path); `DELETE /admin/api/rooms/{room}/peers/{peer}` kick + `POST /admin/api/rooms/{room}/peers/{peer}/force-release` (S6 intervention kit — actor/target/reason audited; `reason` is AUDIT-ONLY per R2, never broadcast to peers); `POST /admin/api/tokens` `{sub,room,role,ttl_s,mod_rooms?}` → `{jwt, field_url, dispatch_url, participant_url}` (wraps the existing auth issue; participant link added with the P0 shell, 2026-10-10; `mod_rooms` = moderator claims, S4, additive-default so pre-wave-1 tokens keep verifying); `GET /admin/api/audit` (JSONL tail + event/room/actor filters + cursor, dropped-line counter surfaced, S1); `POST /admin/api/login` plus `GET/POST /admin/api/accounts` and `DELETE /admin/api/accounts/{user}` (D22 registry, S5 tiers). Auth: admin JWT `aud:"admin"` + `role` claim, separate `TS_ADMIN_SECRET` (MediaServo D196 dual-token rule, verbatim); bootstrap = `scripts/issue-admin-token.sh`; 401 without token / wrong audience / wrong secret, no leak; operator-tier writes ⇒ 403 — the server is the real gate, the Sider filter is UX only.
 
-**Web** (`web/src/pages/admin.tsx`, route `/admin`): dark AntD Layout + Sider (Monitor | Tokens | Accounts). Monitor = overview stat cards + rooms table (red tally ring on the holder, reuse `.tally-ring`; 3s poll — AdminEvent WS push is the Alpha upgrade path, endpoint shapes stay compatible). Tokens = issue form → copy-ready join links. Gate card first-run (D22 rev2, user/pwd): Username + Password -> `POST /admin/api/login` -> server-minted JWT (sessionStorage); no JWT paste in the UI (script mint is CLI-side bootstrap only). Sider: Monitor | Tokens | **Accounts** (registry table + create/reset form + delete confirm — sister `/accounts` shape; registry = `etc/accounts.yaml`, program-maintained, hot). No new dependencies.
+**Web** (`web/src/pages/admin/` — `index.tsx` shell + `monitor.tsx` / `intervention.tsx` / `rooms.tsx` / `tokens.tsx` / `accounts.tsx` / `logs.tsx`, route `/admin` per C3, every file under the plan-7 150-line bar): dark AntD Layout + role-aware Sider **Monitor | Rooms | Tokens | Accounts (admin tier only) | Logs**. Monitor = overview stat cards + rooms table (red tally ring on the holder, reuse `.tally-ring`; 3s poll — AdminEvent WS push is the Alpha upgrade path, endpoint shapes stay compatible); a row expands to the peer table where the peer name opens the detail Drawer (role / holding floor / muted / `mod_rooms`, from the live report 6.2) and each row carries `[Force release]` + `[Kick]` behind a confirm Modal with an optional reason input (maxLength 512, audit-only) — nothing fires inline. Rooms = registry CRUD (create modal, delete confirm naming the kick-all consequence); on the operator tier the writes sit behind the visible `registry writes require admin` note. Tokens = issue form → copy-ready join links + `mod_rooms` multi-select. Accounts = registry table + create/reset form + role select + delete confirm (registry = `etc/accounts.yaml`, program-maintained, hot). Logs = cursor-paged audit table with event/room/actor filters, MANUAL refresh (the trail is a ledger, not a dashboard) + dropped-line warning. Gate card first-run (D22 rev2, user/pwd): Username + Password -> `POST /admin/api/login` -> server-minted JWT + role in sessionStorage (tab-scoped, never persisted); no JWT paste in the UI (script mint is CLI-side bootstrap only); any 401/503 from a call bounces to the gate and clears the stored token. No new dependencies.
 
 ```text
-Monitor                              Tokens
-┌──────────┬──────────────────┐     ┌──────────┬──────────────────┐
-│▸ Monitor │ Rooms 3 Peers 11 │     │  Monitor │ subject[__] room │
-│  Tokens  │ Up 4:12 SFU live │     │ ▸ Tokens │ [__] role[▾] ttl │
-│          │──────────────────│     │          │──[ Issue ]───────│
-│          │ Room  Peers Floor │     │          │ field   …?jwt= ⧉ │
-│          │ ops01  4   ●alice │     │          │ dispatch…?jwt= ⧉ │
-│          │ night  7   ○ idle │     │          │ jwt only    ⧉   │
-└──────────┴──────────────────┘     └──────────┴──────────────────┘
+┌ Sider (tier-aware) ─┐   Monitor │ Rooms │ Tokens │ Accounts(admin) │ Logs
+│▸ Monitor            │      ▲         ▲        ▲          ▲                ▲
+│  Rooms              │   expand +   CRUD     mod_rooms   role CRUD      cursor +
+│  Tokens             │   kick/force modal    multi-select (admin)       filters
+│  Accounts (admin)   │   + drawer                                       (manual
+│  Logs               │                                                    refresh)
+└─────────────────────┘   stat cards: Rooms 3 · Peers 11 · Up 4:12 · Backend stub
 ```
 
 ```text
-browser ─/a─ fetch(Bearer admin-JWT) ─► /admin/api/*  [admin.rs]
-                                          │ overview · rooms · tokens
-talkservo-server                          ├─ auth: TS_ADMIN_SECRET, aud=admin (fail-closed)
- ├ room task actors ◄─ AdminInspect(oneshot)  (read-only)
+browser ─/admin─ fetch(Bearer admin-JWT + role) ─► /admin/api/*  [admin.rs]
+                                     │ overview · rooms(+live) · tokens · accounts
+                                     │ kick · force-release · audit · login
+talkservo-server                       ├─ auth: TS_ADMIN_SECRET, aud=admin (fail-closed)
+ ├ room task actors ◄─ AdminInspect(oneshot) (read-only) + audited commands (S3/S6)
+ ├ audit::Jsonl ──────────────────────► <instance>/logs/audit.jsonl (S1 + dropped count)
  ├ auth::issue ─────────────► user JWT (same HS256 path /ws join verifies)
  └ /ws, /healthz, static embed — untouched; wire unchanged (27 variants)
 ```
 
-Acceptance (plan-5): missing/wrong admin token ⇒ 401/503 matrix in tests; token issued via API joins /ws successfully; AdminInspect shape stable empty/active; Monitor reflects a live hold within one poll; no admin route reachable without auth (axum integration). Non-goals stay Alpha (user store, audit persistence, keys/limits/drain UI, WS push).
+Acceptance (plan-5 + wave-1): missing/wrong admin token ⇒ 401/503 matrix in tests; token issued via API joins /ws successfully; AdminInspect shape stable empty/active; Monitor reflects a live hold within one poll; no admin route reachable without auth (axum integration); operator tier gets 403 on registry/account writes and is refused ModeChange/MuteSet (S3/S5 — `permission_matrix` + `authz_flow`); every admin mutation lands one audit line (S1 `audit_flow`); kick / force-release act on the live room and are audited with actor+target+reason (S6 `intervention`); registry create/delete + lock gate + eviction (S2 `rooms_registry`); `mod_rooms` rides the wire additively (S4 `mod_claims`); kill -9 mid-hold → respawn keeps old tokens valid and rebuilds rooms lazily (S7.6 `crash_recovery`, modules/05 E12). Remaining non-goals (Alpha): AdminEvent WS push, keys/limits/drain UI. Deferred to their own batch (NOT yet verified at the browser layer): cross-client kick-departure, audit line visible in Logs, locked-room join rejected — plus the S7.5 deny≠mute copy.
 
 ## Examples & GUI policy (binding demos, not products)
 

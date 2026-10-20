@@ -62,7 +62,7 @@ Design principles:
 
 ## 4. Acceptance (normative)
 
-> **wave-1 note (2026-10-19)**: audit log / room registry / command authorization / role tiers / intervention kit are ADJUDICATED (D23 + docs/plans/2026-10-19-alpha-wave1-trust-control.md) — this section pre-dates wave-1; implementation has NOT started.
+> **wave-1 note (updated 2026-10-20)**: audit log / room registry / command authorization / role tiers / intervention kit are **LANDED** (D23 + docs/plans/2026-10-19-alpha-wave1-trust-control.md, S1-S7) — acceptance rows 13-14 below carry their verification status. Still open inside wave-1: S7.5 (deny≠mute copy) and the deferred cross-client admin e2e rows (modules/08 §Acceptance).
 
 Functional (§9 of v0.1 retained): A holds → B/C denied; A audible to B/C; release → Idle; strictly-higher preempt works; holder drop → auto-release.
 
@@ -75,6 +75,8 @@ Additional (from design session):
 10. P-latency: keydown→audible ≤ budget lines — **LAN 350 ms / public 600 ms** (measured 2026-10-08: p50 314-328 ms on loopback live e2e with reused consumers; the line started as a 300/600 placeholder and is revised here with data per its own rule).
 11. Zombie-holder (E11): kill holder uplink (mic revoked / no-RTP 2 s) with WS alive → `MediaDown` within grace → floor frees, queue promotes — floor NEVER locks on media death.
 12. Transmission gating (D13): non-holders produce nothing (server-paused) — verify zero idle uplink payload bytes per joined-silent peer except RTCP/consent.
+13. Trust & control (wave-1, D23): an unauthorized actor cannot change mode or mute (denial is audited); the operator tier cannot write the room registry or the account list (403); every admin mutation — login failure, mode change, mute, kick, force-release, registry write, token issue — lands one audit line with actor/target/reason; kick and force-release take effect on the live room within one poll. *(verified 2026-10-20 by the Rust lanes `authz_flow` / `permission_matrix` / `audit_flow` / `rooms_registry` / `mod_claims` / `intervention`; the browser-layer trio — another peer sees the departure, Logs shows the line, locked room rejects the join — is deferred to its own e2e batch)*
+14. Crash recovery (modules/05 E12, wave-1 S7.6): kill -9 the server mid-hold → respawn with the same env → previously issued tokens still verify, rooms rebuild lazily on first join, the floor re-grants, a late joiner learns the roster via peer_list. *(verified 2026-10-20 by the `crash_recovery` lane)*
 
 Test layers: unit (core, any platform) → integration (stub-media) → e2e automated (Linux, real worker + Playwright fake-device 3-instance scenario) → manual public network. CI: fmt/clippy/test dual-OS + test-mediasoup ubuntu + nightly e2e (non-blocking) — reusing the ported ci-cd-automation skeleton.
 

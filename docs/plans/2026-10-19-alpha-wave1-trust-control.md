@@ -1,6 +1,6 @@
 # Plan-7: Alpha wave-1 — Trust & Control (D23) — draft for review
 
-> **STATUS: S1-S6 + S7.6 LANDED (2026-10-19; intervention kit green). Web S7/S7.5 remain.**
+> **STATUS: S1-S7 LANDED (2026-10-20; five-tab admin console green - vitest 13/13, stub-lane e2e incl. admin click-through). S7.5 (deny≠mute copy) remains.**
 > Design truth: `docs/modules/08-web-ui.md` + `.agents/memorys/decisions.md` D23 (incl. UI annex + borrow annex).
 > Sister precedent: plan-5 format (slices → gates → commit per slice).
 
@@ -153,10 +153,10 @@ WS msg ──► room.rs intake ──► authorized?(claims, msg) ──no─�
 - Commit: `feat(server): intervention kit — kick/force-release/peer detail (plan-7 S6)`
 
 ### S7 — web: five-tab split + intervention UI (D23 UI annex)
-- 7.1 `pages/admin/` directory: index (gate+layout+role-aware Sider) / monitor / rooms /
+- [x] 7.1 `pages/admin/` directory: index (gate+layout+role-aware Sider) / monitor / rooms /
   tokens / accounts / logs, each ≤150 lines; **Accounts tab admin-only in Sider; server 403
   is the real gate**.
-- 7.2 Monitor row-expandable peers + `[Force release]` `[Kick]` (Popconfirm + optional reason
+- [x] 7.2 Monitor row-expandable peers + `[Force release]` `[Kick]` (Popconfirm + optional reason
   input) + peer-name Drawer (detail from 6.2); Rooms tab (CRUD table + modal; delete confirm
   names the kick-all consequence); Logs tab (cursor table + event/room/actor filters, manual
   refresh — no auto-poll); Tokens form gains mod-rooms multi-select.
@@ -164,9 +164,13 @@ WS msg ──► room.rs intake ──► authorized?(claims, msg) ──no─�
   `FloorDenied` as "denied by dispatcher" distinct from muted state (data already in
   mirror events). SEPARATE SLICE — own commit after S7; droppable under schedule
   pressure without touching the S7 mainline (U2 acceptance preserved, cut isolated).
-- 7.4 Tests: vitest +8 (Sider role filter, rooms CRUD form, logs render/filter, expand+
-  confirm+drawer, mod multi-select, deny copy); e2e: admin kick → other peer's page shows
-  departure (cross-client), logs line appears (audit e2e), locked room join rejected.
+- [x] 7.4 Tests (LANDED 2026-10-20, scope adjusted): vitest admin suite 5 -> 10 cases - Sider tier
+  filter, Logs render + dropped warning, expand+Kick-with-reason -> DELETE body assert, peer Drawer
+  (6.2 fields), Rooms registry + tier-gated writes; stub-lane e2e green (admin click-through,
+  floor, talk). Deferred as their own follow-up (not blocking S7): Tokens mod-rooms multi-select
+  case, cross-client kick-departure / audit-line / locked-room-reject e2e rows.
+  Lane fix: TS_KDF_ITERS knob - debug-build PBKDF2 costs ~9s per login and stalled the admin
+  e2e assertion windows (PIT-23).
 - [x] 7.6 **crash recovery (user A ruling, 2026-10-19)**: `crash_recovery` integration —
   real-binary spawn, two peers + floor, kill -9, respawn same env -> old tokens valid,
   room rebuilds lazily, floor re-grants, late joiner learns roster via peer_list (J-sequence
@@ -236,6 +240,12 @@ explicitly NOT adopted — ledgered as open items, never silently swallowed):
 - S5–S7 → `docs/modules/08-web-ui.md`: rewrite the Admin surface section (three-tab text is
   stale) + architecture §4 acceptance gains the wave-1 rows (audit e2e trio + authz matrix).
 
+**Sync state 2026-10-20** — all six obligations landed with their slices: `server-api.md` carries
+audit + registry CRUD + `rooms/live` (rename applied at all six call sites); modules/01 Rule 10 and
+the modules/02 claims table are written; modules/08 §Admin surface is rewritten to the five-tab
+console (paths, endpoints, intervention kit, tier gate, diagrams) and architecture §4 gained rows
+13-14 carrying their per-row verification status. Nothing open in this section.
+
 ## 9. Review checklist for the user (gate before implementation)
 - [x] Slice order & scope (§2, §3) — accepted 2026-10-19 (docs-gap ruling: obligations #1+#2 in, #3–#6 out)
 - [x] S2 endpoint naming — R1: clean `rooms` for registry, live poll → `rooms/live`
@@ -243,4 +253,4 @@ explicitly NOT adopted — ledgered as open items, never silently swallowed):
 - [x] S7 deny≠mute — R3: own slice S7.5, droppable
 - [x] Gates — R4: + permission matrix, audit fail-visible, legacy-token compat; no static grep gate
 
-**STATUS: FULLY ADJUDICATED 2026-10-19 — ready for implementation on user's "go".**
+**STATUS: S1-S7 LANDED 2026-10-20 (S7.5 open; three cross-client admin e2e rows deferred) — see .agents/memorys/status.md.**

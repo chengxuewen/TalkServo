@@ -29,3 +29,20 @@ Additive-only evolution within a version; unknown fields rejected in debug, igno
 - **F holder-media-failure (D12/E11)**: transport close / consent expiry (`iceConsentTimeout` 30 s default) or silent-RTP watchdog → `MediaDown{peer}` FloorEvent → grace `floor_media_grace_ms` → release + promote + broadcast; `MediaFailed{peer}` visible to all. Closes the zombie-holder path W/R/E4 cannot.
 
 Server→client table footnote: `*` = authorized-role messages (D12); `Error` codes include `AlreadyJoined`.
+
+## 3. Join credential — the `Join{jwt}` claims shape (plan-7 S4 debt payoff)
+
+Written down 2026-10-20: this shape lived only in `crates/talkservo-server/src/auth.rs` (verified: the doc had zero claim-field mentions before this section).
+
+HS256 over `TS_JWT_SECRET` (modules/06 ladder rung 1). Decode enforces `validate_aud` + `validate_exp` with `leeway = 0` — exact, deliberately not the library default 60 s grace.
+
+| Claim | Wire type | Meaning | Enforcement |
+|-------|-----------|---------|-------------|
+| `sub` | string | peer identity, becomes the roster id | decoded, not validated |
+| `room` | string | room the token was minted for | presence is load-bearing: `/ws` decodes THIS struct, so a claim set without `room` cannot pass |
+| `role` | `"dispatch"` / `"field"` | wire `Role`, snake_case (modules/01 §1) | feeds the authority check (modules/01 Rule 10) |
+| `aud` | string | room id, mirrors `room` | `set_audience([room])`; mismatch → `WrongRoom` |
+| `mod_rooms` | string[] | rooms this peer may govern (S4, R3 ruling: authority is per-room, not global) | `serde(default)` + skipped when empty — **additive**: pre-S4 tokens decode to an empty list and keep verifying (R4 legacy-compat gate). Authority = `Dispatch role OR membership here`, OR-ed (a claim naming the token's own room is legal but redundant); validated at the issuance boundary only — `valid_id` charset + ≤64 chars, never inside `authorize_command` |
+| `exp` | unix seconds | `now + ttl_s` at issue | expiry → `Expired`; `TokenRefresh{jwt}` re-mints proactively before it (§1) |
+
+Audience isolation is STRUCTURAL, not a filter: the admin-console claim set deliberately carries **no `room` field**, so an admin token fails the `/ws` two-pass decode even under the misconfiguration where both secrets are equal; the REST side requires `aud:"admin"` + the separate `TS_ADMIN_SECRET`, so a user token gets 401 there (both directions covered by `permission_matrix` + the admin_api 401 rows).
