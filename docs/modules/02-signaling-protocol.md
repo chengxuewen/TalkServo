@@ -31,8 +31,9 @@ Additive-only evolution within a version; unknown fields rejected in debug, igno
 - **M mute (S7.5, 2026-10-20)**: `MuteSet{peer,on}` (authorized sender) -> roster +
   `grants`/`queue` revocation -> `FloorGranted`/`FloorIdle` rebroadcast to everyone +
   a role-scoped `ServerSnapshot` push carrying the new `muted` list (the roster rides
-  no message of its own; there is deliberately no mute message). `on:false` emits
-  NOTHING - the freed peer must send a fresh `FloorRequest`. An unknown target gets
+  no message of its own; there is deliberately no mute message). `on:false` emits NO
+  FLOOR message (the same snapshot push still carries the cleared roster) - the freed
+  peer must send a fresh `FloorRequest` to hold again. An unknown target gets
   `Error{unknown_peer}` back to the sender, never silence.
 
 Server→client table footnote: `*` = authorized-role messages (D12); `Error` codes include
