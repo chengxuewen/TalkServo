@@ -51,6 +51,8 @@
 | D20 | default cluster = server + caddy TLS front; --no-web | ✅ adopted |
 | D21 | config single source = server.yaml; Caddyfile/oxfile generated | ✅ adopted |
 | D22 | admin user/pwd login: accounts.yaml registry (plaintext-or-hash rows, init bootstrap, hot) -> minted JWT | ✅ adopted |
+| D23 | Alpha wave-1 = trust & control: room authority chain + audit JSONL + tiers + intervention kit (+ UI/plan annexes; S7.5 walked A1/A2/A3) | ✅ adopted — S1-S7.5 LANDED 2026-10-20 |
+| D24 | doc-audit 2026-10-19: four-lane findings adjudicated; forward pointers over wholesale rewrite | ✅ adopted |
 | D25 | PolyOrch build assembly: submodule+CMake graph, scripts thin, runtime red lines | ✅ adopted |
 
 ## Next Steps

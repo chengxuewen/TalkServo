@@ -27,9 +27,9 @@ TalkServo — real-time voice **floor-control platform** (PTT exclusive / confer
 |------|----------|-------|
 | What are we building / why | docs/whitepaper.md | v0.1 planning voice |
 | Architecture truth (live) | docs/architecture.md → modules/01-09 | master is thin by design |
-| Why a decision exists | .agents/memorys/decisions.md D1-D25 | cite by id; D23 = Alpha wave-1 (plan-7, S1-S7 landed), D25 = PolyOrch build graph |
+| Why a decision exists | .agents/memorys/decisions.md D1-D25 | cite by id; D23 = Alpha wave-1 (plan-7, S1-S7.5 landed), D25 = PolyOrch build graph |
 | Binding rules on this repo | .agents/memorys/conventions.md C1-C3 | C1 English, C2 docs-tiering, C3 full-word routes |
-| Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..24 | MediaServo ids labeled, never assume |
+| Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..25 | MediaServo ids labeled, never assume |
 | Competitive/selection evidence | docs/reference/research/{ptt,media,ui,tooling}/ | FROZEN dossiers |
 | Next implementation step | .agents/memorys/status.md → Next Steps | P0-1 workspace slice |
 | SDK/binding future shape | docs/modules/07 + D8 | nothing built at Beta trigger, not before |
@@ -43,7 +43,7 @@ Measured 2026-10-19: core = `FloorState::apply()` rules 1-9 (crates/talkservo-co
 - **C1**: every artifact English; only AI↔user chat follows user language. Functional Chinese literals need inline `c1:allow-zh`.
 - **C2**: docs tiering — design→`docs/modules/NN`, knowledge→`docs/reference/`, frozen research→`reference/research/<domain>/`.
 - **C3**: user-facing route/CLI/API names use full mainstream words (`/admin`, `/field/:room`, `/dispatch/:room`, `/room/:room`) — no cryptic abbreviations.
-- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D25, C1-C3, PIT-1..24.
+- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D25, C1-C3, PIT-1..25.
 - **Cargo.lock committed**; mediasoup UDP/ICE constraints in `.agents/rules/common/{docker,platform}.md` (Linux-native-first per D11 — their macOS posture is conditional).
 
 ## ANTI-PATTERNS (THIS PROJECT — learned in-session, enforced)
