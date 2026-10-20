@@ -201,7 +201,7 @@ async fn dispatch_sees_queue_field_does_not() {
 }
 
 #[tokio::test]
-async fn mute_set_survives_resync_snapshot() {
+async fn mute_takes_effect_live_and_survives_resync_snapshot() {
     // S0.1: the snapshot muted field was hardcoded empty — R1/reconnect lost
     // the mute roster on the floor. Peer ids come from the token sub.
     let srv = TestServer::start().await;
@@ -233,8 +233,9 @@ async fn mute_set_survives_resync_snapshot() {
     for _ in 0..4 {
         let _ = recv_msg(&mut v).await;
     }
-    // R8 precondition: mute governance applies to floor-active peers only —
-    // victim must hold (or be queued) before MuteSet takes effect
+    // S7.5 A2 rewrote Rule 8: holding the floor is no longer a PRECONDITION for
+    // mute to stick. The case kept here is the one that matters most - mute must
+    // take an occupied seat away, not just mark a name.
     send_json(
         &mut v,
         &SignalingMessage::FloorRequest {
@@ -252,8 +253,58 @@ async fn mute_set_survives_resync_snapshot() {
         },
     )
     .await;
-    // NOTE: MuteSet mutates silently (no reply/broadcast in current apply —
-    // cross-peer live sync logged as a candidate gap, S0.1 stays fill-only)
+    // S7.5 A1: mute is no longer silent. The victim sees the seat go away AND the
+    // roster change live - the floor message plus the role-scoped snapshot push the
+    // server now makes for MuteSet (room.rs). No resync, no new wire variant.
+    let mut saw_idle = false;
+    let mut saw_roster = false;
+    for _ in 0..4 {
+        if saw_idle && saw_roster {
+            break;
+        }
+        match recv_msg(&mut v).await {
+            SignalingMessage::FloorIdle { .. } => saw_idle = true,
+            SignalingMessage::ServerSnapshot {
+                payload: talkservo_core::wire::ServerSnapshotPayload::Field(fs),
+                ..
+            } => saw_roster = fs.muted.iter().any(|p| p.0.as_ref() == "quiet-guy"),
+            _ => {}
+        }
+    }
+    assert!(
+        saw_idle && saw_roster,
+        "mute must take the floor and show the roster live, unsolicited"
+    );
+
+    // S7.5 A1: a muted member who presses again is refused WITH A REASON, reusing
+    // the existing Unauthorized variant (no new wire value - D16 compat holds).
+    // server's request cooldown (500ms default) is a legitimate EARLIER gate, so the
+    // test waits it out - otherwise this line would be measuring RateLimited.
+    tokio::time::sleep(std::time::Duration::from_millis(650)).await;
+    send_json(
+        &mut v,
+        &SignalingMessage::FloorRequest {
+            priority: 0,
+            preempt: false,
+        },
+    )
+    .await;
+    let denied = loop {
+        let m = recv_msg(&mut v).await;
+        if matches!(m, SignalingMessage::FloorDenied { .. }) {
+            break m;
+        }
+    };
+    assert!(
+        matches!(
+            denied,
+            SignalingMessage::FloorDenied {
+                reason: talkservo_core::wire::DenyReason::Unauthorized,
+                ..
+            }
+        ),
+        "muted request must be refused as unauthorized, got {denied:?}"
+    );
     send_json(&mut d, &SignalingMessage::Resync).await;
     let m = loop {
         let m = recv_msg(&mut d).await;
@@ -294,6 +345,61 @@ async fn mute_set_survives_resync_snapshot() {
         }
         other => panic!("expected field snapshot, got {other:?}"),
     }
+
+    // S7.5 A3: un-mute restores the PRIVILEGE, never the floor. Nothing may arrive
+    // as a grant - the peer presses again, and that request carries its own
+    // priority, so no priority state has to be remembered or replayed.
+    send_json(
+        &mut d,
+        &SignalingMessage::MuteSet {
+            peer: talkservo_core::ids::PeerId::from("quiet-guy"),
+            on: false,
+        },
+    )
+    .await;
+    let auto_grant = tokio::time::timeout(std::time::Duration::from_millis(400), async {
+        loop {
+            if matches!(
+                recv_msg(&mut v).await,
+                SignalingMessage::FloorGranted { .. }
+            ) {
+                return true;
+            }
+        }
+    })
+    .await;
+    assert!(
+        auto_grant.is_err(),
+        "un-mute must not hand the floor back (S7.5 A3)"
+    );
+
+    // one more cooldown wait (500ms default): the previous press is the denied one,
+    // and a RateLimited answer here would make the assertion below measure the wrong
+    // thing.
+    tokio::time::sleep(std::time::Duration::from_millis(650)).await;
+
+    send_json(
+        &mut v,
+        &SignalingMessage::FloorRequest {
+            priority: 3,
+            preempt: false,
+        },
+    )
+    .await;
+    let regranted = loop {
+        let m = recv_msg(&mut v).await;
+        match &m {
+            SignalingMessage::FloorGranted { .. } => break m,
+            SignalingMessage::FloorDenied { reason, .. } => {
+                panic!("freed member's request refused again ({reason:?})")
+            }
+            _ => {} // the un-mute snapshot may still be in flight
+        }
+    };
+    assert!(
+        matches!(regranted, SignalingMessage::FloorGranted { .. }),
+        "a freed member can hold again by pressing"
+    );
 }
 
 #[tokio::test]
@@ -323,4 +429,44 @@ async fn floor_request_grants_first_peer() {
     .await;
     let m = recv_msg(&mut a).await;
     assert!(matches!(m, SignalingMessage::FloorGranted { .. }));
+}
+
+#[tokio::test]
+async fn mute_naming_an_absent_peer_is_refused_visibly() {
+    // S7.5 A2: the target-must-exist check lives in the server (the core keeps no
+    // roster), and an unknown id is ANSWERED, not swallowed (R4 fail-visible - a
+    // silently dropped admin command is how the mute switch got its reputation).
+    let srv = TestServer::start().await;
+    let mut d = ws_connect(srv.ws_url()).await;
+    send_json(
+        &mut d,
+        &join_msg(
+            &srv.secret,
+            "disp-x",
+            "room-ghost",
+            talkservo_core::wire::Role::Dispatch,
+        ),
+    )
+    .await;
+    for _ in 0..4 {
+        let _ = recv_msg(&mut d).await;
+    }
+    send_json(
+        &mut d,
+        &SignalingMessage::MuteSet {
+            peer: talkservo_core::ids::PeerId::from("nobody"),
+            on: true,
+        },
+    )
+    .await;
+    let err = loop {
+        let m = recv_msg(&mut d).await;
+        if matches!(m, SignalingMessage::Error { .. }) {
+            break m;
+        }
+    };
+    assert!(
+        matches!(&err, SignalingMessage::Error { code, .. } if code.as_str() == "unknown_peer"),
+        "absent mute target must be refused visibly, got {err:?}"
+    );
 }

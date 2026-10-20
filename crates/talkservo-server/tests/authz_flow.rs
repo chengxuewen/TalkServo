@@ -217,7 +217,9 @@ async fn field_cannot_mute_anyone_dispatch_mutes() {
     .unwrap();
     wait_for_type(&mut a, "floor_granted").await;
 
-    // grant bb first (core MuteSet: unknown target = no-op; R8 documented)
+    // bb holds first so this also proves the older path (mute an occupied seat);
+    // since S7.5 A2 mute no longer NEEDS an occupied seat - the target only has to
+    // be a member of the room.
     b.send(WsMsg::Text(
         json!({"type": "floor_request", "priority": 0, "preempt": false})
             .to_string()

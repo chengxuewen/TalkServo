@@ -318,11 +318,24 @@ impl RoomState {
                 mode: *mode,
                 actor: from.clone(),
             }),
-            SignalingMessage::MuteSet { peer, on } => Some(FloorEvent::MuteSet {
-                actor: from.clone(),
-                peer: peer.clone(),
-                on: *on,
-            }),
+            SignalingMessage::MuteSet { peer, on } if self.members.contains_key(peer) => {
+                Some(FloorEvent::MuteSet {
+                    actor: from.clone(),
+                    peer: peer.clone(),
+                    on: *on,
+                })
+            }
+            SignalingMessage::MuteSet { peer, .. } => {
+                // S7.5 A2: mute is a standing privilege on a ROOM MEMBER, and the core
+                // holds no roster - so "is that peer actually here" is checked here. An
+                // unknown id answers VISIBLY (R4 fail-visible: a silently swallowed
+                // admin command is exactly how the mute switch earned its reputation).
+                direct.push(SignalingMessage::Error {
+                    code: "unknown_peer".into(),
+                    detail: format!("{peer} is not a member of this room"),
+                });
+                None
+            }
             _ => None,
         };
 
@@ -408,10 +421,17 @@ impl RoomState {
                 }
                 self.broadcast(&m);
             }
-            // Mode transitions can be silent in core (empty→empty emit nothing)
-            // — clients still need the new mode. Role-scoped snapshots are the
-            // canonical state carrier (R1 mechanism); reuse it here.
-            if matches!(ev, FloorEvent::ModeChange { .. }) {
+            // Mode transitions and mute changes can both be silent in core (a mute of a
+            // silent member emits no floor event; a mode flip on an empty room may emit
+            // nothing) - clients still need the new state, and `muted` rides NO floor
+            // message at all. Role-scoped snapshots are the canonical state carrier
+            // (R1 mechanism); reuse it here. This is also what closes the old ws_flow
+            // NOTE "MuteSet mutates silently (no reply/broadcast)": the roster reaches
+            // every peer live, with no new wire variant (plan-7 §4 holds).
+            if matches!(
+                ev,
+                FloorEvent::ModeChange { .. } | FloorEvent::MuteSet { .. }
+            ) {
                 for peer in self.members.keys() {
                     if let Some(m) = self.members.get(peer) {
                         let _ = m.sink.send(self.snapshot_for(peer));
