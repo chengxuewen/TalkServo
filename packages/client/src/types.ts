@@ -68,7 +68,7 @@ export type ServerMessage =
   | { type: "router_caps"; media_codecs: unknown }
   | { type: "peer_list"; peers: PeerInfo[]; generation: number }
   | { type: "peer_joined"; info: PeerInfo; generation: number }
-  | { type: "peer_left"; peer: string; generation: number }
+  | { type: "peer_left"; peer: string; generation: number; kind?: "left" | "removed" }
   | { type: "floor_granted"; grants: string[]; generation: number }
   | { type: "floor_taken"; by: string; generation: number }
   | { type: "floor_denied"; reason: DenyReason; generation: number }

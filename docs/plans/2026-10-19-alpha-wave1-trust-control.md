@@ -1,6 +1,6 @@
 # Plan-7: Alpha wave-1 — Trust & Control (D23) — draft for review
 
-> **STATUS: S1-S5 + S7.6 LANDED (2026-10-19; ctest table 9/9 incl. crash lane). S6/S7 next.**
+> **STATUS: S1-S6 + S7.6 LANDED (2026-10-19; intervention kit green). Web S7/S7.5 remain.**
 > Design truth: `docs/modules/08-web-ui.md` + `.agents/memorys/decisions.md` D23 (incl. UI annex + borrow annex).
 > Sister precedent: plan-5 format (slices → gates → commit per slice).
 
@@ -136,7 +136,7 @@ WS msg ──► room.rs intake ──► authorized?(claims, msg) ──no─�
 ### S6 — intervention kit (adjudicated: full three + Jitsi contract)
 - 6.1 `DELETE /admin/api/rooms/{room}/peers/{peer}` — kick: reuses the Leave cleanup path
   (grant release + broadcast + media teardown); `POST .../force-release` — FloorEvent::Release
-  server-injected; both accept optional `reason` (Jitsi contract).
+  server-injected; both accept optional `reason` (Jitsi contract; LANDED 6.1-6.3).
   **R2 ruling**: reason lands in the AUDIT line only; the room broadcast is the
   EXISTING PeerLeft path clarified with an additive kind marker (`left:removed`,
   serde-default old value = `left`) — no reason, no actor over the wire (privacy +

@@ -21,7 +21,7 @@ async fn http_healthz(port: u16) -> bool {
         Ok(s) => s,
         Err(_) => return false,
     };
-    let req = format!("GET /healthz HTTP/1.1\r\nHost: t\r\nConnection: close\r\n\r\n");
+    let req = "GET /healthz HTTP/1.1\r\nHost: t\r\nConnection: close\r\n\r\n";
     if stream.write_all(req.as_bytes()).await.is_err() {
         return false;
     }

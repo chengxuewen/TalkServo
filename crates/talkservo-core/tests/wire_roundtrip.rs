@@ -87,6 +87,7 @@ fn server_to_client_variants_roundtrip() {
         SignalingMessage::PeerLeft {
             peer: pid("p1"),
             generation: 9,
+            kind: Default::default(), // S6: serde-default Left
         },
         SignalingMessage::FloorGranted {
             grants: vec![pid("p1")],

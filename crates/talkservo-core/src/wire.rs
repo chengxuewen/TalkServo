@@ -20,6 +20,21 @@ pub enum FloorMode {
 
 /// Why a floor request was denied (modules/01 §3 — closed on purpose:
 /// unknown `reason` strings must fail deserialization in PoC).
+/// Kick provenance marker (S6). Left is the serde default -> old peers ignore it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LeaveKind {
+    #[default]
+    Left,
+    Removed,
+}
+
+impl LeaveKind {
+    pub fn is_left(&self) -> bool {
+        matches!(self, Self::Left)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DenyReason {
@@ -175,6 +190,11 @@ pub enum SignalingMessage {
     PeerLeft {
         peer: PeerId,
         generation: u64,
+        /// S6 (R2 ruling): `removed` = console kick (server-initiated); the
+        /// default `left` keeps today's meaning. No reason/actor on the wire -
+        /// privacy + awareness. serde-default = pre-S6 frames parse.
+        #[serde(default, skip_serializing_if = "LeaveKind::is_left")]
+        kind: LeaveKind,
     },
     FloorGranted {
         grants: Vec<PeerId>,

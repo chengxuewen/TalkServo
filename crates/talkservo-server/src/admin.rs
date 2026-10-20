@@ -33,6 +33,14 @@ pub fn router() -> Router<Arc<App>> {
             "/admin/api/rooms/{room}",
             axum::routing::delete(rooms_delete),
         )
+        .route(
+            "/admin/api/rooms/{room}/peers/{peer}",
+            axum::routing::delete(peers_kick),
+        )
+        .route(
+            "/admin/api/rooms/{room}/peers/{peer}/force-release",
+            post(peers_force_release),
+        )
         .route("/admin/api/tokens", post(tokens))
         .route("/admin/api/audit", get(audit_query))
         .route("/admin/api/login", post(login))
@@ -50,11 +58,12 @@ fn guard<'a>(app: &'a App, headers: &'a HeaderMap) -> Result<(), (StatusCode, &'
     guard_role(app, headers).map(|_| ())
 }
 
-/// S5: tiered guard - Ok(claims.role) on a valid console session.
-fn guard_role<'a>(
-    app: &'a App,
-    headers: &'a HeaderMap,
-) -> Result<String, (StatusCode, &'static str)> {
+/// S5: tiered guard - full claims on a valid console session (S6 needs `sub`
+/// for audit attribution; tier checks read `.role`).
+fn guard_claims(
+    app: &App,
+    headers: &HeaderMap,
+) -> Result<auth::AdminClaims, (StatusCode, &'static str)> {
     let Some(secret) = app.config.admin_secret.as_deref() else {
         return Err((StatusCode::SERVICE_UNAVAILABLE, "admin surface disabled"));
     };
@@ -65,7 +74,11 @@ fn guard_role<'a>(
         .ok_or((StatusCode::UNAUTHORIZED, "missing bearer token"))?;
     let claims = auth::validate_admin(secret, token)
         .map_err(|_| (StatusCode::UNAUTHORIZED, "invalid admin token"))?;
-    Ok(claims.role)
+    Ok(claims)
+}
+
+fn guard_role(app: &App, headers: &HeaderMap) -> Result<String, (StatusCode, &'static str)> {
+    guard_claims(app, headers).map(|c| c.role)
 }
 
 /// ADMIN-only write gate (accounts + rooms registry config): operator 403.
@@ -466,6 +479,142 @@ async fn audit_query(
         })),
     )
         .into_response()
+}
+
+/// S6 intervention kit (D23-④ / R2 contract): optional reason lands in the
+/// AUDIT line only; the survivor broadcast is the S1 leave relay with the
+/// additive kind=removed marker - no reason/actor over the wire.
+/// Console tier: operator may intervene (moderator duty); accounts/registry
+/// writes stay admin-only (S5).
+#[derive(Deserialize)]
+struct ActionReq {
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+/// R2/Jitsi clause: reason <=512; over-limit reasons are rejected 400 at
+/// the endpoint (Box-free small error keeps clippy result_large_err quiet).
+fn action_reason(body: &Option<Json<ActionReq>>) -> Option<String> {
+    body.as_ref().and_then(|Json(a)| a.reason.clone())
+}
+fn reason_overlong(reason: &Option<String>) -> bool {
+    reason.as_ref().is_some_and(|r| r.len() > 512)
+}
+
+async fn peers_kick(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    Path((room, peer)): Path<(String, String)>,
+    body: Option<Json<ActionReq>>,
+) -> Response {
+    let claims = match guard_claims(&app, &headers) {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
+    };
+    if !crate::rooms::valid_room(&room) || !valid_id(&peer) {
+        return (StatusCode::NOT_FOUND, "unknown room or peer").into_response();
+    }
+    let reason = action_reason(&body);
+    if reason_overlong(&reason) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "reason too long (max 512, Discord clause)",
+        )
+            .into_response();
+    }
+    let tx = {
+        let guard = app.rooms.lock().await;
+        guard
+            .get(&talkservo_core::ids::RoomId::from(room.as_str()))
+            .cloned()
+    };
+    let Some(tx) = tx else {
+        return (StatusCode::NOT_FOUND, "room is not live").into_response();
+    };
+    let (rsp, rcp) = tokio::sync::oneshot::channel::<bool>();
+    if tx
+        .send(crate::ws::RoomCommand::KickPeer {
+            peer: talkservo_core::ids::PeerId::from(peer.as_str()),
+            reply: rsp,
+        })
+        .await
+        .is_err()
+    {
+        return (StatusCode::NOT_FOUND, "room is not live").into_response();
+    }
+    match rcp.await {
+        Ok(true) => {
+            if let Some(a) = &app.audit {
+                a.emit(
+                    crate::audit::AuditEvent::new(crate::audit::AuditKind::Kick)
+                        .room(room)
+                        .actor(claims.sub)
+                        .target(peer)
+                        .reason(reason.unwrap_or_default()),
+                );
+            }
+            (StatusCode::NO_CONTENT, "").into_response()
+        }
+        _ => (StatusCode::NOT_FOUND, "peer not in room").into_response(),
+    }
+}
+
+async fn peers_force_release(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    Path((room, peer)): Path<(String, String)>,
+    body: Option<Json<ActionReq>>,
+) -> Response {
+    let claims = match guard_claims(&app, &headers) {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
+    };
+    if !crate::rooms::valid_room(&room) || !valid_id(&peer) {
+        return (StatusCode::NOT_FOUND, "unknown room or peer").into_response();
+    }
+    let reason = action_reason(&body);
+    if reason_overlong(&reason) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "reason too long (max 512, Discord clause)",
+        )
+            .into_response();
+    }
+    let tx = {
+        let guard = app.rooms.lock().await;
+        guard
+            .get(&talkservo_core::ids::RoomId::from(room.as_str()))
+            .cloned()
+    };
+    let Some(tx) = tx else {
+        return (StatusCode::NOT_FOUND, "room is not live").into_response();
+    };
+    let (rsp, rcp) = tokio::sync::oneshot::channel::<bool>();
+    if tx
+        .send(crate::ws::RoomCommand::ForceRelease {
+            peer: talkservo_core::ids::PeerId::from(peer.as_str()),
+            reply: rsp,
+        })
+        .await
+        .is_err()
+    {
+        return (StatusCode::NOT_FOUND, "room is not live").into_response();
+    }
+    match rcp.await {
+        Ok(true) => {
+            if let Some(a) = &app.audit {
+                a.emit(
+                    crate::audit::AuditEvent::new(crate::audit::AuditKind::ForceRelease)
+                        .room(room)
+                        .actor(claims.sub)
+                        .target(peer)
+                        .reason(reason.unwrap_or_default()),
+                );
+            }
+            (StatusCode::NO_CONTENT, "").into_response()
+        }
+        _ => (StatusCode::NOT_FOUND, "peer not in room").into_response(),
+    }
 }
 
 /// Registry views (plan-7 S2). GET lists rooms.yaml rows; POST upserts one;

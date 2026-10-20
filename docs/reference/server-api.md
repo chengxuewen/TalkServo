@@ -39,7 +39,11 @@ Credential sources: `init` bootstraps `etc/accounts.yaml` with user `admin` + **
 | `POST /admin/api/rooms` | `{room, owner?, mode?, max_peers?, max_queue?, locked?}` -> 201 (upsert) / 400 validation (name charset = token charset, ranges) |
 | `DELETE /admin/api/rooms/{room}` | -> 204 = row removed AND live room evicted (members get 1000 Close, audit `leave` lines via S1 relay); 404 unknown/absent |
 | `GET /admin/api/rooms/live` | the plan-5 live floor poll (renamed from `/admin/api/rooms`; unchanged shape) |
+| `DELETE /admin/api/rooms/{room}/peers/{peer}` | S6 kick, console tier (operator OK): optional body `{reason}` (<=512, audit-only); live room + member required else 404; target socket closed, survivors get `peer_left{kind:"removed"}` (no reason/actor on wire - R2) |
+| `POST /admin/api/rooms/{room}/peers/{peer}/force-release` | S6 recall: injects the peer's own FloorRelease through the authorized path (grants shrink -> PIT-21 rebroadcast / idle); 204 / 404; audit `force_release` carries actor+reason |
 | `GET /admin/api/audit` | query `{before?,after?,room?,actor?,event?,limit? (1..=1000, default 100)}` -> `{events:[{seq,ts_ms,event,room,actor,target,changes,reason}], dropped}` - newest-first seq-cursor page over the JSONL trail; 503 when audit is disabled |
+`peer_left` carries additive `kind` (default `left`; `removed` = console kick/eviction - serde-default keeps old clients parsing).
+
 | `POST /admin/api/tokens` | `{sub, room, role:"dispatch"\|"field", ttl_s?}` (ids: 1-64 `[A-Za-z0-9._-]`; ttl clamped `1..=TS_JWT_TTL_S`) | `{jwt, field_url, dispatch_url, participant_url}` (participant link added with the /room shell, 2026-10-10); base = `TS_PUBLIC_BASE` (scheme-inclusive; Host-header fallback is loopback-dev only). Rate: 60/min ⇒ 429. Trail: `token_issue` audit line + the `admin_token_issued` log (token value never in either) |
 
 REST contract of record = this table (`openapi.yaml` deferred to Alpha external-API work with CI validation — plan-2 /healthz precedent, adjudicated 2026-10-08).

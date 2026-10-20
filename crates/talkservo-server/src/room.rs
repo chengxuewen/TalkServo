@@ -480,6 +480,10 @@ impl RoomState {
                 .values()
                 .map(|m| crate::ws::PeerEntry {
                     id: m.info.id.0.to_string(),
+                    role: m.info.role,
+                    mod_rooms: m.info.mod_rooms.clone(),
+                    granted: self.floor.is_granted(&m.info.id),
+                    muted: self.floor.is_muted(&m.info.id),
                     connected_since_ms: m.info.connected_since_ms,
                 })
                 .collect(),
@@ -550,6 +554,22 @@ impl RoomState {
 
     /// Leave: emit PeerLeft delta to survivors + queue purge is core's job
     /// via Leave event; returns the survivor-facing delta.
+    /// Operator-initiated removal (S6 kick / S2 evict): same teardown, the
+    /// survivor delta carries kind=removed (R2: no reason/actor on the wire).
+    pub fn leave_removed(&mut self, peer: &PeerId) -> Option<SignalingMessage> {
+        let delta = self.leave(peer)?;
+        match delta {
+            SignalingMessage::PeerLeft {
+                generation, peer, ..
+            } => Some(SignalingMessage::PeerLeft {
+                peer,
+                generation,
+                kind: talkservo_core::wire::LeaveKind::Removed,
+            }),
+            other => Some(other),
+        }
+    }
+
     pub fn leave(&mut self, peer: &PeerId) -> Option<SignalingMessage> {
         self.members.remove(peer)?;
         let gen_before = self.floor.generation();
@@ -563,6 +583,7 @@ impl RoomState {
         Some(SignalingMessage::PeerLeft {
             peer: peer.clone(),
             generation: self.floor.generation(),
+            kind: talkservo_core::wire::LeaveKind::Left,
         })
     }
 }

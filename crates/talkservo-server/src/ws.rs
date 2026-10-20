@@ -57,6 +57,19 @@ pub enum RoomCommand {
     /// Registry delete fan-out (plan-7 S2): evict every member via the
     /// disconnect teardown and stop the room task.
     Evict,
+    /// S6 kick one peer (admin API); reply found(true)/absent(false). Teardown
+    /// equals the Evict iteration for ONE peer; delta is kind=removed.
+    KickPeer {
+        peer: PeerId,
+        reply: tokio::sync::oneshot::Sender<bool>,
+    },
+    /// S6 forced floor release (admin API): server-injects the peer's own
+    /// FloorRelease through the authorized path (R8-safe no-op if ungranted);
+    /// reply reflects membership, not grant state.
+    ForceRelease {
+        peer: PeerId,
+        reply: tokio::sync::oneshot::Sender<bool>,
+    },
     /// Read-only admin inspect (plan-5 S1): answer from RoomState ONLY —
     /// zero SFU calls, zero mutation; the fan-out timeout lives in admin.rs.
     AdminInspect(tokio::sync::oneshot::Sender<RoomReport>),
@@ -81,6 +94,12 @@ pub struct RoomReport {
 pub struct PeerEntry {
     pub id: String,
     pub connected_since_ms: u64,
+    /// S6.2 detail-drawer fields (all RoomState-owned; the zero-SFU-call
+    /// inspect principle holds). bitrate/ICE stats deferred (wave-2).
+    pub role: talkservo_core::wire::Role,
+    pub mod_rooms: Vec<String>,
+    pub granted: bool,
+    pub muted: bool,
 }
 
 pub async fn ws_handler(ws: WebSocketUpgrade, State(app): State<Arc<App>>) -> impl IntoResponse {
@@ -348,7 +367,8 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                     }
                     RoomCommand::Join { .. } | RoomCommand::WatchdogTick
                     | RoomCommand::MaxHoldTick | RoomCommand::RefreshTick
-                    | RoomCommand::IdleTick | RoomCommand::Evict => {}
+                    | RoomCommand::IdleTick | RoomCommand::Evict
+                    | RoomCommand::KickPeer { .. } | RoomCommand::ForceRelease { .. } => {}
                     // pre-admission inspect: dropping the oneshot surfaces
                     // as `stale` on the admin side — correct semantics
                     RoomCommand::AdminInspect(_) => {}
@@ -706,7 +726,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             let _ = m.wire_tx.try_send(RoomCommand::Left { peer: p.clone() });
                         }
                         media.peer_left(&state.id, &p).await;
-                        if let Some(delta) = state.leave(&p) {
+                        if let Some(delta) = state.leave_removed(&p) {
                             state.relay_leave(&p);
                             obs::event(
                                 state.id.0.as_ref(),
@@ -719,6 +739,36 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                         }
                     }
                     break; // task ends; reaper drops the dead registry slot
+                }
+                RoomCommand::KickPeer { peer, reply } => {
+                    let found = state.members.contains_key(&peer);
+                    if found {
+                        if let Some(m) = state.members.get(&peer) {
+                            let _ = m.wire_tx.try_send(RoomCommand::Left { peer: peer.clone() });
+                        }
+                        media.peer_left(&state.id, &peer).await;
+                        if let Some(delta) = state.leave_removed(&peer) {
+                            state.relay_leave(&peer);
+                            obs::event(
+                                state.id.0.as_ref(),
+                                peer.0.as_ref(),
+                                state.floor.generation(),
+                                obs::Event::Leave,
+                                serde_json::json!({}),
+                            );
+                            state.broadcast(&delta);
+                        }
+                    }
+                    let _ = reply.send(found);
+                }
+                RoomCommand::ForceRelease { peer, reply } => {
+                    let found = state.members.contains_key(&peer);
+                    if found {
+                        // route through the peer's own authorized release path:
+                        // grants shrink via core, PIT-21 rebroadcast fires
+                        state.handle_floor_message(&peer, &SignalingMessage::FloorRelease);
+                    }
+                    let _ = reply.send(found);
                 }
                 RoomCommand::Left { peer } => {
                     media.peer_left(&state.id, &peer).await; // R-F16: free media objects NOW
