@@ -41,6 +41,8 @@ pub struct Config {
     /// (`<etc>/../etc/accounts.yaml` sibling of server.yaml); None on
     /// bare-env runs (script mint only). Not an env/yaml key.
     pub accounts_file: Option<std::path::PathBuf>,
+    /// JSONL audit trail path (plan-7 S1); default derived <instance>/logs/audit.jsonl
+    pub audit_log: Option<std::path::PathBuf>,
 }
 
 /// server.yaml snake_case keys → environment names (single source; tests
@@ -53,6 +55,7 @@ pub static YAML_ENV_KEYS: std::sync::LazyLock<
         ("admin_secret", "TS_ADMIN_SECRET"),
         ("public_base", "TS_PUBLIC_BASE"),
         ("bind", "TS_BIND"),
+        ("audit_log", "TS_AUDIT_LOG"),
         ("announced_ip", "TS_ANNOUNCED_IP"),
         ("turn_secret", "TURN_SECRET"),
         ("turn_uri", "TURN_URI"),
@@ -146,6 +149,12 @@ impl Config {
         if cfg.accounts_file.is_none() {
             cfg.accounts_file = path.parent().map(|etc| etc.join("accounts.yaml"));
         }
+        if cfg.audit_log.is_none() {
+            cfg.audit_log = path
+                .parent()
+                .and_then(|etc| etc.parent())
+                .map(|inst| inst.join("logs/audit.jsonl"));
+        }
         Ok(cfg)
     }
 
@@ -214,6 +223,10 @@ impl Config {
                 .ok()
                 .filter(|v| !v.is_empty())
                 .map(std::path::PathBuf::from),
+            audit_log: std::env::var("TS_AUDIT_LOG")
+                .ok()
+                .filter(|v| !v.is_empty())
+                .map(std::path::PathBuf::from),
         }
     }
 
@@ -242,6 +255,7 @@ impl Config {
             admin_password_hash: None,
             admin_login_ttl_s: 43_200,
             accounts_file: None,
+            audit_log: None,
         }
     }
 }

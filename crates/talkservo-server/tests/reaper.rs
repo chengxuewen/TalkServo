@@ -37,6 +37,7 @@ impl TestServer {
             started_at: std::time::Instant::now(),
             admin_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
             rooms: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+            audit: None,
             media: media.clone(),
         });
         void_app_rooms(rooms.clone()); // keep a probe handle to the live registry

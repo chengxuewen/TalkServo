@@ -27,6 +27,7 @@ impl TestServer {
             started_at: std::time::Instant::now(),
             admin_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
             rooms: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+            audit: None,
             media: media.clone(),
         });
         let app = test_bridge::build_router(app_state);

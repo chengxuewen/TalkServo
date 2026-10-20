@@ -23,6 +23,8 @@ pub struct App {
     /// adjudicated #4A: 60 issues/min, 429 beyond)
     pub started_at: std::time::Instant,
     pub admin_rate: std::sync::Mutex<(std::time::Instant, u32)>,
+    /// audit writer channel (plan-7 S1; None = writer not spawned, sites no-op)
+    pub audit: Option<crate::audit::AuditTx>,
     /// Concrete SFU backend (exactly one; feature-selected, modules/03).
     #[cfg(feature = "stub-media")]
     pub media: std::sync::Arc<talkservo_sfu::StubSfu>,
@@ -383,6 +385,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
     let tx_probe = tx.clone(); // channel-identity guard for the reaper
     tokio::spawn(async move {
         let mut state = RoomState::new(room_id.clone(), app.config.max_peers, app.config.max_queue);
+        state.set_audit(app.audit.clone());
         let media = app.media.clone();
         let mut media_ctx = crate::media::MediaCtx::default();
         let cfg_media_grace_ms = app.config.floor_media_grace_ms;
@@ -406,6 +409,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                     let res = state.join(peer.clone(), role, sink, since_ms);
                     match res {
                         Ok(()) => {
+                            state.relay_join(&peer);
                             let generation = state.floor.generation();
                             obs::event(
                                 state.id.0.as_ref(),
@@ -653,6 +657,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                 RoomCommand::Left { peer } => {
                     media.peer_left(&state.id, &peer).await; // R-F16: free media objects NOW
                     if let Some(delta) = state.leave(&peer) {
+                        state.relay_leave(&peer);
                         obs::event(
                             state.id.0.as_ref(),
                             peer.0.as_ref(),

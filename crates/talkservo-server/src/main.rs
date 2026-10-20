@@ -193,12 +193,17 @@ async fn serve(config: config::Config) {
         );
         std::process::exit(1);
     }
+    let audit_tx = config
+        .audit_log
+        .as_ref()
+        .map(|p| talkservo_server::audit::spawn_for(p.as_path()));
     let app_state = Arc::new(ws::App {
         config,
         rooms: tokio::sync::Mutex::new(HashMap::new()),
         started_at: std::time::Instant::now(),
         admin_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
         media: media_handle,
+        audit: audit_tx,
     });
 
     // W-sequence step 2 (live host only): worker death → MediaRestart fanout

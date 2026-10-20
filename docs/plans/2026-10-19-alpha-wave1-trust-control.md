@@ -1,6 +1,6 @@
 # Plan-7: Alpha wave-1 — Trust & Control (D23) — draft for review
 
-> **STATUS: DRAFT — awaiting user review.** Zero implementation has started.
+> **STATUS: S1 LANDED (2026-10-19; audit skeleton green). S2 next.**
 > Design truth: `docs/modules/08-web-ui.md` + `.agents/memorys/decisions.md` D23 (incl. UI annex + borrow annex).
 > Sister precedent: plan-5 format (slices → gates → commit per slice).
 
@@ -70,7 +70,7 @@ S6 needs S3+S4+S1 (who may act + is it recorded); S7 is pure UI, doable after S5
 ### S1 — audit skeleton (server + writer; adjudicated: JSONL, Discord 5-tuple)
 - 1.1 `crates/talkservo-server/src/audit.rs` (~120 lines): `AuditEvent` serde struct =
   `{ts, event, room?, actor?, target?, changes?, reason?}` —
-  `event` = `enum { floor_grant, floor_taken, floor_idle, mode_change, mute_set, kick,
+  `event` = closed enum serialized snake_case (S1 landed deviation: numbering adds nothing for a local file; the borrowed property is the closed typed set) `{ floor_grant, floor_taken, floor_idle, mode_change, mute_set, kick,
   force_release, join, leave, token_issue, login_fail, authz_denied }` (numbered serde enums,
   Discord `AuditLogEvent` shape); `changes` = `[{key, old, new}]`; query = `?before=&limit=&
   room=&actor=&event=` (id-cursor paging). Writer: append-only `out/live/logs/audit.jsonl`,

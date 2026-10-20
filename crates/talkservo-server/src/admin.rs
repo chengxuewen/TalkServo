@@ -9,7 +9,7 @@
 //! the registry lock, DROP the lock, then send+await with a per-room 1s
 //! timeout; a wedged room task gets `"stale": true`, never a hung poll.
 
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -29,6 +29,7 @@ pub fn router() -> Router<Arc<App>> {
         .route("/admin/api/overview", get(overview))
         .route("/admin/api/rooms", get(rooms))
         .route("/admin/api/tokens", post(tokens))
+        .route("/admin/api/audit", get(audit_query))
         .route("/admin/api/login", post(login))
         .route(
             "/admin/api/accounts",
@@ -210,6 +211,11 @@ async fn login(
     // "admin" from server.yaml until accounts.yaml is materialized)
     if !crate::accounts::authenticate(&app.config, &req.user, &req.password) {
         tracing::warn!(event = "admin_login_failed", user = %req.user, "rejected credentials");
+        if let Some(a) = &app.audit {
+            a.emit(
+                crate::audit::AuditEvent::new(crate::audit::AuditKind::LoginFail).actor(req.user),
+            );
+        }
         return (StatusCode::UNAUTHORIZED, "invalid credentials").into_response();
     }
     match auth::issue_admin(secret, &req.user, app.config.admin_login_ttl_s) {
@@ -336,6 +342,18 @@ async fn tokens(
         role = ?req.role,
         ttl_s = ttl,
     );
+    if let Some(a) = &app.audit {
+        a.emit(
+            crate::audit::AuditEvent::new(crate::audit::AuditKind::TokenIssue)
+                .room(req.room.clone())
+                .actor(req.sub.clone())
+                .change(
+                    "grant",
+                    serde_json::Value::Null,
+                    serde_json::json!({"role": format!("{:?}", req.role), "ttl_s": ttl}),
+                ),
+        );
+    }
     (
         StatusCode::OK,
         Json(serde_json::json!({
@@ -343,6 +361,40 @@ async fn tokens(
             "field_url": format!("{base}/field/{}?jwt={jwt}", req.room),
             "dispatch_url": format!("{base}/dispatch/{}?jwt={jwt}", req.room),
             "participant_url": format!("{base}/room/{}?jwt={jwt}", req.room),
+        })),
+    )
+        .into_response()
+}
+
+/// GET /admin/api/audit - JSONL trail reader behind the same admin guard.
+/// Cursor paging (seq before/after) + room/actor/event filters; limit is
+/// clamped 1..=1000 (doc-audit GAP-8); `dropped` surfaces writer failures (R4).
+async fn audit_query(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    if let Err(e) = guard(&app, &headers) {
+        return e.into_response();
+    }
+    let Some(path) = &app.config.audit_log else {
+        return (StatusCode::SERVICE_UNAVAILABLE, "audit log disabled").into_response();
+    };
+    let num = |k: &str| params.get(k).and_then(|v| v.parse::<u64>().ok());
+    let q = crate::audit::AuditQuery {
+        before: num("before"),
+        after: num("after"),
+        room: params.get("room").cloned(),
+        actor: params.get("actor").cloned(),
+        event: params.get("event").cloned(),
+        limit: num("limit"),
+    };
+    let events = crate::audit::query(path, &q);
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "events": events,
+            "dropped": crate::audit::AUDIT_DROPPED.load(std::sync::atomic::Ordering::Relaxed),
         })),
     )
         .into_response()

@@ -7,6 +7,7 @@ pub async fn healthz() -> axum::Json<serde_json::Value> {
 
 pub mod accounts;
 pub mod admin;
+pub mod audit;
 pub mod auth;
 pub mod config;
 #[cfg(feature = "embedded-web")]

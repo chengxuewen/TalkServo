@@ -48,12 +48,11 @@ function(talkservo_crates)
     list(GET _kv 5 _base)
     list(GET _kv 6 _feat)
     set(_base "${CMAKE_SOURCE_DIR}/${_base}")
-  if(NOT EXISTS "${CMAKE_SOURCE_DIR}/web/dist/index.html")
-    message(STATUS "talkservo crates: web/dist absent - build talkservo-web-build first (embedded-web lanes bake it)")
-  endif()
     string(TOUPPER "${_kind}" _kindw)
     set(_manifest "${CMAKE_SOURCE_DIR}/${_fold}/Cargo.toml")
 
+    # features ride set_features below (per-handle properties; polyorch_rust_build
+    # has no build-time NO_DEFAULT keyword - S1 forensics corrected a wrong guess).
     polyorch_rust_build(
         TARGET   ${_pkg}
         PACKAGE  ${_cpkg}
@@ -92,7 +91,7 @@ function(talkservo_crates)
     endif()
 
     polyorch_rust_test(
-        PACKAGE  ${_pkg}
+        PACKAGE  ${_cpkg}
         NAME     ${_pkg}-test
         TARGET   ${_pkg}
         MANIFEST "${_manifest}"

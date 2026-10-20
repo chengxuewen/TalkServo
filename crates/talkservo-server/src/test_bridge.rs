@@ -14,12 +14,17 @@ pub fn config_for_test(secret: &str) -> Config {
 
 /// Test convenience: stub-media App (tests never run under live features).
 pub fn test_app(config: Config) -> Arc<AppState> {
+    let audit = config
+        .audit_log
+        .as_ref()
+        .map(|p| crate::audit::spawn_for(p.as_path()));
     Arc::new(AppState {
         config,
         rooms: tokio::sync::Mutex::new(HashMap::new()),
         started_at: std::time::Instant::now(),
         admin_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
         media: std::sync::Arc::new(talkservo_sfu::StubSfu::new()),
+        audit,
     })
 }
 

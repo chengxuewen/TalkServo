@@ -48,6 +48,8 @@ pub struct RoomState {
     /// `grant_latency_ms` (modules/05 §Obs, acceptance #10). Kept across
     /// queueing so queued→promoted grants measure from the ORIGINAL request.
     pending_requests: HashMap<PeerId, Instant>,
+    /// audit writer (set once by the actor; None in unit tests / audit-off runs)
+    audit: Option<crate::audit::AuditTx>,
 }
 
 impl RoomState {
@@ -67,6 +69,54 @@ impl RoomState {
             pending_requests: HashMap::new(),
             producers_by_peer: HashMap::new(),
             last_activity: HashMap::new(),
+            audit: None,
+        }
+    }
+
+    pub fn set_audit(&mut self, tx: Option<crate::audit::AuditTx>) {
+        self.audit = tx;
+    }
+
+    fn relay(&self, ev: crate::audit::AuditEvent) {
+        if let Some(a) = &self.audit {
+            a.emit(ev.room(self.id.0.as_ref()));
+        }
+    }
+
+    pub fn relay_join(&self, peer: &PeerId) {
+        self.relay(
+            crate::audit::AuditEvent::new(crate::audit::AuditKind::Join).actor(peer.to_string()),
+        );
+    }
+
+    pub fn relay_leave(&self, peer: &PeerId) {
+        self.relay(
+            crate::audit::AuditEvent::new(crate::audit::AuditKind::Leave).actor(peer.to_string()),
+        );
+    }
+
+    /// timer/media paths: coarse relay of emitted transitions (no actor known)
+    fn relay_floor_msgs(&self, msgs: &[SignalingMessage]) {
+        if self.audit.is_none() {
+            return;
+        }
+        for m in msgs {
+            let rec = match m {
+                SignalingMessage::FloorIdle { reason, .. } => Some(
+                    crate::audit::AuditEvent::new(crate::audit::AuditKind::FloorIdle)
+                        .reason(format!("{reason:?}")),
+                ),
+                SignalingMessage::FloorGranted { .. } => Some(crate::audit::AuditEvent::new(
+                    crate::audit::AuditKind::FloorGrant,
+                )),
+                SignalingMessage::FloorTaken { .. } => Some(crate::audit::AuditEvent::new(
+                    crate::audit::AuditKind::FloorTaken,
+                )),
+                _ => None,
+            };
+            if let Some(r) = rec {
+                self.relay(r);
+            }
         }
     }
 
@@ -213,10 +263,67 @@ impl RoomState {
         };
 
         if let Some(ev) = ev {
+            let pre_mode = self.floor.mode();
+            let pre_grants: Vec<String> =
+                self.floor.grants().iter().map(|g| g.to_string()).collect();
+            let pre_muted: Vec<String> = self.floor.muted().iter().map(|m| m.to_string()).collect();
             let (next, emitted) = self.floor.apply(&ev, &self.limits);
             self.floor = next;
             mutated = true; // any apply() result reflects a floor transition
 
+            if self.audit.is_some() {
+                match &ev {
+                    FloorEvent::ModeChange { mode, actor } => self.relay(
+                        crate::audit::AuditEvent::new(crate::audit::AuditKind::ModeChange)
+                            .actor(actor.to_string())
+                            .change(
+                                "mode",
+                                format!("{pre_mode:?}").into(),
+                                format!("{mode:?}").into(),
+                            ),
+                    ),
+                    FloorEvent::MuteSet { actor, peer, on } => self.relay(
+                        crate::audit::AuditEvent::new(crate::audit::AuditKind::MuteSet)
+                            .actor(actor.to_string())
+                            .target(peer.to_string())
+                            .change(
+                                "muted",
+                                pre_muted.contains(&peer.to_string()).into(),
+                                (*on).into(),
+                            ),
+                    ),
+                    _ => {}
+                }
+                for m in &emitted {
+                    let rec = match m {
+                        SignalingMessage::FloorGranted { grants, .. } => Some(
+                            crate::audit::AuditEvent::new(crate::audit::AuditKind::FloorGrant)
+                                .actor(from.to_string())
+                                .change(
+                                    "grants",
+                                    pre_grants.clone().into(),
+                                    grants
+                                        .iter()
+                                        .map(|g| g.to_string())
+                                        .collect::<Vec<_>>()
+                                        .into(),
+                                ),
+                        ),
+                        SignalingMessage::FloorTaken { by, .. } => Some(
+                            crate::audit::AuditEvent::new(crate::audit::AuditKind::FloorTaken)
+                                .actor(by.to_string()),
+                        ),
+                        SignalingMessage::FloorIdle { reason, .. } => Some(
+                            crate::audit::AuditEvent::new(crate::audit::AuditKind::FloorIdle)
+                                .reason(format!("{reason:?}")),
+                        ),
+                        _ => None,
+                    };
+                    if let Some(r) = rec {
+                        self.relay(r);
+                    }
+                }
+            }
             for m in emitted {
                 // latency tap: grant/taken mark the END of a request's wait
                 match &m {
@@ -327,6 +434,7 @@ impl RoomState {
             .floor
             .apply(&FloorEvent::MediaDown { peer: peer.clone() }, &self.limits);
         self.floor = next;
+        self.relay_floor_msgs(&emitted);
         emitted
     }
 
@@ -334,6 +442,7 @@ impl RoomState {
     pub fn apply_timeout(&mut self) -> Vec<SignalingMessage> {
         let (next, emitted) = self.floor.apply(&FloorEvent::Timeout, &self.limits);
         self.floor = next;
+        self.relay_floor_msgs(&emitted);
         emitted
     }
 
