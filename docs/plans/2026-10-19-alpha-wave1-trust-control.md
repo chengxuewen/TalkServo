@@ -1,6 +1,6 @@
 # Plan-7: Alpha wave-1 — Trust & Control (D23) — draft for review
 
-> **STATUS: S1-S5 LANDED (2026-10-19; permission matrix green). S6 next.**
+> **STATUS: S1-S5 + S7.6 LANDED (2026-10-19; ctest table 9/9 incl. crash lane). S6/S7 next.**
 > Design truth: `docs/modules/08-web-ui.md` + `.agents/memorys/decisions.md` D23 (incl. UI annex + borrow annex).
 > Sister precedent: plan-5 format (slices → gates → commit per slice).
 
@@ -167,6 +167,10 @@ WS msg ──► room.rs intake ──► authorized?(claims, msg) ──no─�
 - 7.4 Tests: vitest +8 (Sider role filter, rooms CRUD form, logs render/filter, expand+
   confirm+drawer, mod multi-select, deny copy); e2e: admin kick → other peer's page shows
   departure (cross-client), logs line appears (audit e2e), locked room join rejected.
+- [x] 7.6 **crash recovery (user A ruling, 2026-10-19)**: `crash_recovery` integration —
+  real-binary spawn, two peers + floor, kill -9, respawn same env -> old tokens valid,
+  room rebuilds lazily, floor re-grants, late joiner learns roster via peer_list (J-sequence
+  scoping). modules/05 E12 row written as part of the slice. LANDED (1/1).
 - Diagram (admin IA):
 ```
 ┌ Sider ──────────┐  Monitor │ Rooms │ Tokens │ Accounts(admin) │ Logs

@@ -9,6 +9,7 @@ Principles: media failure never corrupts arbitration state; clients never self-h
 |---|---------|-----------|--------------|----------|----|
 | E1 | holder WS drop | heartbeat 30 s / TCP half-open | release + auto-promote | R-sequence on reconnect | muted notice → restored |
 | **E11** | holder **media dies, WS alive** (mic revoked, 4G handover, silent uplink) | `iceConsentTimeout` 30 s auto-close; `icestatechange('disconnected')`→close; PoC adds no-RTP watchdog (2 s) | `MediaDown` after `floor_media_grace_ms` → release+promote (D12) | F-sequence | all see `MediaFailed{holder}` + new grant |
+| **E12** | server **process** crash (not just worker) | healthz probe fails; oxmgr supervisor restarts it (`status` exit 2 meanwhile) | full floor reset — rooms rebuild lazily on rejoin, grants empty; secrets survive (identity/env sidecar ⇒ tokens stay valid); `gen` reseeds from SystemTime (no stale-frame collision) | SDK backoff→reconnect→R1 snapshot resync; auth-expired is the only terminal | clients see brief disconnect, then rebuilt roster; `crash_recovery` integration test pins the contract (plan-7 S7.6) |
 | E2 | reconnect race | stale `gen` discard | none | — | seamless |
 | E3 | mic denied/busy | getUserMedia reject | none | client shows banner; no Request sent | explicit |
 | E4 | transport timeout (mediasoup 10 s) | await err | none | retry 1 → kick media half only, `MediaFailed{peer}` | "peer audio unreachable" |

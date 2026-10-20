@@ -1,4 +1,5 @@
 #![cfg(feature = "stub-media")] // test_bridge is stub-gated (ws_flow convention)
+#![allow(dead_code)] // shared audit_flow harness copy; matrix uses the http helpers only
 // plan-7 S2: the rooms registry drives spawn mode + join lock; the live poll
 // answers under its renamed path; delete removes the row AND evicts members
 // (audit trail records the forced leaves). max_peers is accepted-but-unenforced
