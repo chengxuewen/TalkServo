@@ -1,6 +1,6 @@
 # Plan-7: Alpha wave-1 — Trust & Control (D23) — draft for review
 
-> **STATUS: S1 LANDED (2026-10-19; audit skeleton green). S2 next.**
+> **STATUS: S1+S2 LANDED (2026-10-19; registry green incl. eviction-leave audit). S3 next.**
 > Design truth: `docs/modules/08-web-ui.md` + `.agents/memorys/decisions.md` D23 (incl. UI annex + borrow annex).
 > Sister precedent: plan-5 format (slices → gates → commit per slice).
 

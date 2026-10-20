@@ -41,6 +41,8 @@ pub struct Config {
     /// (`<etc>/../etc/accounts.yaml` sibling of server.yaml); None on
     /// bare-env runs (script mint only). Not an env/yaml key.
     pub accounts_file: Option<std::path::PathBuf>,
+    /// room registry file (plan-7 S2); default <instance>/etc/rooms.yaml
+    pub rooms_file: Option<std::path::PathBuf>,
     /// JSONL audit trail path (plan-7 S1); default derived <instance>/logs/audit.jsonl
     pub audit_log: Option<std::path::PathBuf>,
 }
@@ -155,6 +157,9 @@ impl Config {
                 .and_then(|etc| etc.parent())
                 .map(|inst| inst.join("logs/audit.jsonl"));
         }
+        if cfg.rooms_file.is_none() {
+            cfg.rooms_file = path.parent().map(|etc| etc.join("rooms.yaml"));
+        }
         Ok(cfg)
     }
 
@@ -227,6 +232,10 @@ impl Config {
                 .ok()
                 .filter(|v| !v.is_empty())
                 .map(std::path::PathBuf::from),
+            rooms_file: std::env::var("TS_ROOMS_FILE")
+                .ok()
+                .filter(|v| !v.is_empty())
+                .map(std::path::PathBuf::from),
         }
     }
 
@@ -256,6 +265,7 @@ impl Config {
             admin_login_ttl_s: 43_200,
             accounts_file: None,
             audit_log: None,
+            rooms_file: None,
         }
     }
 }

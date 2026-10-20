@@ -14,7 +14,7 @@
 | crates/talkservo-core | 39 | ids + wire contract (27-variant, D16) + FloorState apply() rules 1-9 + grant-set shrink rebroadcast (PIT-21); floor.rs coverage 87.5% |
 | crates/talkservo-sfu | 1 | Sfu trait (create/connect/produce/consume/apply_floor diff/peer_left/media_activity E11 seam) + StubSfu call-log backend + MediasoupSfu skeleton (supervisor seam) |
 | crates/talkservo-sfu | 1 | Sfu trait + exactly-one-backend compile gate (mediasoup|stub) |
-| crates/talkservo-server | 86 | WS signaling (J burst, cooldown, AlreadyJoined, bad_version), media routing (E4/E10), timers (E11/max-hold/TokenRefresh) — stub path; mediasoup worker builds natively (3m52s) |
+| crates/talkservo-server | 93 | WS signaling (J burst, cooldown, AlreadyJoined, bad_version), media routing (E4/E10), timers (E11/max-hold/TokenRefresh) — stub path; mediasoup worker builds natively (3m52s) |
 | docs/ (whitepaper + architecture + modules/01-09 + reference) | — | v0.2 + plan series |
 
 ## Phase Status

@@ -177,11 +177,12 @@ async fn rooms_report_reflects_live_floor_state() {
         .await
         .unwrap();
     drop(holder); // leave later via drop; grant first
-    // query admin
+    // query admin (R1 rename: the live poll lives at /live; registry is empty
+    // so this server's report row must come from the live path)
     let (st, rooms) = http(
         &addr,
         "GET",
-        "/admin/api/rooms",
+        "/admin/api/rooms/live",
         Some(&admin_tok("admin-secret-xyz")),
         None,
     )

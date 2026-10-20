@@ -9,7 +9,7 @@
 //! the registry lock, DROP the lock, then send+await with a per-room 1s
 //! timeout; a wedged room task gets `"stale": true`, never a hung poll.
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -27,7 +27,12 @@ use crate::ws::{App, RoomCommand, RoomReport};
 pub fn router() -> Router<Arc<App>> {
     Router::new()
         .route("/admin/api/overview", get(overview))
-        .route("/admin/api/rooms", get(rooms))
+        .route("/admin/api/rooms", get(rooms_registry).post(rooms_create))
+        .route("/admin/api/rooms/live", get(rooms_live))
+        .route(
+            "/admin/api/rooms/{room}",
+            axum::routing::delete(rooms_delete),
+        )
         .route("/admin/api/tokens", post(tokens))
         .route("/admin/api/audit", get(audit_query))
         .route("/admin/api/login", post(login))
@@ -106,7 +111,7 @@ async fn overview(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
         .into_response()
 }
 
-async fn rooms(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
+async fn rooms_live(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
     if let Err(e) = guard(&app, &headers) {
         return e.into_response();
     }
@@ -398,6 +403,87 @@ async fn audit_query(
         })),
     )
         .into_response()
+}
+
+/// Registry views (plan-7 S2). GET lists rooms.yaml rows; POST upserts one;
+/// DELETE removes the row AND evicts a live room via the disconnect teardown.
+/// R1 rename: the live floor poll moved to /admin/api/rooms/live.
+async fn rooms_registry(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
+    if let Err(e) = guard(&app, &headers) {
+        return e.into_response();
+    }
+    Json(crate::rooms::list_view(&app.config)).into_response()
+}
+
+#[derive(Deserialize)]
+struct RoomReq {
+    room: String,
+    #[serde(default)]
+    owner: String,
+    #[serde(default)]
+    mode: Option<talkservo_core::wire::FloorMode>,
+    #[serde(default)]
+    max_peers: Option<usize>,
+    #[serde(default)]
+    max_queue: Option<usize>,
+    #[serde(default)]
+    locked: bool,
+}
+
+async fn rooms_create(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    body: Result<Json<RoomReq>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    if let Err(e) = guard(&app, &headers) {
+        return e.into_response();
+    }
+    let Json(req) = match body {
+        Ok(v) => v,
+        Err(_) => return (StatusCode::BAD_REQUEST, "malformed body").into_response(),
+    };
+    let row = crate::rooms::RoomRow {
+        room: req.room,
+        owner: req.owner,
+        mode: req.mode,
+        max_peers: req.max_peers,
+        max_queue: req.max_queue,
+        locked: req.locked,
+    };
+    match crate::rooms::upsert(&app.config, row) {
+        Ok(_) => (StatusCode::CREATED, "").into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
+    }
+}
+
+async fn rooms_delete(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    Path(room): Path<String>,
+) -> Response {
+    if let Err(e) = guard(&app, &headers) {
+        return e.into_response();
+    }
+    if !crate::rooms::valid_room(&room) {
+        return (StatusCode::NOT_FOUND, "unknown room").into_response();
+    }
+    match crate::rooms::remove(&app.config, &room) {
+        Ok(false) => (StatusCode::NOT_FOUND, "room not in registry").into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+        Ok(true) => {
+            // live eviction: fire-and-forget; a dead/absent channel just means
+            // nobody was inside (the registry row is the authority).
+            let rid = talkservo_core::ids::RoomId::from(room.as_str());
+            let tx = {
+                let guard = app.rooms.lock().await;
+                guard.get(&rid).cloned()
+            };
+            if let Some(tx) = tx {
+                let _ = tx.send(crate::ws::RoomCommand::Evict).await;
+            }
+            (StatusCode::NO_CONTENT, "").into_response()
+        }
+    }
 }
 
 #[cfg(test)]

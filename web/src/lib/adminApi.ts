@@ -20,6 +20,16 @@ export interface PeerRow {
   connected_since_ms: number;
 }
 
+/** rooms.yaml row (plan-7 S2 registry; optional fields fall back to globals). */
+export interface RoomConfigRow {
+  room: string;
+  owner: string;
+  mode?: "exclusive" | "open" | "hybrid";
+  max_peers?: number;
+  max_queue?: number;
+  locked: boolean;
+}
+
 export interface RoomRow {
   room: string;
   stale?: boolean;
@@ -117,8 +127,20 @@ export class AdminApi {
   overview(): Promise<Overview> {
     return this.call("GET", "/admin/api/overview");
   }
-  rooms(): Promise<RoomRow[]> {
+  roomsLive(): Promise<RoomRow[]> {
+    return this.call("GET", "/admin/api/rooms/live");
+  }
+
+  roomsRegistry(): Promise<RoomConfigRow[]> {
     return this.call("GET", "/admin/api/rooms");
+  }
+
+  createRoom(row: Partial<RoomConfigRow> & { room: string }): Promise<void> {
+    return this.callVoid("POST", "/admin/api/rooms", row);
+  }
+
+  deleteRoom(room: string): Promise<void> {
+    return this.callVoid("DELETE", `/admin/api/rooms/${encodeURIComponent(room)}`);
   }
   issue(req: {
     sub: string;

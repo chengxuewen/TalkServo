@@ -12,7 +12,7 @@ import { setAdminJwt, adminJwt } from "../src/lib/adminApi.js";
 
 const routes: Record<string, unknown> = {
   "/admin/api/overview": { rooms: 1, peers: 2, uptime_s: 5, backend: "stub" },
-  "/admin/api/rooms": [
+  "/admin/api/rooms/live": [
     {
       room: "ops-01",
       mode: "ptt",

@@ -34,6 +34,10 @@ All routes ALWAYS mounted; fail-closed `503` while `TS_ADMIN_SECRET` unset. Auth
 | `GET /admin/api/accounts` | — -> `[{user, role}]` (hashes never listed) |
 | `POST /admin/api/accounts` | `{user, password}` -> 201 — upsert = create OR password-reset; user 1-64 `[A-Za-z0-9._-]`, password >= 8 (boundary-checked) |
 | `DELETE /admin/api/accounts/{user}` | -> 204 / 404 — existing stateless-JWT sessions survive until expiry (documented D22 limit) |
+| `GET /admin/api/rooms` | -> registry rows `[{room, owner, mode?, max_peers?, max_queue?, locked}]` (R1: registry owns the clean name) |
+| `POST /admin/api/rooms` | `{room, owner?, mode?, max_peers?, max_queue?, locked?}` -> 201 (upsert) / 400 validation (name charset = token charset, ranges) |
+| `DELETE /admin/api/rooms/{room}` | -> 204 = row removed AND live room evicted (members get 1000 Close, audit `leave` lines via S1 relay); 404 unknown/absent |
+| `GET /admin/api/rooms/live` | the plan-5 live floor poll (renamed from `/admin/api/rooms`; unchanged shape) |
 | `GET /admin/api/audit` | query `{before?,after?,room?,actor?,event?,limit? (1..=1000, default 100)}` -> `{events:[{seq,ts_ms,event,room,actor,target,changes,reason}], dropped}` - newest-first seq-cursor page over the JSONL trail; 503 when audit is disabled |
 | `POST /admin/api/tokens` | `{sub, room, role:"dispatch"\|"field", ttl_s?}` (ids: 1-64 `[A-Za-z0-9._-]`; ttl clamped `1..=TS_JWT_TTL_S`) | `{jwt, field_url, dispatch_url, participant_url}` (participant link added with the /room shell, 2026-10-10); base = `TS_PUBLIC_BASE` (scheme-inclusive; Host-header fallback is loopback-dev only). Rate: 60/min ⇒ 429. Trail: `token_issue` audit line + the `admin_token_issued` log (token value never in either) |
 

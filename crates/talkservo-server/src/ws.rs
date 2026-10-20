@@ -52,6 +52,9 @@ pub enum RoomCommand {
     RefreshTick,
     /// Room-idle sweep tick (D16/CM-1: empty room past TTL → reap).
     IdleTick,
+    /// Registry delete fan-out (plan-7 S2): evict every member via the
+    /// disconnect teardown and stop the room task.
+    Evict,
     /// Read-only admin inspect (plan-5 S1): answer from RoomState ONLY —
     /// zero SFU calls, zero mutation; the fan-out timeout lives in admin.rs.
     AdminInspect(tokio::sync::oneshot::Sender<RoomReport>),
@@ -193,6 +196,20 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
     let peer = PeerId::from(claims.sub.clone());
     let room_id = RoomId::from(claims.room.clone());
 
+    // S2: registry lock gate - hot-read, no new wire variant (Error.code).
+    if crate::rooms::is_locked(&app.config, &room_id) {
+        let err = SignalingMessage::Error {
+            code: "room_locked".into(),
+            detail: "room is locked by its operator".into(),
+        };
+        let _ = tx
+            .send(Message::Text(
+                serde_json::to_string(&err).expect("ser").into(),
+            ))
+            .await;
+        return;
+    }
+
     // Get/create the room's writer channel.
     let room_tx = {
         let mut rooms = app.rooms.lock().await;
@@ -214,6 +231,19 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
         reply: reply_tx,
     };
     let room_tx = if room_tx.send(join_cmd).await.is_err() {
+        if crate::rooms::is_locked(&app.config, &room_id) {
+            // config flipped locked between the attempts - same wire answer
+            let err = SignalingMessage::Error {
+                code: "room_locked".into(),
+                detail: "room is locked by its operator".into(),
+            };
+            let _ = tx
+                .send(Message::Text(
+                    serde_json::to_string(&err).expect("ser").into(),
+                ))
+                .await;
+            return;
+        }
         let mut rooms = app.rooms.lock().await;
         let room_tx = rooms
             .entry(room_id.clone())
@@ -314,7 +344,7 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                     }
                     RoomCommand::Join { .. } | RoomCommand::WatchdogTick
                     | RoomCommand::MaxHoldTick | RoomCommand::RefreshTick
-                    | RoomCommand::IdleTick => {}
+                    | RoomCommand::IdleTick | RoomCommand::Evict => {}
                     // pre-admission inspect: dropping the oneshot surfaces
                     // as `stale` on the admin side — correct semantics
                     RoomCommand::AdminInspect(_) => {}
@@ -384,7 +414,8 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
 
     let tx_probe = tx.clone(); // channel-identity guard for the reaper
     tokio::spawn(async move {
-        let mut state = RoomState::new(room_id.clone(), app.config.max_peers, app.config.max_queue);
+        let spec = crate::rooms::resolve(&app.config, &room_id);
+        let mut state = RoomState::new(room_id.clone(), spec.mode, spec.max_peers, spec.max_queue);
         state.set_audit(app.audit.clone());
         let media = app.media.clone();
         let mut media_ctx = crate::media::MediaCtx::default();
@@ -406,7 +437,10 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                         .map(|d| d.as_millis() as u64)
                         .unwrap_or(0);
                     let conn_sink = sink.clone();
-                    let res = state.join(peer.clone(), role, sink, since_ms);
+                    // actor->connection control channel: created BEFORE join
+                    // (Member stores the tx; rx travels back via reply)
+                    let (wire_tx, wire_rx) = mpsc::channel::<RoomCommand>(64);
+                    let res = state.join(peer.clone(), role, sink, wire_tx, since_ms);
                     match res {
                         Ok(()) => {
                             state.relay_join(&peer);
@@ -461,7 +495,6 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                                     producer_id: serde_json::json!(producer_id),
                                 });
                             }
-                            let (_wire_tx, wire_rx) = mpsc::channel(64);
                             let _ = reply.send(Ok(wire_rx));
                         }
                         Err(code) => {
@@ -653,6 +686,34 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                             let _ = m.sink.send(SignalingMessage::TokenRefresh { jwt });
                         }
                     }
+                }
+                RoomCommand::Evict => {
+                    // S2: registry delete kicks all - same per-peer teardown
+                    // the disconnect path runs (media free, leave relay,
+                    // delta broadcast; sockets close as their sinks drop).
+                    let peers: Vec<PeerId> = state.members.keys().cloned().collect();
+                    for p in peers {
+                        // signal FIRST (connection loop answers with a 1000
+                        // Close frame), then run the room-side teardown the
+                        // disconnect path runs - order avoids the connection's
+                        // own Left-on-close racing a half-evicted member.
+                        if let Some(m) = state.members.get(&p) {
+                            let _ = m.wire_tx.try_send(RoomCommand::Left { peer: p.clone() });
+                        }
+                        media.peer_left(&state.id, &p).await;
+                        if let Some(delta) = state.leave(&p) {
+                            state.relay_leave(&p);
+                            obs::event(
+                                state.id.0.as_ref(),
+                                p.0.as_ref(),
+                                state.floor.generation(),
+                                obs::Event::Leave,
+                                serde_json::json!({}),
+                            );
+                            state.broadcast(&delta);
+                        }
+                    }
+                    break; // task ends; reaper drops the dead registry slot
                 }
                 RoomCommand::Left { peer } => {
                     media.peer_left(&state.id, &peer).await; // R-F16: free media objects NOW

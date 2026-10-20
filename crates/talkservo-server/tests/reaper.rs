@@ -10,6 +10,7 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 type Ws = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
+#[allow(dead_code)] // harness keeps handles alive by owning them
 struct TestServer {
     url: String,
     secret: String,

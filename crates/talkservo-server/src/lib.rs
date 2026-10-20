@@ -17,6 +17,7 @@ pub mod lifecycle;
 pub mod media;
 pub mod obs;
 pub mod room;
+pub mod rooms;
 #[cfg(feature = "stub-media")]
 pub mod test_bridge;
 pub mod timers;

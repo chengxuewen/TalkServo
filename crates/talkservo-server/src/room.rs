@@ -26,6 +26,9 @@ pub type Sink = mpsc::UnboundedSender<SignalingMessage>;
 pub struct Member {
     pub info: PeerInfo,
     pub sink: Sink,
+    /// actor->connection control channel (RoomCommand::Left = server-initiated
+    /// close; the ws task answers with a 1000 Close frame - S2 eviction rides it)
+    pub wire_tx: tokio::sync::mpsc::Sender<crate::ws::RoomCommand>,
 }
 
 /// Everything the single-writer task owns.
@@ -53,13 +56,16 @@ pub struct RoomState {
 }
 
 impl RoomState {
-    pub fn new(id: RoomId, max_peers: usize, max_queue: usize) -> Self {
+    pub fn new(
+        id: RoomId,
+        mode: talkservo_core::wire::FloorMode,
+        max_peers: usize,
+        max_queue: usize,
+    ) -> Self {
         Self {
             id,
             members: HashMap::new(),
-            floor: talkservo_core::floor::FloorState::initial(
-                talkservo_core::wire::FloorMode::Hybrid,
-            ),
+            floor: talkservo_core::floor::FloorState::initial(mode), // S2: registry default (was hard-coded Hybrid)
             limits: FloorLimits {
                 max_peers,
                 max_queue,
@@ -458,6 +464,7 @@ impl RoomState {
         peer: PeerId,
         role: Role,
         sink: Sink,
+        wire_tx: tokio::sync::mpsc::Sender<crate::ws::RoomCommand>,
         since_ms: u64,
     ) -> Result<(), &'static str> {
         if self.members.contains_key(&peer) {
@@ -472,6 +479,7 @@ impl RoomState {
                     connected_since_ms: since_ms,
                 },
                 sink,
+                wire_tx,
             },
         );
         self.empty_since = None; // occupied again — reaper stands down

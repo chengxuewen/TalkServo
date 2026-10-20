@@ -79,7 +79,7 @@ export function AdminPage(): React.ReactElement {
     let stop = false;
     const tick = async () => {
       try {
-        const [o, r] = await Promise.all([api.overview(), api.rooms()]);
+        const [o, r] = await Promise.all([api.overview(), api.roomsLive()]);
         if (!stop) {
           setOverview(o);
           setRooms(r);
