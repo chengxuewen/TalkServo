@@ -12,6 +12,11 @@ pub struct Claims {
     pub role: Role,
     /// Room-scoped audience (modules/06) — mirrors `room`.
     pub aud: String,
+    /// Rooms this peer may govern (plan-7 S4, R3 ruling). serde-default so
+    /// pre-S4 tokens deserialize as an EMPTY list (additive compat, R4
+    /// legacy-compat gate); mod authority = Dispatch role OR membership here.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mod_rooms: Vec<String>,
     pub exp: u64,
 }
 
@@ -32,6 +37,20 @@ pub fn issue(
     role: Role,
     ttl_s: u64,
 ) -> Result<String, AuthError> {
+    issue_with_mods(secret, sub, room, role, ttl_s, &[])
+}
+
+/// S4: issue carrying moderator room claims (validated upstream: charset +
+/// <=64 per name; a mod claim on the token's own room is legal and redundant
+/// with dispatch role - the check ORs, not dedupes).
+pub fn issue_with_mods(
+    secret: &str,
+    sub: &str,
+    room: &str,
+    role: Role,
+    ttl_s: u64,
+    mod_rooms: &[String],
+) -> Result<String, AuthError> {
     // exp from the real clock — jsonwebtoken validates against it; tests use
     // short TTLs instead of fake clocks (verification honesty).
     let now = std::time::SystemTime::now()
@@ -43,6 +62,7 @@ pub fn issue(
         room: room.to_string(),
         role,
         aud: room.to_string(),
+        mod_rooms: mod_rooms.to_vec(),
         exp: now + ttl_s,
     };
     encode(

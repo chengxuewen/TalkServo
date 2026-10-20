@@ -17,6 +17,8 @@ export interface PeerInfo {
   id: string;
   role: Role;
   connected_since_ms: number;
+  /** rooms this peer may govern (S4; absent = pre-S4 peer / no claims) */
+  mod_rooms?: string[];
 }
 
 export interface Pending {

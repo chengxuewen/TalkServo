@@ -134,6 +134,9 @@ struct TokenReq {
     room: String,
     role: talkservo_core::wire::Role,
     ttl_s: Option<u64>,
+    /// S4: rooms this token may govern (each name validated like `room`).
+    #[serde(default)]
+    mod_rooms: Vec<String>,
 }
 
 /// ids land in URL PATHS and tokens: keep the charset boring (plan-5 C3).
@@ -334,7 +337,23 @@ async fn tokens(
         .ttl_s
         .unwrap_or(app.config.jwt_ttl_s)
         .clamp(1, app.config.jwt_ttl_s);
-    let jwt = match auth::issue(&app.config.jwt_secret, &req.sub, &req.room, req.role, ttl) {
+    for r in &req.mod_rooms {
+        if !valid_id(r) {
+            return (
+                StatusCode::BAD_REQUEST,
+                "mod_rooms entries must match the id charset",
+            )
+                .into_response();
+        }
+    }
+    let jwt = match auth::issue_with_mods(
+        &app.config.jwt_secret,
+        &req.sub,
+        &req.room,
+        req.role,
+        ttl,
+        &req.mod_rooms,
+    ) {
         Ok(j) => j,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };

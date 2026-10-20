@@ -65,6 +65,7 @@ fn server_to_client_variants_roundtrip() {
         id: pid("p1"),
         role: Role::Field,
         connected_since_ms: 1_000,
+        mod_rooms: vec![],
     };
     let cases = vec![
         SignalingMessage::Welcome {
@@ -143,6 +144,8 @@ fn snapshot_roundtrips_in_both_role_scopes() {
             id: pid("a"),
             role: Role::Dispatch,
             connected_since_ms: 0,
+            // S4 serde contract: populated list roundtrips; empty list skips
+            mod_rooms: vec!["ops-01".into()],
         }],
     };
     let dispatch = DispatchSnapshot {
@@ -230,4 +233,28 @@ fn ids_serialize_as_plain_strings() {
     // keeps TS unions simple: PeerId is a string on the wire, not a wrapper object
     let v = serde_json::to_value(pid("peer-9")).unwrap();
     assert_eq!(v, serde_json::json!("peer-9"));
+}
+
+#[test]
+fn peerinfo_mod_rooms_roundtrip_and_empty_skip() {
+    use talkservo_core::wire::PeerInfo;
+    let with = PeerInfo {
+        id: pid("m"),
+        role: Role::Field,
+        connected_since_ms: 0,
+        mod_rooms: vec!["ops".into()],
+    };
+    let v = serde_json::to_value(&with).unwrap();
+    assert_eq!(v["mod_rooms"], serde_json::json!(["ops"]));
+    let empty = PeerInfo {
+        mod_rooms: vec![],
+        ..with
+    };
+    let v = serde_json::to_value(&empty).unwrap();
+    assert!(v.get("mod_rooms").is_none(), "empty list skips on the wire");
+    // serde-default: a payload without the field deserializes to empty (pre-S4)
+    let legacy: PeerInfo =
+        serde_json::from_value(serde_json::json!({"id":"x","role":"field","connected_since_ms":0}))
+            .unwrap();
+    assert!(legacy.mod_rooms.is_empty());
 }

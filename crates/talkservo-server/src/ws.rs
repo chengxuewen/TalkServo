@@ -33,10 +33,12 @@ pub struct App {
 }
 
 pub enum RoomCommand {
-    /// A validated connection wants in: (peer, role, inbound msg rx, outbound tx sink)
+    /// A validated connection wants in: (peer, role, mod claims, inbound msg
+    /// rx, outbound tx sink)
     Join {
         peer: PeerId,
         role: talkservo_core::wire::Role,
+        mod_rooms: Vec<String>,
         sink: Sink,
         reply: tokio::sync::oneshot::Sender<Result<mpsc::Receiver<RoomCommand>, String>>,
     },
@@ -227,6 +229,7 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
     let join_cmd = RoomCommand::Join {
         peer: peer.clone(),
         role: claims.role,
+        mod_rooms: claims.mod_rooms.clone(),
         sink: outbound_tx.clone(),
         reply: reply_tx,
     };
@@ -257,6 +260,7 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
             .send(RoomCommand::Join {
                 peer: peer.clone(),
                 role: claims.role,
+                mod_rooms: claims.mod_rooms.clone(),
                 sink: outbound_tx.clone(),
                 reply: reply_tx2,
             })
@@ -429,6 +433,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                 RoomCommand::Join {
                     peer,
                     role,
+                    mod_rooms,
                     sink,
                     reply,
                 } => {
@@ -440,7 +445,7 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                     // actor->connection control channel: created BEFORE join
                     // (Member stores the tx; rx travels back via reply)
                     let (wire_tx, wire_rx) = mpsc::channel::<RoomCommand>(64);
-                    let res = state.join(peer.clone(), role, sink, wire_tx, since_ms);
+                    let res = state.join(peer.clone(), role, sink, wire_tx, mod_rooms, since_ms);
                     match res {
                         Ok(()) => {
                             state.relay_join(&peer);

@@ -261,13 +261,13 @@ async fn field_cannot_mute_anyone_dispatch_mutes() {
             .unwrap()
             .iter()
             .find(|r| r["room"] == "muteroom")
+            && room
+                .get("muted")
+                .and_then(|m| m.as_array())
+                .is_some_and(|l| l.iter().any(|v| v == "bb"))
         {
-            if let Some(list) = room.get("muted").and_then(|m| m.as_array()) {
-                if list.iter().any(|v| v == "bb") {
-                    muted = true;
-                    break;
-                }
-            }
+            muted = true;
+            break;
         }
     }
     assert!(muted, "bb muted in AdminInspect after dispatch mute");

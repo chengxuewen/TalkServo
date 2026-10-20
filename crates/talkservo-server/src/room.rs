@@ -132,9 +132,22 @@ impl RoomState {
     /// peer (dispatch-always-outranks; no mutual-fight path). Everything else
     /// (FloorRequest/Release by any peer) needs no grant.
     fn authorize_command(&self, from: &PeerId, msg: &SignalingMessage) -> Option<(String, String)> {
-        let sender_role = self.members.get(from)?.info.role;
-        if sender_role == Role::Dispatch {
+        let member = self.members.get(from)?;
+        if member.info.role == Role::Dispatch {
             return None; // dispatch governs all (including other dispatch peers)
+        }
+        // S4: moderator claims OR into the grant (R3/R4: per-room authority;
+        // claims ride the token and were copied onto the member at Join).
+        // S4: moderator claims OR into the grant (R3/R4: per-room authority;
+        // claims ride the token and were copied onto the member at Join).
+        if member
+            .info
+            .mod_rooms
+            .iter()
+            .any(|m| m == self.id.0.as_ref())
+        {
+            return None; // room moderator governs THIS room (Dispatch targets
+            // stay unmutable - the target check below still runs)
         }
         match msg {
             SignalingMessage::ModeChange { .. } => {
@@ -512,6 +525,7 @@ impl RoomState {
         role: Role,
         sink: Sink,
         wire_tx: tokio::sync::mpsc::Sender<crate::ws::RoomCommand>,
+        mod_rooms: Vec<String>,
         since_ms: u64,
     ) -> Result<(), &'static str> {
         if self.members.contains_key(&peer) {
@@ -524,6 +538,7 @@ impl RoomState {
                     id: peer,
                     role,
                     connected_since_ms: since_ms,
+                    mod_rooms,
                 },
                 sink,
                 wire_tx,

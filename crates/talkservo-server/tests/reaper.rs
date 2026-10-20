@@ -58,6 +58,7 @@ impl TestServer {
     fn ws_url(&self) -> &str {
         &self.url
     }
+    #[allow(dead_code)] // harness helper kept for future assertions
     async fn room_count(&self) -> usize {
         self.rooms.lock().await.len()
     }

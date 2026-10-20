@@ -177,7 +177,7 @@ async fn e11_silence_past_grace_releases_and_promotes() {
             3600,
         );
         send_json(&mut chief, &SignalingMessage::Join { v: 1, jwt }).await;
-        for i in 0..4 {
+        for _ in 0..4 {
             let m = recv_msg(&mut chief).await.expect("burst msg");
             let _ = m;
         }

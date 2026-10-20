@@ -54,6 +54,10 @@ pub struct PeerInfo {
     pub role: Role,
     /// Unix millis at join (roster display only — never used for ordering).
     pub connected_since_ms: u64,
+    /// Rooms this peer may govern (plan-7 S4; serde-default empty = pre-S4
+    /// wire compatible; empty lists skip serialization on the wire).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mod_rooms: Vec<String>,
 }
 
 /// Queue entry (dispatch-scope only, D12).

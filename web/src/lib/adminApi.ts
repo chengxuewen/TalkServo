@@ -147,6 +147,7 @@ export class AdminApi {
     room: string;
     role: "dispatch" | "field";
     ttl_s?: number;
+    mod_rooms?: string[];
   }): Promise<Issued> {
     return this.call("POST", "/admin/api/tokens", req);
   }
