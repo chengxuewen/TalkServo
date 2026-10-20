@@ -114,6 +114,17 @@ pub fn authenticate(cfg: &Config, user: &str, password: &str) -> bool {
 /// Create or reset the password for `user` (upsert = the "change password"
 /// path; PoC has no separate PUT).
 pub fn upsert(cfg: &Config, user: &str, password: &str) -> Result<(), String> {
+    upsert_role(cfg, user, password, None)
+}
+
+/// S5: create honors `role` (validated by the caller); RESET keeps the stored
+/// tier - a password reset must never silently change privilege.
+pub fn upsert_role(
+    cfg: &Config,
+    user: &str,
+    password: &str,
+    role: Option<&str>,
+) -> Result<(), String> {
     let path = accounts_path(cfg)?;
     let mut list = load(&path);
     if list.is_empty() && !path.exists() {
@@ -138,7 +149,7 @@ pub fn upsert(cfg: &Config, user: &str, password: &str) -> Result<(), String> {
             user: user.to_string(),
             hash,
             password: String::new(),
-            role: default_role(),
+            role: role.map(str::to_string).unwrap_or_else(default_role),
         }),
     }
     save(&path, &list)

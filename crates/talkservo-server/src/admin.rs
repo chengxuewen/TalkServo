@@ -47,6 +47,14 @@ pub fn router() -> Router<Arc<App>> {
 }
 
 fn guard<'a>(app: &'a App, headers: &'a HeaderMap) -> Result<(), (StatusCode, &'static str)> {
+    guard_role(app, headers).map(|_| ())
+}
+
+/// S5: tiered guard - Ok(claims.role) on a valid console session.
+fn guard_role<'a>(
+    app: &'a App,
+    headers: &'a HeaderMap,
+) -> Result<String, (StatusCode, &'static str)> {
     let Some(secret) = app.config.admin_secret.as_deref() else {
         return Err((StatusCode::SERVICE_UNAVAILABLE, "admin surface disabled"));
     };
@@ -55,9 +63,20 @@ fn guard<'a>(app: &'a App, headers: &'a HeaderMap) -> Result<(), (StatusCode, &'
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or((StatusCode::UNAUTHORIZED, "missing bearer token"))?;
-    auth::validate_admin(secret, token)
+    let claims = auth::validate_admin(secret, token)
         .map_err(|_| (StatusCode::UNAUTHORIZED, "invalid admin token"))?;
-    Ok(())
+    Ok(claims.role)
+}
+
+/// ADMIN-only write gate (accounts + rooms registry config): operator 403.
+/// Fail-closed: an unknown/absent role string is NOT admin.
+fn require_admin(app: &App, headers: &HeaderMap) -> Result<(), (StatusCode, &'static str)> {
+    let role = guard_role(app, headers)?;
+    if role == "admin" {
+        Ok(())
+    } else {
+        Err((StatusCode::FORBIDDEN, "admin tier required"))
+    }
 }
 
 async fn fan_out(app: &App) -> Vec<(String, serde_json::Value)> {
@@ -226,14 +245,29 @@ async fn login(
         }
         return (StatusCode::UNAUTHORIZED, "invalid credentials").into_response();
     }
-    match auth::issue_admin(secret, &req.user, app.config.admin_login_ttl_s) {
+    // S5: mint with the registry tier (role is whatever the row says; rows
+    // lacking a role field deserialize to "admin" via accounts default).
+    // implicit-admin fallback (server.yaml hash, no registry row yet) is tier
+    // "admin" by construction; registry rows answer with their own role.
+    let role = app
+        .config
+        .accounts_file
+        .as_ref()
+        .and_then(|p| {
+            crate::accounts::load(p)
+                .into_iter()
+                .find(|a| a.user == req.user)
+        })
+        .map(|a| a.role)
+        .unwrap_or_else(|| "admin".into());
+    match auth::issue_admin_role(secret, &req.user, app.config.admin_login_ttl_s, &role) {
         Ok(jwt) => {
             tracing::info!(
                 event = "admin_login",
                 ttl_s = app.config.admin_login_ttl_s,
                 "session minted"
             );
-            Json(serde_json::json!({ "jwt": jwt })).into_response()
+            Json(serde_json::json!({ "jwt": jwt, "role": role })).into_response()
         }
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "token mint failed").into_response(),
     }
@@ -243,6 +277,10 @@ async fn login(
 struct AccountReq {
     user: String,
     password: String,
+    /// S5 create-time tier (two-value; absent = "admin" default). Ignored on
+    /// reset - existing rows keep their stored role.
+    #[serde(default)]
+    role: Option<String>,
 }
 
 /// Registry listing — users and roles, never hashes (sister parity).
@@ -259,7 +297,7 @@ async fn accounts_create(
     headers: HeaderMap,
     body: Result<Json<AccountReq>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(e) = guard(&app, &headers) {
+    if let Err(e) = require_admin(&app, &headers) {
         return e.into_response();
     }
     let Json(req) = match body {
@@ -276,7 +314,13 @@ async fn accounts_create(
     if req.password.len() < 8 {
         return (StatusCode::BAD_REQUEST, "password must be at least 8 chars").into_response();
     }
-    match crate::accounts::upsert(&app.config, &req.user, &req.password) {
+    if let Some(r) = req.role.as_deref()
+        && r != "admin"
+        && r != "operator"
+    {
+        return (StatusCode::BAD_REQUEST, "role must be admin or operator").into_response();
+    }
+    match crate::accounts::upsert_role(&app.config, &req.user, &req.password, req.role.as_deref()) {
         Ok(()) => {
             tracing::info!(event = "admin_account_upsert", user = %req.user, "registry written");
             (StatusCode::CREATED, "stored").into_response()
@@ -293,7 +337,7 @@ async fn accounts_delete(
     headers: HeaderMap,
     axum::extract::Path(user): axum::extract::Path<String>,
 ) -> Response {
-    if let Err(e) = guard(&app, &headers) {
+    if let Err(e) = require_admin(&app, &headers) {
         return e.into_response();
     }
     match crate::accounts::remove(&app.config, &user) {
@@ -454,7 +498,7 @@ async fn rooms_create(
     headers: HeaderMap,
     body: Result<Json<RoomReq>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(e) = guard(&app, &headers) {
+    if let Err(e) = require_admin(&app, &headers) {
         return e.into_response();
     }
     let Json(req) = match body {
@@ -480,7 +524,7 @@ async fn rooms_delete(
     headers: HeaderMap,
     Path(room): Path<String>,
 ) -> Response {
-    if let Err(e) = guard(&app, &headers) {
+    if let Err(e) = require_admin(&app, &headers) {
         return e.into_response();
     }
     if !crate::rooms::valid_room(&room) {

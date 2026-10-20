@@ -102,12 +102,31 @@ pub struct AdminClaims {
     pub sub: String,
     /// fixed "admin" — the only audience the admin validator accepts
     pub aud: String,
+    /// Console tier (plan-7 S5): "admin" (accounts/registry config) or
+    /// "operator" (issue tokens, monitor, act as room moderator). serde-default
+    /// "admin" = pre-S5 bootstrap tokens keep full power (additive compat).
+    #[serde(default = "default_admin_role")]
+    pub role: String,
     pub exp: u64,
+}
+
+fn default_admin_role() -> String {
+    "admin".into()
 }
 
 /// Mint an admin token (tests / future rotation tooling; bootstrap issuance
 /// is scripts/issue-admin-token.sh on the server host).
 pub fn issue_admin(secret: &str, sub: &str, ttl_s: u64) -> Result<String, AuthError> {
+    issue_admin_role(secret, sub, ttl_s, "admin")
+}
+
+/// S5: mint with the account's tier (D23-③ two-tier console).
+pub fn issue_admin_role(
+    secret: &str,
+    sub: &str,
+    ttl_s: u64,
+    role: &str,
+) -> Result<String, AuthError> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -116,6 +135,8 @@ pub fn issue_admin(secret: &str, sub: &str, ttl_s: u64) -> Result<String, AuthEr
         sub: sub.to_string(),
         aud: "admin".to_string(),
         exp: now + ttl_s,
+
+        role: role.to_string(),
     };
     encode(
         &Header::new(Algorithm::HS256),
@@ -212,5 +233,27 @@ mod tests {
         let user = issue("shared", "peer-1", "room-x", Role::Field, 60).unwrap();
         // aud = room-x, not "admin" AND the claims shape differs — reject
         assert!(validate_admin("shared", &user).is_err());
+    }
+
+    #[test]
+    fn admin_claims_role_default_and_roundtrip() {
+        // pre-S5 token payload without role: deserializes to "admin" (compat)
+        let legacy = AdminClaims {
+            sub: "x".into(),
+            aud: "admin".into(),
+            role: "admin".into(),
+            exp: 9_999_999_999,
+        };
+        let v = serde_json::to_value(&legacy).unwrap();
+        assert_eq!(v["role"], "admin");
+        let mut obj = v.as_object().unwrap().clone();
+        obj.remove("role");
+        let back: AdminClaims = serde_json::from_value(serde_json::Value::Object(obj)).unwrap();
+        assert_eq!(back.role, "admin", "absent field defaults to admin tier");
+        // operator mints + validates carrying its tier
+        let secret = "s5-test-secret";
+        let jwt = issue_admin_role(secret, "ops", 3600, "operator").unwrap();
+        let claims = validate_admin(secret, &jwt).unwrap();
+        assert_eq!(claims.role, "operator");
     }
 }
