@@ -10,5 +10,12 @@ export default defineConfig({
     },
   },
   server: { port: 5173 },
-  test: { environment: "jsdom", setupFiles: ["./tests/setup.ts"], exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**"] },
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./tests/setup.ts"],
+    exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**"],
+    // AntD + jsdom: one Table/Drawer mount costs ~900ms of real CPU, so the
+    // intervention cases need several seconds. Default 5000ms is CI-flaky.
+    testTimeout: 15000,
+  },
 });

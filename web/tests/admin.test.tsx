@@ -3,11 +3,11 @@
 // component wiring only, server contract lives in admin_api.rs tests.
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within, cleanup, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ConfigProvider, theme } from "antd";
 import React from "react";
-import { AdminPage } from "../src/pages/admin.js";
+import { AdminPage } from "../src/pages/admin/index.js";
 import { setAdminJwt, adminJwt } from "../src/lib/adminApi.js";
 
 const routes: Record<string, unknown> = {
@@ -15,23 +15,36 @@ const routes: Record<string, unknown> = {
   "/admin/api/rooms/live": [
     {
       room: "ops-01",
-      mode: "ptt",
+      mode: "exclusive",
       holders: ["alice"],
       queue_len: 1,
-      peers: [{ id: "alice", connected_since_ms: 0 }, { id: "bob", connected_since_ms: 0 }],
+      peers: [
+        { id: "alice", connected_since_ms: 0, role: "field", granted: true, muted: false },
+        { id: "bob", connected_since_ms: 0, role: "field", granted: false, muted: true, mod_rooms: [] },
+      ],
       muted: ["bob"],
       speaking: ["alice"],
     },
     { room: "ghost", stale: true },
   ],
+  "/admin/api/rooms": [{ room: "ops-01", owner: "squad", locked: false }],
+  "/admin/api/audit": {
+    events: [
+      { seq: 2, ts_ms: 1792470000000, event: "kick", room: "ops-01", actor: "admin", target: "bob", reason: "abuse" },
+      { seq: 1, ts_ms: 1792469000000, event: "login_fail", actor: "mallory" },
+    ],
+    dropped: 1,
+  },
 };
 
 function mockFetch() {
-  globalThis.fetch = vi.fn(async (url: unknown) => ({
-    ok: true,
-    status: 200,
-    json: async () => routes[String(url)] ?? { error: "not mocked" },
-  })) as never;
+  globalThis.fetch = vi.fn(async (url: unknown, init?: { method?: string }) => {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => routes[String(url).split("?")[0]] ?? { error: "not mocked" },
+    };
+  }) as never;
 }
 
 afterEach(() => {
@@ -124,12 +137,99 @@ describe("admin console", () => {
           }
         : { ok: true, status: 200, json: async () => routes[String(url)] },
     );
-    fireEvent.click(screen.getByRole("button", { name: /^Issue$/ }));
+    fireEvent.click(screen.getByText("Issue"));
     await waitFor(() =>
       expect(screen.getByText(/field: https:\/\/lan:8443\/field\/ops-01\?jwt=/)).toBeTruthy(),
     );
     await waitFor(() =>
       expect(screen.getByText(/participant: https:\/\/lan:8443\/room\/ops-01\?jwt=/)).toBeTruthy(),
     );
+  });
+
+  it("Sider filters Accounts by tier (S5: operator sees four tabs)", async () => {
+    setAdminJwt("tok");
+    sessionStorage.setItem("ts-admin-role", "operator");
+    mockFetch();
+    ui();
+    await screen.findByText("ops-01");
+    expect(screen.queryByText("Accounts")).toBeNull();
+    expect(screen.getByText("Logs")).toBeTruthy();
+    sessionStorage.removeItem("ts-admin-role");
+  });
+
+  it("Logs tab renders events and the dropped warning (S1)", async () => {
+    setAdminJwt("tok");
+    mockFetch();
+    ui();
+    fireEvent.click(await screen.findByText("Logs"));
+    expect(await screen.findByText("abuse")).toBeTruthy(); // reason column
+    expect(screen.getAllByText("kick").length).toBeGreaterThan(0);
+    expect(screen.getByText(/failed to persist/)).toBeTruthy(); // dropped = 1
+  });
+
+  it("monitor expansion drives kick with reason to the API (S6 UI)", async () => {
+    setAdminJwt("tok");
+    mockFetch();
+    const { container } = ui();
+    await screen.findByText("ops-01");
+    fireEvent.click(container.querySelector(".ant-table-row-expand-icon") as HTMLElement);
+    // two Kick buttons in the expanded rows (alice, bob) - target bob (index 1)
+    // two Kick buttons in the expanded rows (alice, bob) - target bob (index 1).
+    // querySelectorAll instead of ByRole: the accessible-name walk costs ~2.5s in jsdom.
+    const kickBtns = () =>
+      [...container.querySelectorAll("button")].filter((b) => b.textContent === "Kick");
+    await waitFor(() => expect(kickBtns().length).toBe(2), { timeout: 3000 });
+    fireEvent.click(kickBtns()[1]);
+    await waitFor(() => expect(document.querySelector(".ant-modal")).toBeTruthy());
+    const dialog = document.querySelector(".ant-modal") as HTMLElement;
+    fireEvent.change(within(dialog).getByPlaceholderText(/Reason/), { target: { value: "abuse of open mic" } });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByText("Kick"));
+    });
+    await waitFor(
+      () => {
+        const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+          .calls as unknown as [string, { method?: string; body?: string }][];
+        const kick = calls.find(
+          ([u, i]) =>
+            String(u).includes("/admin/api/rooms/ops-01/peers/bob") && i?.method === "DELETE",
+        );
+        expect(kick).toBeTruthy();
+        const parsed = JSON.parse((kick?.[1]?.body ?? "{}") as string) as { reason?: string };
+        expect(parsed.reason).toBe("abuse of open mic");
+      },
+      { timeout: 4000 },
+    );
+  });
+
+  it("peer link opens the detail drawer with S6.2 fields", async () => {
+    setAdminJwt("tok");
+    mockFetch();
+    const { container } = ui();
+    await screen.findByText("ops-01");
+    fireEvent.click(container.querySelector(".ant-table-row-expand-icon") as HTMLElement);
+    // the muted Tag also says "bob" - the peer link is the only BUTTON named bob
+    const peerLink = () =>
+      [...container.querySelectorAll("button")].find((b) => b.textContent === "bob");
+    await waitFor(() => expect(peerLink()).toBeTruthy(), { timeout: 3000 });
+    fireEvent.click(peerLink() as HTMLElement);
+    // AntD Descriptions labels render with a trailing colon - regex match
+    expect(await screen.findByText(/moderator of/)).toBeTruthy();
+    expect(screen.getByText(/holding floor/)).toBeTruthy();
+  });
+
+  it("rooms tab lists the registry and gates writes per tier (S2/S5 UI)", async () => {
+    setAdminJwt("tok");
+    mockFetch();
+    ui();
+    fireEvent.click(await screen.findByText("Rooms"));
+    expect(await screen.findByText("squad")).toBeTruthy();
+    expect(screen.getByText(/New room/i)).toBeTruthy();
+    cleanup(); // isolate the remount (two live trees double every query)
+    sessionStorage.setItem("ts-admin-role", "operator");
+    ui();
+    fireEvent.click(await screen.findByText("Rooms"));
+    expect(await screen.findByText(/registry writes require admin/)).toBeTruthy();
+    sessionStorage.removeItem("ts-admin-role");
   });
 });

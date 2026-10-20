@@ -5,7 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { DispatcherPage } from "./pages/dispatcher.js";
 import { FieldPage } from "./pages/field.js";
 import { ParticipantPage } from "./pages/participant.js";
-import { AdminPage } from "./pages/admin.js";
+import { AdminPage } from "./pages/admin/index.js";
 import "./main.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

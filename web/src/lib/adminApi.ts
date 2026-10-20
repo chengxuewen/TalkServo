@@ -4,7 +4,12 @@
 // overlap: this is deliberately NOT in packages/client (D14 scope: signaling
 // domain); the Electron shell wraps the same SPA, so web-side is correct.
 
-const KEY = "ts-a…t";
+const KEY = "ts-admin-jwt";
+const ROLE_KEY = "ts-admin-role";
+
+export function adminRole(): string | null {
+  return sessionStorage.getItem(ROLE_KEY);
+}
 
 export function adminJwt(): string | null {
   return sessionStorage.getItem(KEY);
@@ -13,11 +18,16 @@ export function adminJwt(): string | null {
 export function setAdminJwt(token: string | null): void {
   if (token) sessionStorage.setItem(KEY, token);
   else sessionStorage.removeItem(KEY);
+  if (!token) sessionStorage.removeItem(ROLE_KEY);
 }
 
 export interface PeerRow {
   id: string;
   connected_since_ms: number;
+  role?: "dispatch" | "field";
+  mod_rooms?: string[];
+  granted?: boolean;
+  muted?: boolean;
 }
 
 /** rooms.yaml row (plan-7 S2 registry; optional fields fall back to globals). */
@@ -51,6 +61,22 @@ export interface Overview {
 export interface AccountRow {
   user: string;
   role: string;
+}
+
+export interface AuditRow {
+  seq: number;
+  ts_ms: number;
+  event: string;
+  room?: string;
+  actor?: string;
+  target?: string;
+  reason?: string;
+  changes?: { key: string; old: unknown; new: unknown }[];
+}
+
+export interface AuditPage {
+  events: AuditRow[];
+  dropped: number;
 }
 
 export interface Issued {
@@ -90,9 +116,10 @@ export class AdminApi {
       body: JSON.stringify({ user, password }),
     });
     if (!res.ok) throw new Error(`login ${res.status}`);
-    const body = (await res.json()) as { jwt?: string };
+    const body = (await res.json()) as { jwt?: string; role?: string };
     if (!body.jwt) throw new Error("login: response missing jwt");
     setAdminJwt(body.jwt);
+    sessionStorage.setItem(ROLE_KEY, body.role ?? "admin");
     return body.jwt;
   }
 
@@ -117,8 +144,9 @@ export class AdminApi {
     return this.call("GET", "/admin/api/accounts");
   }
   /** Create or reset a password (upsert — sister Accounts semantics). */
-  createAccount(user: string, password: string): Promise<void> {
-    return this.callVoid("POST", "/admin/api/accounts", { user, password });
+  /** S5: create carries the tier (absent = server default admin). */
+  createAccount(user: string, password: string, role?: string): Promise<void> {
+    return this.callVoid("POST", "/admin/api/accounts", { user, password, role });
   }
   removeAccount(user: string): Promise<void> {
     return this.callVoid("DELETE", `/admin/api/accounts/${encodeURIComponent(user)}`);
@@ -141,6 +169,30 @@ export class AdminApi {
 
   deleteRoom(room: string): Promise<void> {
     return this.callVoid("DELETE", `/admin/api/rooms/${encodeURIComponent(room)}`);
+  }
+  /** S6 intervention kit (R2: reason goes to the audit trail, never the wire). */
+  kickPeer(room: string, peer: string, reason?: string): Promise<void> {
+    return this.callVoid(
+      "DELETE",
+      `/admin/api/rooms/${encodeURIComponent(room)}/peers/${encodeURIComponent(peer)}`,
+      reason ? { reason } : undefined,
+    );
+  }
+  forceRelease(room: string, peer: string, reason?: string): Promise<void> {
+    return this.callVoid(
+      "POST",
+      `/admin/api/rooms/${encodeURIComponent(room)}/peers/${encodeURIComponent(peer)}/force-release`,
+      reason ? { reason } : undefined,
+    );
+  }
+  audit(q: { event?: string; room?: string; actor?: string; limit?: number } = {}): Promise<AuditPage> {
+    const ps = new URLSearchParams();
+    if (q.event) ps.set("event", q.event);
+    if (q.room) ps.set("room", q.room);
+    if (q.actor) ps.set("actor", q.actor);
+    if (q.limit) ps.set("limit", String(q.limit));
+    const qs = ps.toString();
+    return this.call("GET", `/admin/api/audit${qs ? `?${qs}` : ""}`);
   }
   issue(req: {
     sub: string;
