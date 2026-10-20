@@ -171,6 +171,20 @@ impl FloorState {
                     return (next, out);
                 }
 
+                // Rule 2 (S7.5 ruling 2026-10-20): a muted member holds no speaking
+                // privilege, so the request is refused VISIBLY - silent drops are
+                // forbidden (modules/01 sec 1). `unauthorized` is REUSED instead of a new
+                // wire variant so pre-S7.5 clients keep parsing (D16 compat); the client
+                // tells this denial apart from the S3 command denial by which message it
+                // answers, and by its own name sitting in the local `muted` roster.
+                if self.is_muted(peer) {
+                    out.push(SignalingMessage::FloorDenied {
+                        reason: DenyReason::Unauthorized,
+                        generation: self.generation,
+                    });
+                    return (next, out);
+                }
+
                 // R5 preempt: strictly-higher priority may displace the sole
                 // exclusive holder (modules/01: preempt is an Exclusive-mode
                 // instrument; other modes ignore the flag — space path below)
@@ -433,20 +447,52 @@ impl FloorState {
                 (next, out)
             }
 
-            // ── mute governance (open mode) ─────────────────────────────
+            // -- mute governance (Rule 2/8, re-scoped by the S7.5 walkthrough
+            // 2026-10-20: mute is a standing privilege on a room member) ----------
             FloorEvent::MuteSet { actor, peer, on } => {
                 let _ = actor;
-                // R8: muting a peer the floor state doesn't know (not granted,
-                // not queued) is a no-op — roster membership is server-domain
-                let known = self.is_granted(peer) || self.queue_position(peer).is_some();
-                if *on && known {
+                // The core holds no roster, so "is this peer actually in the room" is the
+                // server's check (room.rs) - here any id may be muted, and muting takes
+                // away everything the floor grants: the grant AND the queue slot (a
+                // queued position is a reservation of the very privilege being revoked).
+                if *on {
                     if !next.muted.contains(peer) {
                         next.muted.push(peer.clone());
-                        next.generation += 1;
                     }
-                } else if next.muted.contains(peer) {
+                    // A peer is never both granted and queued (Request returns early on
+                    // either), so the two removals are exclusive cases - each mirrors the
+                    // shape the Release/Leave branches already use for the same transition.
+                    let was_granted = next.grants.iter().position(|g| g == peer);
+                    if let Some(i) = was_granted {
+                        next.grants.remove(i);
+                        next.grant_priority.remove(i);
+                        next.generation += 1;
+                        // freed capacity promotes the queue head; promote_or_idle carries
+                        // the PIT-21 shrink rebroadcast so every mirror converges.
+                        Self::promote_or_idle(&mut next, &mut out);
+                    } else if let Some(pos) = next.queue.iter().position(|p| p.peer == *peer) {
+                        next.queue.remove(pos);
+                        next.generation += 1;
+                        // queue-only voiding: shifted positions rebroadcast (Leave
+                        // precedent), the sitting holder is NOT re-announced.
+                        for i in pos..next.queue.len() {
+                            out.push(SignalingMessage::FloorQueued {
+                                position: i as u32,
+                                generation: next.generation,
+                            });
+                        }
+                    }
+                    // Roster-only mute (a silent member): no generation bump, no floor
+                    // event. The name reaches clients through the role-scoped snapshot the
+                    // server pushes for MuteSet (room.rs) - that is how the ws_flow
+                    // "MuteSet mutates silently" gap closes without a wire variant.
+                } else {
+                    // Un-mute restores the PRIVILEGE only, never the floor (A3): the
+                    // vacated slot may already belong to a promoted head, and re-adding
+                    // would either break the cap or pre-empt without priority (Rule 4).
+                    // The peer presses again and that request carries its own priority,
+                    // so there is no priority state to remember or replay.
                     next.muted.retain(|p| p != peer);
-                    next.generation += 1;
                 }
                 (next, out)
             }

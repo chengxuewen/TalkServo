@@ -50,7 +50,11 @@ pub enum DenyReason {
     PreemptPriority,
     /// Peer has no live media transport.
     NoMedia,
-    /// S3: command authorization refused (server-layer gate, Rule 10).
+    /// Authorization refused. TWO sources share this variant on purpose: Rule 10
+    /// rejects an unauthorized COMMAND (plan-7 S3), and since S7.5 Rule 2 rejects a
+    /// FLOOR REQUEST from a muted member. A new variant would leave pre-S7.5 clients
+    /// unable to parse a denial reason they have never seen (D16 compat), so callers
+    /// disambiguate by message kind and by the `muted` roster they already mirror.
     Unauthorized,
 }
 

@@ -9,7 +9,7 @@
 
 use talkservo_core::floor::{FloorEvent, FloorLimits, FloorMode, FloorState};
 use talkservo_core::ids::PeerId;
-use talkservo_core::wire::SignalingMessage;
+use talkservo_core::wire::{DenyReason, SignalingMessage};
 
 fn pid(s: &str) -> PeerId {
     PeerId::from(s)
@@ -295,7 +295,12 @@ fn r8_no_ops_keep_generation_unchanged() {
         &FloorLimits::default(),
     );
     assert!(out.is_empty());
-    assert_eq!(generation(&s), g, "mute of non-member = no-op");
+    assert_eq!(
+        generation(&s),
+        g,
+        "mute of a silent id is a roster change, not a floor change (S7.5 A2/A3)",
+    );
+    assert!(s.is_muted(&pid("zz")), "the ban must still be recorded");
 
     let (s, out) = s.apply(
         &FloorEvent::Leave { peer: pid("zz") },
@@ -509,10 +514,10 @@ fn r9_hybrid_caps_two_grants() {
     assert_eq!(emitted(&out), vec!["queued(0)"]);
 }
 
-// ── mute (open mode governance) ─────────────────────────────────────────────
+// -- mute (Rule 2/8 re-scoped by the S7.5 walkthrough 2026-10-20) ------------
 
 #[test]
-fn mute_toggles_membership_in_open_mode() {
+fn mute_revokes_the_floor_and_unmute_restores_only_the_privilege() {
     let s = state(FloorMode::Open);
     let (s, _) = s.apply(
         &FloorEvent::Request {
@@ -522,6 +527,9 @@ fn mute_toggles_membership_in_open_mode() {
         },
         &FloorLimits::default(),
     );
+    assert!(s.is_granted(&pid("a")));
+
+    // mute takes the mic away, so every mirror is told (PIT-21 shrink path)
     let (s, out) = s.apply(
         &FloorEvent::MuteSet {
             actor: pid("admin"),
@@ -530,9 +538,18 @@ fn mute_toggles_membership_in_open_mode() {
         },
         &FloorLimits::default(),
     );
-    assert_eq!(out.len(), 0, "mute ack is server-domain");
     assert!(s.is_muted(&pid("a")));
-    let (s, _) = s.apply(
+    assert!(!s.is_granted(&pid("a")), "mute must revoke the grant");
+    assert!(
+        matches!(
+            out.first(),
+            Some(SignalingMessage::FloorIdle { reason: None, .. })
+        ),
+        "the freed Open floor goes idle in front of everyone: {out:?}",
+    );
+
+    // un-mute clears the ban and NOTHING else (A3): no re-grant, no emit
+    let (s, out) = s.apply(
         &FloorEvent::MuteSet {
             actor: pid("admin"),
             peer: pid("a"),
@@ -541,6 +558,144 @@ fn mute_toggles_membership_in_open_mode() {
         &FloorLimits::default(),
     );
     assert!(!s.is_muted(&pid("a")));
+    assert!(
+        !s.is_granted(&pid("a")),
+        "un-mute must not hand the floor back"
+    );
+    assert!(
+        out.is_empty(),
+        "un-mute emits nothing - the peer presses again"
+    );
+
+    // the next request carries its own priority, so it needs no remembered state
+    let (s, _) = s.apply(
+        &FloorEvent::Request {
+            peer: pid("a"),
+            priority: 0,
+            preempt: false,
+        },
+        &FloorLimits::default(),
+    );
+    assert!(s.is_granted(&pid("a")), "a freed member can hold again");
+}
+
+#[test]
+fn muted_peer_request_is_refused_visibly_and_a_queue_slot_is_voided_too() {
+    // Exclusive, cap 1: a holds, b queues, then both get muted.
+    let s = state(FloorMode::Exclusive);
+    let (s, _) = s.apply(
+        &FloorEvent::Request {
+            peer: pid("a"),
+            priority: 0,
+            preempt: false,
+        },
+        &FloorLimits::default(),
+    );
+    let (s, _) = s.apply(
+        &FloorEvent::Request {
+            peer: pid("b"),
+            priority: 0,
+            preempt: false,
+        },
+        &FloorLimits::default(),
+    );
+    assert_eq!(s.queue().len(), 1, "b queued behind a");
+
+    let (s, out) = s.apply(
+        &FloorEvent::MuteSet {
+            actor: pid("admin"),
+            peer: pid("a"),
+            on: true,
+        },
+        &FloorLimits::default(),
+    );
+    assert_eq!(
+        s.grants().to_vec(),
+        vec![pid("b")],
+        "muting the holder promotes the queue head, not silence",
+    );
+    assert!(
+        matches!(out.first(), Some(SignalingMessage::FloorGranted { .. })),
+        "the promotion must be broadcast",
+    );
+
+    // b now holds; muting b empties the room
+    let (_, out) = s.apply(
+        &FloorEvent::MuteSet {
+            actor: pid("admin"),
+            peer: pid("b"),
+            on: true,
+        },
+        &FloorLimits::default(),
+    );
+    assert!(
+        matches!(
+            out.first(),
+            Some(SignalingMessage::FloorIdle { reason: None, .. })
+        ),
+        "muting the last holder idles the room: {out:?}",
+    );
+
+    // a muted member who presses again is refused WITH A REASON (silent drops are
+    // forbidden, modules/01 sec 1), reusing the existing Unauthorized variant so
+    // pre-S7.5 clients keep parsing (D16).
+    let (_, out) = s.apply(
+        &FloorEvent::Request {
+            peer: pid("a"),
+            priority: 9,
+            preempt: true,
+        },
+        &FloorLimits::default(),
+    );
+    assert!(
+        matches!(
+            out.first(),
+            Some(SignalingMessage::FloorDenied {
+                reason: DenyReason::Unauthorized,
+                ..
+            })
+        ),
+        "muted request refused visibly with the existing reason: {out:?}",
+    );
+}
+
+#[test]
+fn mute_voids_a_queued_reservation_too() {
+    let s = state(FloorMode::Exclusive);
+    let (s, _) = s.apply(
+        &FloorEvent::Request {
+            peer: pid("a"),
+            priority: 0,
+            preempt: false,
+        },
+        &FloorLimits::default(),
+    );
+    let (s, _) = s.apply(
+        &FloorEvent::Request {
+            peer: pid("b"),
+            priority: 5,
+            preempt: false,
+        },
+        &FloorLimits::default(),
+    );
+    let (s, out) = s.apply(
+        &FloorEvent::MuteSet {
+            actor: pid("admin"),
+            peer: pid("b"),
+            on: true,
+        },
+        &FloorLimits::default(),
+    );
+    assert_eq!(s.queue().len(), 0, "mute voids the queue slot (S7.5 A3)");
+    assert_eq!(
+        s.grants().to_vec(),
+        vec![pid("a")],
+        "the sitting holder is untouched by muting a queued peer",
+    );
+    assert!(
+        out.is_empty(),
+        "no floor change, so no rebroadcast - the roster rides the snapshot",
+    );
 }
 
 // ── D16 queue purge on Leave ────────────────────────────────────────────────
