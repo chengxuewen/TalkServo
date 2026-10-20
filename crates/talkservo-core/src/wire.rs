@@ -35,6 +35,8 @@ pub enum DenyReason {
     PreemptPriority,
     /// Peer has no live media transport.
     NoMedia,
+    /// S3: command authorization refused (server-layer gate, Rule 10).
+    Unauthorized,
 }
 
 /// Dispatch/Field role split (modules/01 §1): dispatch sees the queue, field does not.

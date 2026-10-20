@@ -107,6 +107,16 @@ async fn grant_latency_covers_queued_promotion() {
 
     let mut a = ws_connect(&format!("ws://{addr}/ws")).await;
     let mut b = ws_connect(&format!("ws://{addr}/ws")).await;
+    // S3: ModeChange is Dispatch-gated (Rule 10) - the mode flip that sets up
+    // the queue scenario rides a dispatch token now.
+    let mut chief = ws_connect(&format!("ws://{addr}/ws")).await;
+    let jwt_chief = test_bridge::issue_token(
+        &secret,
+        "chief",
+        "q-room",
+        talkservo_core::wire::Role::Dispatch,
+        600,
+    );
     let jwt_a = test_bridge::issue_token(
         &secret,
         "qa",
@@ -129,16 +139,20 @@ async fn grant_latency_covers_queued_promotion() {
     for _ in 0..4 {
         recv_msg(&mut b).await.expect("burst");
     }
+    send_json(&mut chief, &SignalingMessage::Join { v: 1, jwt: jwt_chief }).await;
+    for _ in 0..4 {
+        recv_msg(&mut chief).await.expect("burst");
+    }
 
-    // switch to exclusive so queuing happens
+    // switch to exclusive so queuing happens (dispatch-authorized, Rule 10)
     send_json(
-        &mut a,
+        &mut chief,
         &SignalingMessage::ModeChange {
             mode: talkservo_core::wire::FloorMode::Exclusive,
         },
     )
     .await;
-    let _ = recv_msg(&mut a).await; // idle echo (may or may not arrive)
+    let _ = recv_msg(&mut chief).await; // idle echo (may or may not arrive)
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
     send_json(

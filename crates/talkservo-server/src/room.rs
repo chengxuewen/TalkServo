@@ -126,6 +126,31 @@ impl RoomState {
         }
     }
 
+    /// S3: Some((reason, target)) when the command is not authorized for `from`.
+    /// Rule 10 (modules/01): ModeChange / MuteSet are AUTHORIZED commands - sender
+    /// must hold Role::Dispatch. MuteSet additionally cannot target a Dispatch
+    /// peer (dispatch-always-outranks; no mutual-fight path). Everything else
+    /// (FloorRequest/Release by any peer) needs no grant.
+    fn authorize_command(&self, from: &PeerId, msg: &SignalingMessage) -> Option<(String, String)> {
+        let sender_role = self.members.get(from)?.info.role;
+        if sender_role == Role::Dispatch {
+            return None; // dispatch governs all (including other dispatch peers)
+        }
+        match msg {
+            SignalingMessage::ModeChange { .. } => {
+                Some(("mode_change_requires_dispatch".into(), String::new()))
+            }
+            SignalingMessage::MuteSet { peer, .. } => {
+                let target_role = self.members.get(peer).map(|m| m.info.role);
+                match target_role {
+                    Some(Role::Dispatch) => Some(("cannot_mute_dispatch".into(), peer.to_string())),
+                    _ => Some(("mute_requires_dispatch".into(), peer.to_string())),
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// Reaper probe: no members at all?
     pub fn is_empty(&self) -> bool {
         self.members.is_empty()
@@ -230,6 +255,28 @@ impl RoomState {
             .get(from)
             .map(|t| t.elapsed().as_millis() as u64 >= 500)
             .unwrap_or(true);
+
+        // S3 command authorization (plan-7 R3 ruling: Dispatch always outranks;
+        // mod-claims ride S4 and will OR into this check). Checks live HERE, not
+        // in core: core stays a pure machine (D5/I-O-at-the-edge); denial never
+        // reaches apply(), so the state machine stays serializable.
+        if let Some(deny) = self.authorize_command(from, msg) {
+            let generation = self.floor.generation();
+            self.relay(
+                crate::audit::AuditEvent::new(crate::audit::AuditKind::AuthzDenied)
+                    .actor(from.to_string())
+                    .target(deny.1.clone())
+                    .reason(deny.0.clone()),
+            );
+            direct.push(SignalingMessage::FloorDenied {
+                reason: talkservo_core::wire::DenyReason::Unauthorized,
+                generation,
+            });
+            return FloorOutcome {
+                direct,
+                mutated: false,
+            };
+        }
 
         let ev = match msg {
             SignalingMessage::FloorRequest { priority, preempt } => {

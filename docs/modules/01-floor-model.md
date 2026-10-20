@@ -45,6 +45,7 @@ Rules (normative):
 7. `floor_max_hold_ms`: default **45 s in dispatch profile**, off in Open mode; forced release → `FloorIdle{reason=timeout}`.
 8. Release/Leave/Mute with non-granted peer = idempotent no-op. Repeated Request by grante = idempotent.
 9. PoC starvation policy: none beyond cap (documented ceiling — revisit at Alpha with aging).
+10. **Command authorization (plan-7 S3, 2026-10-19)**: `ModeChange` and `MuteSet` are AUTHORIZED commands — the server checks the sender's token role BEFORE core `apply()` (the state machine stays pure; denials never enter it). Dispatch role passes everything; non-Dispatch senders are denied with `FloorDenied{reason=unauthorized}` + an `authz_denied` audit line. Dispatch always outranks: a Dispatch target can never be muted by a non-Dispatch sender (no mutual-fight path). Token mod-claims (S4) OR into the room-level grant. FloorRequest/Release need no grant.
 
 **Holder definition (D12)**: `holder` ≡ `grants[0]` and exists only in Exclusive/Hybrid (cap ≥1); Open mode has no holder — all unmuted peers are grantees. E11/F-sequence wording applies to grantees generally, holder-phrased for dispatch readability.
 

@@ -8,6 +8,7 @@ export type DenyReason =
   | "exceeds_ceiling"
   | "not_member"
   | "rate_limited"
+  | "unauthorized"   // S3: command authorization refused (Rule 10)
   | "preempt_priority"
   | "no_media";
 export type Role = "dispatch" | "field";
