@@ -60,6 +60,10 @@ export default async function () {
         // the first account via the script-minted bootstrap token)
         TS_ACCOUNTS_FILE: ACCOUNTS_FILE,
         ...(process.env.TS_ADMIN ? { TS_ADMIN_SECRET: adminSecret } : {}),
+        // debug-build PBKDF2 at 600k iters costs ~9s per mint/verify and blows
+        // the admin lane's assertion windows; cheap hashes for the test lane only
+        // (see kdf::hash_password_configured). Production default stays 600k.
+        TS_KDF_ITERS: process.env.TS_KDF_ITERS ?? "4096",
         // the live fake-device speaker beeps with ~400ms gaps — the E11
         // watchdog (2s grace) would down it mid-hold and make audibility/
         // latency probes phase-dependent. The e2e E11 row is a stub-synthetic

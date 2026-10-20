@@ -138,8 +138,6 @@ impl RoomState {
         }
         // S4: moderator claims OR into the grant (R3/R4: per-room authority;
         // claims ride the token and were copied onto the member at Join).
-        // S4: moderator claims OR into the grant (R3/R4: per-room authority;
-        // claims ride the token and were copied onto the member at Join).
         if member
             .info
             .mod_rooms

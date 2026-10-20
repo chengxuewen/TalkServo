@@ -138,7 +138,7 @@ pub fn upsert_role(
             });
         }
     }
-    let hash = kdf::hash_password(password);
+    let hash = kdf::hash_password_configured(password);
     match list.iter_mut().find(|a| a.user == user) {
         // reset must clear any hand-written plaintext so the new hash rules
         Some(a) => {

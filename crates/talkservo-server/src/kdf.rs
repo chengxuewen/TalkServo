@@ -60,6 +60,24 @@ pub fn hash_password(pw: &str) -> String {
     hash_password_with_iters(pw, DEFAULT_ITERS)
 }
 
+/// Test-lane mint: `TS_KDF_ITERS` lowers the iteration count so the e2e admin
+/// login does not pay the 600k-iteration cost of a debug build (~9s per call,
+/// which blows every UI assertion window). verify reads the count back from the
+/// stored line, so a cheap hash only ever slows itself down, never the other
+/// way. Production default (unset) stays at DEFAULT_ITERS.
+pub fn hash_password_configured(pw: &str) -> String {
+    match std::env::var("TS_KDF_ITERS")
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+    {
+        Some(iters) if iters > 0 && iters < DEFAULT_ITERS => {
+            eprintln!("WARN: TS_KDF_ITERS={iters} weakens new account hashes - test lane only");
+            hash_password_with_iters(pw, iters)
+        }
+        _ => hash_password(pw),
+    }
+}
+
 /// Knob form — integration tests mint low-iteration hashes (verify reads the
 /// count back from the string, so the full parse path stays exercised).
 pub fn hash_password_with_iters(pw: &str, iters: u32) -> String {
