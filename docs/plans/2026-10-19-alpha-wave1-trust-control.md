@@ -1,6 +1,6 @@
 # Plan-7: Alpha wave-1 — Trust & Control (D23) — draft for review
 
-> **STATUS: S1-S7 LANDED (2026-10-20; five-tab admin console green - vitest 13/13, stub-lane e2e incl. admin click-through). S7.5 (deny≠mute copy) remains.**
+> **STATUS: WAVE-1 COMPLETE — S1-S7 + S7.5 LANDED (2026-10-20; five-tab admin console, deny≠mute copy, vitest 18/18, stub-lane e2e incl. admin click-through and the live mute row). Deferred: three cross-client admin e2e rows.**
 > Design truth: `docs/modules/08-web-ui.md` + `.agents/memorys/decisions.md` D23 (incl. UI annex + borrow annex).
 > Sister precedent: plan-5 format (slices → gates → commit per slice).
 
@@ -160,10 +160,12 @@ WS msg ──► room.rs intake ──► authorized?(claims, msg) ──no─�
   input) + peer-name Drawer (detail from 6.2); Rooms tab (CRUD table + modal; delete confirm
   names the kick-all consequence); Logs tab (cursor table + event/room/actor filters, manual
   refresh — no auto-poll); Tokens form gains mod-rooms multi-select.
-- 7.3 *(moved to S7.5 by R3 ruling)* deny≠mute: field/participant pages render
-  `FloorDenied` as "denied by dispatcher" distinct from muted state (data already in
-  mirror events). SEPARATE SLICE — own commit after S7; droppable under schedule
-  pressure without touching the S7 mainline (U2 acceptance preserved, cut isolated).
+- [x] 7.3 → **S7.5 LANDED 2026-10-20** (commit chain: core `fix` + server `feat` + web).
+  Field/participant pages render a floor refusal and a dispatcher mute as two different
+  sentences. Note on the original wording: "(data already in mirror events)" was only half
+  true — the roster did mirror, but mute gated nothing and broadcast nothing, so this slice
+  had to make mute real first (see the S7.5 walkthrough record in §7; the R3 droppability
+  ruling still held — the S7 mainline was untouched).
 - [x] 7.4 Tests (LANDED 2026-10-20, scope adjusted): vitest admin suite 5 -> 10 cases - Sider tier
   filter, Logs render + dropped warning, expand+Kick-with-reason -> DELETE body assert, peer Drawer
   (6.2 fields), Rooms registry + tier-gated writes; stub-lane e2e green (admin click-through,
@@ -215,6 +217,39 @@ Plan-review walkthrough 2026-10-19: R1 rooms/live rename C / R2 kick reason+Peer
 R3 deny-copy own slice S7.5 C / R4 gates+matrix+fail-visible+legacy-compat B (static grep gate
 rejected). Docs-gap ruling: sync obligations #1 (modules/02 claims payoff) + #2 (modules/01
 Rule 10) IN; #3-#6 NOT adopted (ledgered, not swallowed).
+
+### S7.5 walkthrough (2026-10-20, user-adjudicated one by one) — re-scopes R3
+
+Pre-condition found while starting S7.5: **mute is currently a no-op on audio**. `MuteSet` only edits the roster
+(floor.rs:436-452, empty `out`), the SFU gate reads grants only (mediasoup_host.rs:366), the Request path never
+checks mute (floor.rs:204), and `muted` reaches the client only through `server_snapshot` (store.ts:93/104) — the
+ws_flow.rs:255 NOTE already admitted the silent-mutation half of this in code comments. Shipping the copy alone
+would put the word "muted" on a peer who is still audible, which U1 forbids as fake acceptance evidence.
+
+A1 scope of the slice = **B** (make mute act, then write the copy; no wire change). Mute on a granted peer
+removes it from `grants` + bumps generation + rebroadcasts through the existing grant-set path; a muted peer's
+FloorRequest is refused with the EXISTING `DenyReason::Unauthorized` (no enum variant added — D16 compat holds);
+the two meanings are told apart by message context (a muted peer never sends ModeChange/MuteSet) and by the local
+roster, not by the wire.
+A2 who can be muted = **B** (any room member, Rule 8 rewritten). The core keeps no roster, so the target-must-exist
+check moves to `room.rs`, which owns `members`. Reason: mute is a standing privilege on a member, not a volume
+knob for whoever happens to be talking; otherwise the switch stays dead for silent members — the exact case the
+operator needs (Zello/PTX deny-before-speech).
+A3 what un-mute restores = **B** (privilege only, never the floor). Un-mute clears the name from the roster, emits
+nothing, and the peer must press again; their next request carries its own priority, so no priority state has to be
+stored or replayed. In Exclusive the vacated slot is already filled by queue-head promotion (floor.rs:458-476), so
+"re-add" would either break the cap or pre-empt without priority — Rule 4.
+
+Folded into A3 by the same ruling: mute revokes the **queue slot too** (a queued position is a reservation of the
+privilege mute takes away; leaving it means "forbidden yet reserved"). Noted for the record because it was offered
+as an explicit opt-out and not taken.
+
+Consequence adopted with A1 without a vote (it is mechanics, not design): live visibility of the roster change uses
+the ALREADY-EXISTING role-scoped snapshot push (room.rs:412-420, the ModeChange precedent) instead of a new
+message type. That closes the ws_flow.rs:255 gap and plan-7 §4's "NO new SignalingMessage variants" holds.
+
+Still deferred, explicitly: cross-client e2e rows from S7.4, carrying `muted` on FloorGranted (A1's rejected
+C-route) and AdminEvent WS push = wave-2.
 Open items: status.md 16→22 (S0.8, pending); Listen + AdminEvent = wave-2; rooms registry
 endpoint naming confirmed at S2 start; Motorola Wave PTX + Discord role-matrix remain [U] in the
 checklist dossier (no reachable source this session).
@@ -250,7 +285,9 @@ console (paths, endpoints, intervention kit, tier gate, diagrams) and architectu
 - [x] Slice order & scope (§2, §3) — accepted 2026-10-19 (docs-gap ruling: obligations #1+#2 in, #3–#6 out)
 - [x] S2 endpoint naming — R1: clean `rooms` for registry, live poll → `rooms/live`
 - [x] S6 reason + broadcast — R2: reason audit-only, PeerLeft additive kind marker
-- [x] S7 deny≠mute — R3: own slice S7.5, droppable
+- [x] S7 deny≠mute — R3: own slice S7.5, droppable → walked 2026-10-20 as A1=B / A2=B / A3=B
+  (mute really revokes the seat; any room member can be muted; un-mute returns the privilege
+  only) and landed as such — see the S7.5 walkthrough record in §7
 - [x] Gates — R4: + permission matrix, audit fail-visible, legacy-token compat; no static grep gate
 
-**STATUS: S1-S7 LANDED 2026-10-20 (S7.5 open; three cross-client admin e2e rows deferred) — see .agents/memorys/status.md.**
+**STATUS: WAVE-1 LANDED 2026-10-20 (S1-S7.5). Remaining: three cross-client admin e2e rows (kick-departure / audit-line-in-Logs / locked-room-reject) deferred by the S7.4 scope ruling. See .agents/memorys/status.md.**

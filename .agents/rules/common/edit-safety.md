@@ -224,3 +224,16 @@ Python/heredoc patch scripts must contain an explicit `open(..., "w").write(s)` 
 `pixi run lint` / `cargo check` sharing `target/` with an in-flight build (e2e global-setup, test task, parallel agent) fail with "waiting for other jobs / could not compile" on files that just passed. Discipline: `pgrep -x cargo` must be empty before a gate; if a gate fails right after another cargo command, rerun ONCE before diagnosing — a passing rerun means the failure was phantom. Editing code to "fix" phantom errors is a blocker-level mistake.
 **Blocking condition**: code changes made against a lint failure taken while cargo was busy, without a clean serial rerun.
 **Source**: this project, 2026-10-09 (two identical phantom lint failures after the D22 live loop and the stub suite; both cleared by serial rerun, zero real errors).
+
+### 23. Markdown table edits: never land a non-pipe line between rows
+
+Inserting a blockquote/paragraph anchored on a table row splits the table in two (the
+rows below the insert render as plain text and a reviewer's screenshot catches it, not
+the diff). Anchor prose additions AFTER the table's last row, and verify with a column
+count: every row of one table must have the same unescaped-`|` cell count as its header.
+**Blocking condition**: a table edit that was not followed by the check below in the same turn.
+**Verification**: the python one-liner in this repo's doc-gate run (`cells != expected` must
+print nothing per file), or `awk` counting unescaped pipes per row.
+**Source**: this project, 2026-10-20 S7.5 doc pass — a `> deny ≠ mute` note was appended to
+the `/field/:room` row of the modules/08 route table and orphaned the `/room/:room` row;
+caught by the column-count check before commit, moved after the table.
