@@ -139,7 +139,14 @@ async fn grant_latency_covers_queued_promotion() {
     for _ in 0..4 {
         recv_msg(&mut b).await.expect("burst");
     }
-    send_json(&mut chief, &SignalingMessage::Join { v: 1, jwt: jwt_chief }).await;
+    send_json(
+        &mut chief,
+        &SignalingMessage::Join {
+            v: 1,
+            jwt: jwt_chief,
+        },
+    )
+    .await;
     for _ in 0..4 {
         recv_msg(&mut chief).await.expect("burst");
     }

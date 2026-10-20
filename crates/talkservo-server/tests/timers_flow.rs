@@ -165,11 +165,28 @@ async fn e11_silence_past_grace_releases_and_promotes() {
             let _ = m;
         }
     }
+    // S3 (Rule 10): ModeChange is Dispatch-gated - the setup flip rides a
+    // dispatch peer (a field-sent flip is now denied by design)
+    let mut chief = ws_connect(srv.ws_url()).await;
+    {
+        let jwt = test_bridge::issue_token(
+            &srv.secret,
+            "chief",
+            "room-1",
+            talkservo_core::wire::Role::Dispatch,
+            3600,
+        );
+        send_json(&mut chief, &SignalingMessage::Join { v: 1, jwt }).await;
+        for i in 0..4 {
+            let m = recv_msg(&mut chief).await.expect("burst msg");
+            let _ = m;
+        }
+    }
 
     // switch to Exclusive (default room mode is Hybrid, cap 2 — both would
-    // grant straight away); a drains the mode_change echo, b sees nothing
+    // grant straight away); chief drains the mode_change echo, b sees nothing
     send_json(
-        &mut a,
+        &mut chief,
         &SignalingMessage::ModeChange {
             mode: talkservo_core::wire::FloorMode::Exclusive,
         },
