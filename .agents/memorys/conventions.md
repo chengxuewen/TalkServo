@@ -47,3 +47,29 @@ out=$(grep -rnE 'path="/(a|d|f)(/|")|"/(a|d|f)/"' web/src web/e2e crates/talkser
 if [ -n "$out" ]; then echo "FAIL: single-letter route paths:"; echo "$out"; exit 1; fi
 echo PASS
 ```
+
+## C4: ledger *indexes* must be regenerated-consistent with the ledgers they describe (2026-10-21)
+
+- **Constraint**: any file that summarizes ledger contents rather than defining them — `AGENTS.md` (the `Ranges:` row and the WHERE-TO-LOOK `D1-Dn` / `C1-Cn` / `PIT-1..n` rows) and `.agents/memorys/status.md` (the Decision Status table) — must state exactly what the ledgers hold: the D/C/PIT upper bounds equal the highest actual id, and the status.md table carries one row per `## D{n}` entry, with no id missing and no row citing an id that has no ledger entry. Adding a ledger entry updates its index rows **in the same commit**.
+- **Rationale**: two drifts inside one session (2026-10-21): `AGENTS.md` still advertised `PIT-1..24` after PIT-25/26 existed, and the status.md Decision Status table skipped D23/D24 entirely (`D22 → D25`) while the same repo cites "every C/D/PIT id must resolve" one section later. A stale index is a broken foreign key — and the index is the file a newcomer reads first, so the drift is invisible exactly where it hurts most. C3's own "cite one precedent" discipline deserves the same mechanical backing.
+- **Check**: `bash scripts/gate.sh` runs the C4 block (embedded verbatim below, refreshed by `python3 scripts/gate-gen.py`); it fails on a stale range in either AGENTS.md row, on a decision id missing from the status table, and on a table row with no ledger entry behind it. Verified against three mutations (range rolled back / row deleted / row invented) before being adopted.
+- **Source**: this project, session 2026-10-21 (plan-7 S7.5 + S7.4 close; see the S7.4 close note and PIT-27).
+
+```bash
+set -uo pipefail
+dmax=$(grep -o '^## D[0-9]*' .agents/memorys/decisions.md | grep -o '[0-9]*' | sort -n | tail -1)
+pmax=$(grep -o '^## PIT-[0-9]*' .agents/memorys/pitfalls.md | grep -o '[0-9]*' | sort -n | tail -1)
+cmax=$(grep -o '^## C[0-9]*' .agents/memorys/conventions.md | grep -o '[0-9]*' | sort -n | tail -1)
+ids=$(grep -o '^## D[0-9]*' .agents/memorys/decisions.md | sed 's/^## //' | sort)
+rows=$(grep -oE '^\| D[0-9]+ \|' .agents/memorys/status.md | tr -d '| ' | sort)
+fail=0
+grep -q "Ranges: D1-D$dmax, C1-C$cmax, PIT-1..$pmax\." AGENTS.md \
+  || { echo "FAIL: AGENTS.md Ranges row stale (want D1-D$dmax, C1-C$cmax, PIT-1..$pmax)"; fail=1; }
+grep -q "pitfalls.md PIT-1..$pmax " AGENTS.md \
+  || { echo "FAIL: AGENTS.md WHERE-TO-LOOK PIT range stale (want PIT-1..$pmax)"; fail=1; }
+missing=$(comm -23 <(echo "$ids") <(echo "$rows"))
+[ -n "$missing" ] && { echo "FAIL: status.md Decision Status table missing ids: $(echo $missing | tr '\n' ' ')"; fail=1; }
+ghosts=$(comm -13 <(echo "$ids") <(echo "$rows"))
+[ -n "$ghosts" ] && { echo "FAIL: status.md table cites ids with no ledger entry: $(echo $ghosts | tr '\n' ' ')"; fail=1; }
+[ "$fail" -eq 0 ] && echo PASS
+```

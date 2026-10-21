@@ -45,6 +45,31 @@ runb64 "C3" \
 "ZWNobyAiJG91dCI7IGV4aXQgMTsgZmkKZWNobyBQQVNT"
 # ---- END C3 ----
 
+# ---- C4 (verbatim from conventions.md; do not edit here) ----
+runb64 "C4" \
+"c2V0IC11byBwaXBlZmFpbApkbWF4PSQoZ3JlcCAtbyAnXiMjIERbMC05XSonIC5hZ2VudHMvbWVt"\
+"b3J5cy9kZWNpc2lvbnMubWQgfCBncmVwIC1vICdbMC05XSonIHwgc29ydCAtbiB8IHRhaWwgLTEp"\
+"CnBtYXg9JChncmVwIC1vICdeIyMgUElULVswLTldKicgLmFnZW50cy9tZW1vcnlzL3BpdGZhbGxz"\
+"Lm1kIHwgZ3JlcCAtbyAnWzAtOV0qJyB8IHNvcnQgLW4gfCB0YWlsIC0xKQpjbWF4PSQoZ3JlcCAt"\
+"byAnXiMjIENbMC05XSonIC5hZ2VudHMvbWVtb3J5cy9jb252ZW50aW9ucy5tZCB8IGdyZXAgLW8g"\
+"J1swLTldKicgfCBzb3J0IC1uIHwgdGFpbCAtMSkKaWRzPSQoZ3JlcCAtbyAnXiMjIERbMC05XSon"\
+"IC5hZ2VudHMvbWVtb3J5cy9kZWNpc2lvbnMubWQgfCBzZWQgJ3MvXiMjIC8vJyB8IHNvcnQpCnJv"\
+"d3M9JChncmVwIC1vRSAnXlx8IERbMC05XSsgXHwnIC5hZ2VudHMvbWVtb3J5cy9zdGF0dXMubWQg"\
+"fCB0ciAtZCAnfCAnIHwgc29ydCkKZmFpbD0wCmdyZXAgLXEgIlJhbmdlczogRDEtRCRkbWF4LCBD"\
+"MS1DJGNtYXgsIFBJVC0xLi4kcG1heFwuIiBBR0VOVFMubWQgXAogIHx8IHsgZWNobyAiRkFJTDog"\
+"QUdFTlRTLm1kIFJhbmdlcyByb3cgc3RhbGUgKHdhbnQgRDEtRCRkbWF4LCBDMS1DJGNtYXgsIFBJ"\
+"VC0xLi4kcG1heCkiOyBmYWlsPTE7IH0KZ3JlcCAtcSAicGl0ZmFsbHMubWQgUElULTEuLiRwbWF4"\
+"ICIgQUdFTlRTLm1kIFwKICB8fCB7IGVjaG8gIkZBSUw6IEFHRU5UUy5tZCBXSEVSRS1UTy1MT09L"\
+"IFBJVCByYW5nZSBzdGFsZSAod2FudCBQSVQtMS4uJHBtYXgpIjsgZmFpbD0xOyB9Cm1pc3Npbmc9"\
+"JChjb21tIC0yMyA8KGVjaG8gIiRpZHMiKSA8KGVjaG8gIiRyb3dzIikpClsgLW4gIiRtaXNzaW5n"\
+"IiBdICYmIHsgZWNobyAiRkFJTDogc3RhdHVzLm1kIERlY2lzaW9uIFN0YXR1cyB0YWJsZSBtaXNz"\
+"aW5nIGlkczogJChlY2hvICRtaXNzaW5nIHwgdHIgJ1xuJyAnICcpIjsgZmFpbD0xOyB9Cmdob3N0"\
+"cz0kKGNvbW0gLTEzIDwoZWNobyAiJGlkcyIpIDwoZWNobyAiJHJvd3MiKSkKWyAtbiAiJGdob3N0"\
+"cyIgXSAmJiB7IGVjaG8gIkZBSUw6IHN0YXR1cy5tZCB0YWJsZSBjaXRlcyBpZHMgd2l0aCBubyBs"\
+"ZWRnZXIgZW50cnk6ICQoZWNobyAkZ2hvc3RzIHwgdHIgJ1xuJyAnICcpIjsgZmFpbD0xOyB9Clsg"\
+"IiRmYWlsIiAtZXEgMCBdICYmIGVjaG8gUEFTUw=="
+# ---- END C4 ----
+
 # ---- LINK (manual region: user rows live outside managed blocks) ----
 echo "=== LINK ==="
 if python3 -c '

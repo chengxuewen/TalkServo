@@ -15,7 +15,7 @@ conv = (HERE.parent / ".agents/memorys/conventions.md").read_text()
 gate = HERE / "gate.sh"
 s = gate.read_text()
 
-for n in range(1, 4):
+for n in range(1, 5):
     m = re.search(r"## C%d:[^\n]*\n.*?```bash\n(.*?)```" % n, conv, re.S)
     assert m, "C%d block not found in conventions.md" % n
     b64 = base64.b64encode(m.group(1).rstrip().encode()).decode()
@@ -33,4 +33,4 @@ for n in range(1, 4):
     s = pat.sub(lambda _m, r=repl: r, s, count=1)
 
 gate.write_text(s)
-print("gate.sh C1-C3 blocks refreshed from conventions.md")
+print("gate.sh C1-C4 blocks refreshed from conventions.md")

@@ -97,7 +97,7 @@ proven on two sibling repos. Decision: adopt now, phased, with the blueprint set
   server-mediasoup artifact, feature column + per-config target dirs) + web Node lane; pixi
   build-verbs -> forwarders (names kept, CI untouched). Exit GREEN: ctest -L "rust|web" 4/4
   (39 core / 1 sfu / 79 server-stub / vitest 8) + vite build 8.9s through the graph.
-- [x] **P3 gates+e2e** LANDED: scripts/gate.sh (C1-C3 embedded VERBATIM from conventions.md
+- [x] **P3 gates+e2e** LANDED: scripts/gate.sh (C1-C3 at the time, now C1-C4 — see C4 below — embedded VERBATIM from conventions.md
   via scripts/gate-gen.py - ledger Check lines upgraded to executable PASS/FAIL blocks) +
   gate-fmt/clippy/deny + e2e-stub/e2e-live labels riding _polyorch_rust_command.
   Exit GREEN: ctest -L "rust|web|gate|e2e-stub" 9/9 (deny honest-skip). Forensics side-quest:
