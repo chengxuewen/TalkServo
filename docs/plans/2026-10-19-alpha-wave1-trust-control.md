@@ -1,6 +1,6 @@
 # Plan-7: Alpha wave-1 — Trust & Control (D23) — draft for review
 
-> **STATUS: WAVE-1 COMPLETE — S1-S7 + S7.5 LANDED (2026-10-20; five-tab admin console, deny≠mute copy, vitest 18/18, stub-lane e2e incl. admin click-through and the live mute row). Deferred: three cross-client admin e2e rows.**
+> **STATUS: WAVE-1 COMPLETE — S1-S7 + S7.5 + the S7.4 cross-client e2e rows LANDED (2026-10-21; vitest 19/19, e2e 15 tests/5 files with the admin lane now enabled in the graph). Only the Tokens mod-rooms multi-select vitest case remains deferred.**
 > Design truth: `docs/modules/08-web-ui.md` + `.agents/memorys/decisions.md` D23 (incl. UI annex + borrow annex).
 > Sister precedent: plan-5 format (slices → gates → commit per slice).
 
@@ -169,8 +169,8 @@ WS msg ──► room.rs intake ──► authorized?(claims, msg) ──no─�
 - [x] 7.4 Tests (LANDED 2026-10-20, scope adjusted): vitest admin suite 5 -> 10 cases - Sider tier
   filter, Logs render + dropped warning, expand+Kick-with-reason -> DELETE body assert, peer Drawer
   (6.2 fields), Rooms registry + tier-gated writes; stub-lane e2e green (admin click-through,
-  floor, talk). Deferred as their own follow-up (not blocking S7): Tokens mod-rooms multi-select
-  case, cross-client kick-departure / audit-line / locked-room-reject e2e rows.
+  floor, talk). The three cross-client rows LANDED 2026-10-21 (S7.4 close, see the close note
+  below); still deferred: the Tokens mod-rooms multi-select vitest case alone.
   Lane fix: TS_KDF_ITERS knob - debug-build PBKDF2 costs ~9s per login and stalled the admin
   e2e assertion windows (PIT-23).
 - [x] 7.6 **crash recovery (user A ruling, 2026-10-19)**: `crash_recovery` integration —
@@ -254,6 +254,42 @@ Open items: status.md 16→22 (S0.8, pending); Listen + AdminEvent = wave-2; roo
 endpoint naming confirmed at S2 start; Motorola Wave PTX + Discord role-matrix remain [U] in the
 checklist dossier (no reachable source this session).
 
+### S7.4 close note (2026-10-21, this session)
+
+The three deferred browser rows landed, and landing them is what found the bugs they were
+supposed to prove:
+
+1. **`RoomsTab` create never worked.** The Modal's OK button sits outside the `<Form>`, so
+   AntD's `onFinish` never ran and `save()` posted the raw empty draft — typing a room id
+   and toggling Locked produced `POST {room:""}` → 400. The vitest row had only checked
+   that the button existed and that the operator tier sees the warning, which is exactly the
+   gap between "rendered" and "works". Fixed in `web/src/pages/admin/rooms.tsx` (bound
+   `Form.useForm` instance + `validateFields` at save) and pinned on both sides: a new
+   vitest case asserts the POST body carries the TYPED room id and `locked:true`, and the
+   e2e locked-room row drives the real dialog.
+2. **The e2e harness could not reach two landed features.** `audit_log` and `rooms_file`
+   are derived from a config FILE, but the harness runs the server on env only, so both
+   stayed None: `GET /admin/api/audit` answered 503 and `POST /admin/api/rooms` answered
+   400 "path not configured". S1/S2 were therefore untestable in a browser for eleven days
+   — the Rust lanes were green the whole time, which is why nobody noticed. `web/e2e/global-setup.ts`
+   now passes `TS_AUDIT_LOG` + `TS_ROOMS_FILE` into a per-run temp dir.
+3. **The gate was quietly skipping this whole spec.** `ctest -L e2e-stub` ran playwright
+   without `TS_ADMIN`, and every admin test self-skipped — a green "e2e" label that never
+   opened a console. `cmake/TalkServoGates.cmake` now sets `TS_ADMIN=1`; the lane runs 15
+   tests in 5 files (66.8s) and passes.
+
+Row design (all three assert at the user-facing layer, none through a test-only hook):
+cross-client kick → a page nobody touched loses the roster row (PIT-21's rule applied to
+peers, not just grants) and the kicked page stops claiming a live session; audit → the Logs
+tab's manual Refresh shows the kick line scoped to its row, carrying actor, target, reason,
+and no dropped-line warning; locked room → the registry dialog's lock is honoured by a hot
+read with a valid token refused on the wire (`room_locked`) and a page that never says
+"connected".
+
+One unreproduced flake from the FIRST run of the cross-client row is recorded as PIT-26
+with what was ruled out and the probe to run if it returns. Not hidden, not retried away.
+
+
 ## 8. Docs sync obligations (per slice — gate item, not optional)
 Accepted by user ruling 2026-10-19 (gaps #1 and #2 of the architecture-doc audit; #3–#6
 explicitly NOT adopted — ledgered as open items, never silently swallowed):
@@ -290,4 +326,4 @@ console (paths, endpoints, intervention kit, tier gate, diagrams) and architectu
   only) and landed as such — see the S7.5 walkthrough record in §7
 - [x] Gates — R4: + permission matrix, audit fail-visible, legacy-token compat; no static grep gate
 
-**STATUS: WAVE-1 LANDED 2026-10-20 (S1-S7.5). Remaining: three cross-client admin e2e rows (kick-departure / audit-line-in-Logs / locked-room-reject) deferred by the S7.4 scope ruling. See .agents/memorys/status.md.**
+**STATUS: WAVE-1 LANDED 2026-10-21 (S1-S7.5 + the three cross-client admin e2e rows). Remaining: the Tokens mod-rooms multi-select vitest case. See .agents/memorys/status.md.**

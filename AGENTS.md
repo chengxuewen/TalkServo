@@ -14,7 +14,7 @@ TalkServo — real-time voice **floor-control platform** (PTT exclusive / confer
 ├── .opencode/      # opencode config: opencode.json (instructions injection list), init-mcp-*.mjs launchers
 ├── .omo/           # agent runtime state (run-continuation/ is git-ignored; only omo.jsonc tracked)
 ├── docs/           # whitepaper + architecture MASTER + modules/ (design) + reference/ (living + frozen research) — see its AGENTS.md
-├── crates/         # workspace: talkservo-core (39 tests) / -sfu / -server (79) — plan-1..6 EXECUTED
+├── crates/         # workspace: talkservo-core (42 tests) / -sfu / -server (88 stub-lane) — plan-1..6 EXECUTED
 ├── web/            # SPA (Vite+React18+AntD5): dispatch/field/participant/admin pages + e2e
 ├── packages/client # TS SDK (22 tests, unpublished D14)
 ├── scripts/ config/ docker/ pixi.toml  # toolchain + coturn + lanes (docs/modules/09)
@@ -29,21 +29,21 @@ TalkServo — real-time voice **floor-control platform** (PTT exclusive / confer
 | Architecture truth (live) | docs/architecture.md → modules/01-09 | master is thin by design |
 | Why a decision exists | .agents/memorys/decisions.md D1-D25 | cite by id; D23 = Alpha wave-1 (plan-7, S1-S7.5 landed), D25 = PolyOrch build graph |
 | Binding rules on this repo | .agents/memorys/conventions.md C1-C3 | C1 English, C2 docs-tiering, C3 full-word routes |
-| Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..25 | MediaServo ids labeled, never assume |
+| Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..26 | MediaServo ids labeled, never assume |
 | Competitive/selection evidence | docs/reference/research/{ptt,media,ui,tooling}/ | FROZEN dossiers |
 | Next implementation step | .agents/memorys/status.md → Next Steps | P0-1 workspace slice |
 | SDK/binding future shape | docs/modules/07 + D8 | nothing built at Beta trigger, not before |
 
 ## CODE MAP
 
-Measured 2026-10-19: core = `FloorState::apply()` rules 1-9 (crates/talkservo-core/src/floor.rs, 39 tests incl. PIT-21 rebroadcast); server = WS signaling (ws_flow), admin REST (admin.rs), accounts/kdf (D22), lifecycle/instance (D19-D21); web = session bridge (lib/session.ts) + 4 pages; SDK = TalkServoClient + MediaManager + MediasoupClientStack (packages/client). Codegraph index not yet built — use Grep/Glob.
+Measured 2026-10-19: core = `FloorState::apply()` rules 1-9 (crates/talkservo-core/src/floor.rs, 42 tests incl. PIT-21 rebroadcast and the S7.5 mute rules); server = WS signaling (ws_flow), admin REST (admin.rs), accounts/kdf (D22), lifecycle/instance (D19-D21); web = session bridge (lib/session.ts) + 4 pages; SDK = TalkServoClient + MediaManager + MediasoupClientStack (packages/client). Codegraph index not yet built — use Grep/Glob.
 
 ## CONVENTIONS (deviations only — full text lives in ledgers, do not restate here)
 
 - **C1**: every artifact English; only AI↔user chat follows user language. Functional Chinese literals need inline `c1:allow-zh`.
 - **C2**: docs tiering — design→`docs/modules/NN`, knowledge→`docs/reference/`, frozen research→`reference/research/<domain>/`.
 - **C3**: user-facing route/CLI/API names use full mainstream words (`/admin`, `/field/:room`, `/dispatch/:room`, `/room/:room`) — no cryptic abbreviations.
-- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D25, C1-C3, PIT-1..25.
+- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D25, C1-C3, PIT-1..26.
 - **Cargo.lock committed**; mediasoup UDP/ICE constraints in `.agents/rules/common/{docker,platform}.md` (Linux-native-first per D11 — their macOS posture is conditional).
 
 ## ANTI-PATTERNS (THIS PROJECT — learned in-session, enforced)
