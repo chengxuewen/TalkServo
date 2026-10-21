@@ -31,7 +31,7 @@ TalkServo — real-time voice **floor-control platform** (PTT exclusive / confer
 | Binding rules on this repo | .agents/memorys/conventions.md C1-C4 | C1 English, C2 docs-tiering, C3 full-word routes, C4 ledger-index consistency |
 | Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..29 | MediaServo ids labeled, never assume |
 | Competitive/selection evidence | docs/reference/research/{ptt,media,ui,tooling}/ | FROZEN dossiers |
-| Next implementation step | .agents/memorys/status.md → Next Steps | P0-1 workspace slice |
+| What is left to do | .agents/memorys/status.md → Next Steps | rewritten 2026-10-21 (it had kept advertising plan-1 items as open work) |
 | SDK/binding future shape | docs/modules/07 + D8 | nothing built at Beta trigger, not before |
 
 ## CODE MAP

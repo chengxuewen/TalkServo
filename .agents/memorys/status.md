@@ -10,7 +10,7 @@
 | Crate / Module | Tests | Notes |
 |-------|:----:|------|
 | packages/client (TS SDK, unpublished D14) | 16 | wire mirror + signal transport + store + facade + media manager; coverage 78.9% |
-| web/ (SPA, Vite+React18+AntD5) | 19 | dispatcher + field + participant pages (deny≠mute copy via lib/floorCopy.ts, plan-7 S7.5), admin five-tab console (pages/admin/, S7), S-3 session bridge, dark theme; embedded via feature `embedded-web`; e2e 15 tests/5 files in the graph lane (floor incl. the live mute row; admin: click-through + cross-client kick + audit Logs line + registry lock) |
+| web/ (SPA, Vite+React18+AntD5) | 20 | dispatcher + field + participant pages (deny≠mute copy via lib/floorCopy.ts, plan-7 S7.5), admin five-tab console (pages/admin/, S7), S-3 session bridge, dark theme; embedded via feature `embedded-web`; e2e 15 tests/5 files in the graph lane (floor incl. the live mute row; admin: click-through + cross-client kick + audit Logs line + registry lock) |
 | crates/talkservo-core | 42 | ids + wire contract (27-variant, D16) + FloorState apply() rules 1-9 (Rule 2/8 re-scoped by S7.5: mute revokes grant + queue slot) + grant-set shrink rebroadcast (PIT-21); floor.rs coverage 87.5% |
 | crates/talkservo-sfu | 1 | Sfu trait (create/connect/produce/consume/apply_floor diff/peer_left/media_activity E11 seam) + StubSfu call-log backend + MediasoupSfu skeleton (supervisor seam) |
 | crates/talkservo-sfu | 1 | Sfu trait + exactly-one-backend compile gate (mediasoup\|stub) |
@@ -24,6 +24,10 @@
 | 0 Scaffolding/config adaptation | ✅ (docs system ported + English migration; whitepaper/architecture/research generated 2026-09-28) |
 | 1 core crate (P0-1) | ✅ 2026-09-29 — workspace + pixi toolchain + talkservo-core domain slice (plan-1 executed) |
 | 1+ tooling (plan-6 D19/D20 + B/B2 D21 + C3 routes) | ✅ 2026-10-09 — facade default dir, secrets single-home, front_port yaml-driven, 28 lib tests, live LAN closed loop |
+| 2-3 server/sfu + web/SDK (plans 2,3) | ✅ 2026-09-29 — signaling + SFU host; T1-T4 SPA/SDK, e2e browser-gated |
+| 4 acceptance (LAN slice, D17) | ✅ SIGNOFF — 11 pass / 1 deferred (#8 FEC needs a real impaired network); posture = Alpha |
+| 5 admin minimal surface (D18) | ✅ 2026-10-08 — /admin/api + console, click-through e2e |
+| 6-8 ship tooling + wave-1 + build graph | ✅ 2026-10-19/21 — oxmgr facade + YAML single-source (D19-D21); plan-7 S1-S7.5 LANDED; plan-8 PolyOrch graph COMPLETE (fresh-clone 4/4) |
 
 ## Decision Status
 
@@ -57,9 +61,26 @@
 
 ## Next Steps
 
-1. PoC design approved via brainstorm and absorbed into docs/architecture.md v0.2 (dispatch beachhead, mediasoup D6, R1 snapshot-resync, FEC in acceptance)
-1b. doc-audit Full run 2026-09-28: 45 findings → 16 merged → all fixed (see memorys/pitfalls.md PIT-3)
-2. (done 2026-09-28) arch-review rounds 1+2 applied (D12/D13/D16; 21+19 findings → modules/plans updated; round-2: 21/21 round-1 fixes verified landed)
-3. User review of architecture.md + modules v0.2, then implementation plan (workspace/pixi/CI skeleton + talkservo-core first slice)
-3. Establish workspace / pixi / CI skeleton per D5+D7 (`talkservo-core` first, P0-1)
-3. PoC stage 1: Floor state machine + unit tests (whitepaper §9)
+*Rewritten 2026-10-21: the previous list still advertised plan-1 items (workspace/pixi skeleton,
+Floor state machine, "P0-1") as open work three revisions after they shipped, under a heading
+AGENTS.md points readers at for "next implementation step". Stale instructions are worse than
+none. Wave-1 is CLOSED (plan-7 S1-S7.5 + the three cross-client admin e2e rows + the last
+deferred UI case, all by 2026-10-21). What is actually left:*
+
+1. **Push the local queue** — as of this writing the wave-1 close is local-only (`git status -sb`
+   carries the live count). Unpushed commits are the one remaining way this work can be lost.
+2. **Restore the supply-chain gate.** `cargo-deny` is not installed, so `gate-deny` exits 77 and
+   every `ctest -L gate` run reports Skipped — dependency licence/vulnerability review is
+   currently nobody's job. Either install it or drop the block and say so in the label.
+   Check: `ctest --test-dir out/cmake-build -L gate` must show gate-deny Passed, not Skipped.
+3. **Wave-2 protocol batch** (deferred as a family by D23): AdminEvent WS push to replace the
+   console's 3s poll; operator Listen (needs the SFU admin consume path + an AdminListen/Role
+   wire addition). Both touch the wire → `api-interface-design` + a plan doc BEFORE code, and
+   plan-7 §4's "no new SignalingMessage variants" ruling must be re-adjudicated, not assumed.
+4. **Alpha ops backlog opened by D24**: GAP-3 secret-rotation procedures, GAP-4 `audit.jsonl`
+   ops story, GAP-5 Alpha ops doc home, GAP-6 Alpha gate consolidation.
+5. **Trigger-gated — do NOT start early**: Electron shell (D10, Alpha), SDK npm publish
+   (D14, Beta), codegraph index (user's call; AGENTS.md currently directs Grep/Glob instead).
+6. **Watch item, no action**: PIT-26 — the cross-client roster row failed once (1 of 13) with no
+   proven mechanism and no retry added. If it returns, capture the witness's WS frames plus the
+   `window.__tsSessions` mirror dump; the entry lists what was already ruled out.
