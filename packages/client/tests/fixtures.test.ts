@@ -1,5 +1,6 @@
 // Fixture replay (cross F3 closure): the canonical transcript RECORDED by
-// the server (crates/talkservo-server/tests/record_fixtures.rs) is replayed
+// the server (crates/talkservo-server/tests/record_fixtures.rs, re-recorded only
+// with TS_RECORD_FIXTURES=1) is replayed
 // into a client — one artifact, both ends, drift-proof.
 
 import { describe, it, expect, beforeEach } from "vitest";

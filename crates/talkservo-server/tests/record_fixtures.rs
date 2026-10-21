@@ -5,9 +5,14 @@
 //! (packages/client/tests/fixtures.test.ts) replays THE SAME file — one
 //! artifact, both ends, drift-proof.
 //!
-//! Regenerate: `cargo test -p talkservo-server --no-default-features
-//! --features stub-media --test record_fixtures -- --nocapture` writes the
-//! file and fails on mismatch only in ordering-invariants, never on content.
+//! Regenerate (explicit, because the artifact carries wall-clock values):
+//! `TS_RECORD_FIXTURES=1 cargo test -p talkservo-server --no-default-features
+//! --features stub-media --test record_fixtures -- --nocapture`.
+//!
+//! Without that env the test still runs every ordering/spine assertion it always
+//! ran and simply does NOT touch the file: an unconditional write made the transcript
+//! — with its `generation` / `connected_since_ms` clock values — dirty the tree on
+//! every single lane run, which is a repo-hygiene bug disguised as a test.
 #![cfg(feature = "stub-media")]
 
 use futures_util::{SinkExt, StreamExt};
@@ -175,22 +180,32 @@ async fn record_canonical_transcript() {
     }
 
     let doc = json!({
-        "_comment": "Canonical WS transcript — RECORDED from talkservo-server (stub path) by crates/talkservo-server/tests/record_fixtures.rs; replayed by packages/client/tests/fixtures.test.ts. Regenerate with cargo test ... record_fixtures. Wire v:1, modules/02.",
+        "_comment": "Canonical WS transcript — RECORDED from talkservo-server (stub path) by crates/talkservo-server/tests/record_fixtures.rs; replayed by packages/client/tests/fixtures.test.ts. Re-record with TS_RECORD_FIXTURES=1 cargo test ... record_fixtures. Wire v:1, modules/02.",
         "protocol_version": 1,
         "frames": transcript,
     });
     let out_path = path_fixtures();
-    std::fs::create_dir_all(out_path.parent().unwrap()).expect("mkdir");
-    std::fs::write(
-        &out_path,
-        serde_json::to_string_pretty(&doc).expect("ser") + "\n",
-    )
-    .expect("write");
-    println!(
-        "transcript frames: {} → {}",
-        transcript.len(),
-        out_path.display()
-    );
+    if std::env::var_os("TS_RECORD_FIXTURES").is_some() {
+        std::fs::create_dir_all(out_path.parent().unwrap()).expect("mkdir");
+        std::fs::write(
+            &out_path,
+            serde_json::to_string_pretty(&doc).expect("ser") + "\n",
+        )
+        .expect("write");
+        println!(
+            "RECORDED {} frames → {}",
+            transcript.len(),
+            out_path.display()
+        );
+    } else {
+        // say what was skipped, so a future run does not mistake "green" for "refreshed"
+        println!(
+            "transcript assertions ok ({} frames); fixture NOT rewritten — set \
+             TS_RECORD_FIXTURES=1 to re-record {}",
+            transcript.len(),
+            out_path.display()
+        );
+    }
 }
 
 fn spine_has(t: &[Value], ty: &str) -> bool {
