@@ -43,6 +43,11 @@ FLOOR REQUEST by a muted member (Rule 2) - and the wire does not split them (a n
 value would be unparsable by clients predating S7.5); the recipient tells them apart by
 which message it sent and by whether its own id sits in the `muted` roster.
 
+Close codes: `4400` version/undecodable · `4401` expired or invalid token · `1009` frame
+limit · **`4410` operator removal** (plan-9 R7-b) — the only server-initiated close the
+client must NOT retry, because a kick that reconnects is not a kick. `1000` stays reserved
+for real disconnects, which is what keeps the R1 auto-reconnect working where it should.
+
 ## 3. Join credential — the `Join{jwt}` claims shape (plan-7 S4 debt payoff)
 
 Written down 2026-10-20: this shape lived only in `crates/talkservo-server/src/auth.rs` (verified: the doc had zero claim-field mentions before this section).

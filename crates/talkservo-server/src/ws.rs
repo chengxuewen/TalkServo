@@ -16,6 +16,10 @@ use talkservo_sfu::Sfu as _;
 use tokio::sync::mpsc;
 
 /// Shared app state.
+/// Terminal close code for an operator removal (plan-9 R7-b); documented in
+/// `docs/reference/server-api.md` next to 4400/4401.
+pub const CLOSE_REMOVED: u16 = 4410;
+
 pub struct App {
     pub config: Config,
     pub rooms: tokio::sync::Mutex<HashMap<RoomId, mpsc::Sender<RoomCommand>>>,
@@ -55,6 +59,13 @@ pub enum RoomCommand {
     Wire { from: PeerId, msg: SignalingMessage },
     /// Connection closed.
     Left { peer: PeerId },
+    /// Operator-initiated removal (plan-7 S6 kick, or an S2 registry delete taking
+    /// the whole room down). Deliberately NOT `Left`: the connection answers with a
+    /// TERMINAL close code so the SDK stops auto-reconnecting (plan-9 R7-b) —
+    /// otherwise a kicked peer holding a still-valid token walks back in ~3s and
+    /// the operator's action means nothing. Room-side teardown is done by the
+    /// sender, so this command only travels the per-connection channel.
+    Remove { peer: PeerId, reason: &'static str },
     /// E11 watchdog tick: probe granted peers' activity through the backend.
     WatchdogTick,
     /// Max-hold elapsed: the room decides whether a holder exceeds the cap.
@@ -372,6 +383,18 @@ async fn handle_socket(socket: WebSocket, app: Arc<App>) {
                         let _ = tx.send(Message::Close(Some(axum::extract::ws::CloseFrame {
                             code: 1000, reason: "server closing".into(),
                         }))).await;
+                        break;
+                    }
+                    RoomCommand::Remove { reason, .. } => {
+                        // 4410, next free in this server's 44xx space (4400 version,
+                        // 4401 token): terminal for the client transport, which treats
+                        // every other close as a network drop and retries
+                        let _ = tx
+                            .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                                code: CLOSE_REMOVED,
+                                reason: (*reason).into(),
+                            })))
+                            .await;
                         break;
                     }
                     RoomCommand::Join { .. } | RoomCommand::WatchdogTick
@@ -727,12 +750,17 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                     // delta broadcast; sockets close as their sinks drop).
                     let peers: Vec<PeerId> = state.members.keys().cloned().collect();
                     for p in peers {
-                        // signal FIRST (connection loop answers with a 1000
-                        // Close frame), then run the room-side teardown the
-                        // disconnect path runs - order avoids the connection's
-                        // own Left-on-close racing a half-evicted member.
+                        // signal FIRST (the connection answers with the
+                        // TERMINAL 4410 Close), then run the room-side teardown
+                        // the disconnect path runs - order avoids the
+                        // connection's own Left-on-close racing a half-evicted
+                        // member. Auto-reconnect is precisely what must NOT
+                        // resurrect a room the operator just deleted.
                         if let Some(m) = state.members.get(&p) {
-                            let _ = m.wire_tx.try_send(RoomCommand::Left { peer: p.clone() });
+                            let _ = m.wire_tx.try_send(RoomCommand::Remove {
+                                peer: p.clone(),
+                                reason: "room removed from the registry",
+                            });
                         }
                         media.peer_left(&state.id, &p).await;
                         if let Some(delta) = state.leave_removed(&p) {
@@ -749,11 +777,17 @@ fn spawn_room(room_id: RoomId, app: Arc<App>) -> mpsc::Sender<RoomCommand> {
                     }
                     break; // task ends; reaper drops the dead registry slot
                 }
+                // operator removal is delivered on the peer's CONNECTION channel
+                // only (the pump loop's 4410 arm); the room never receives it
+                RoomCommand::Remove { .. } => {}
                 RoomCommand::KickPeer { peer, reply } => {
                     let found = state.members.contains_key(&peer);
                     if found {
                         if let Some(m) = state.members.get(&peer) {
-                            let _ = m.wire_tx.try_send(RoomCommand::Left { peer: peer.clone() });
+                            let _ = m.wire_tx.try_send(RoomCommand::Remove {
+                                peer: peer.clone(),
+                                reason: "kicked by the dispatcher",
+                            });
                         }
                         media.peer_left(&state.id, &peer).await;
                         if let Some(delta) = state.leave_removed(&peer) {

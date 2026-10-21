@@ -96,11 +96,11 @@ deferred UI case, all by 2026-10-21). What is actually left:*
    ops story, GAP-5 Alpha ops doc home, GAP-6 Alpha gate consolidation.
 5. **Trigger-gated — do NOT start early**: Electron shell (D10, Alpha), SDK npm publish
    (D14, Beta). (Codegraph indexing left this list: built 2026-10-21, see AGENTS.md.)
-6. **RULING NEEDED (plan-9 R7) — `kick` loses to the SDK's auto-reconnect.** PIT-26 is closed with
-   a mechanism (probe built into the row): the witness's frames show `peer_joined` →
-   `peer_left{kind:"removed"}` → `peer_joined` again, and the server log a real second Join ~3s
-   later. `packages/client/src/signal.ts:168-172` reconnects on any remote close, and only
-   `expired_token` / `invalid_token` are terminal, so a kick cannot outlast a valid token. `pixi
-   run e2e` is therefore intermittently red on that row BY DESIGN GAP, not by flake masking — no
-   retry was added and the assertion was not weakened. Options are in plan-9 §10; do not implement
-   one without the ruling.
+6. **R7 RULED (=B) AND LANDED 2026-10-21 — a kick is now terminal for the client.** The row probe
+   proved the mechanism (`peer_joined` → `peer_left{kind:"removed"}` → `peer_joined` again, with a
+   real second Join in the server log): `signal.ts` retried every remote close and only
+   `expired_token`/`invalid_token` were terminal. Operator removals now travel as
+   `RoomCommand::Remove{peer, reason}` and close with **4410**, which the SDK treats like an
+   expired token — no backoff — while surfacing the operator's words; `Left` keeps `1000` so R1
+   auto-reconnect still covers genuine drops. `pixi run e2e` has been green on that row since
+   (2/2 under ctest, the previous reproduction path).

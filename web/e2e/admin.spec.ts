@@ -205,8 +205,18 @@ test.describe("admin console (stub lane)", () => {
           `total-inbound-frames=${frames.length}`,
       );
     }
-    // and the kicked peer's own surface stops claiming a live session
-    await expect(victim.getByText("offline")).toBeVisible({ timeout: 15_000 });
+    // and the kicked peer is TOLD, in words it cannot mistake for bad weather
+    // (R7-b: the removal is terminal, so no "waiting for connection" promise)
+    // three surfaces say it (tag, button, aria-live), so scope by role/element type
+    // rather than praying the text is unique (PIT-24: no getByRole in interaction
+    // paths; this is an assertion, and it is scoped to the button on purpose)
+    await expect(
+      victim.locator("button", { hasText: "REMOVED BY DISPATCHER" }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(victim.getByTestId("floor-state")).toContainText(
+      "kicked by the dispatcher",
+    );
+    await expect(victim.getByText("Removed by dispatcher", { exact: true })).toBeVisible();
   });
 
   test("audit: the console action lands as an evidence line in the Logs tab (S7.4)", async ({

@@ -173,9 +173,15 @@ intermittently on it — a design gap, not a flaky test. Status: W1 is green on 
 | **R7-b** | make the kick terminal for the client: a dedicated close code the SDK treats like `expired_token` | ~2 files, no new server state | stops only the AUTOMATIC return — a determined peer reloads with the same token |
 | **R7-c** | refuse re-entry server-side: a (room, peer) removed-window gate on Join | real effect; new state + a TTL knob + its own audit event | a de-facto ban list the stateless-JWT design (D22) has been avoiding |
 
-**Recommendation: R7-b now; R7-c only if the beachhead actually needs "stay out".** b is the
+**RULING (2026-10-21): R7 = B, implemented.** The middle sentence was:
+
+> b is the
 smallest change that stops the operator's action from lying to itself, and c introduces
-membership state this project has deliberately not carried. What is NOT allowed as a silent
-fallback is R7-a's test edit: weakening the assertion without deciding the behavior is exactly
-what PIT-1/U1 forbid.
+membership state this project has deliberately not carried.
+
+Landed as: `RoomCommand::Remove{peer, reason}` → close `4410` (terminal in `signal.ts`, with a
+`removed` event carrying the operator's words) → field/participant outrank offline/mute/refusal
+wording with it; `Left` keeps `1000` so R1 retry still covers real drops. Pinned at three layers
+(SDK contrast tests, web copy test, the e2e row that started this). R7-c remains available if the
+beachhead later needs "stay out" — it would need its own audit event and a D22 revision.
 

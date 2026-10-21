@@ -17,6 +17,17 @@ export interface SignalOptions {
   wsFactory?: (url: string) => LikeWebSocket;
 }
 
+/**
+ * Terminal close code for an operator removal (plan-9 R7-b). It is the ONE
+ * server-initiated close the transport must NOT retry: every other close reads as
+ * a network drop, and a kicked peer whose token is still valid would walk straight
+ * back in — which is exactly what the cross-client e2e row caught (PIT-26).
+ */
+export const CLOSE_REMOVED = 4410;
+
+/** Close metadata; optional because a raw socket can close without one. */
+export type CloseInfo = { code: number; reason: string };
+
 /** Structural minimum the transport needs — lets tests inject mocks. */
 export interface LikeWebSocket {
   readyState: number;
@@ -24,7 +35,7 @@ export interface LikeWebSocket {
   close(): void;
   onopen: (() => void) | null;
   onmessage: ((ev: { data: unknown }) => void) | null;
-  onclose: (() => void) | null;
+  onclose: ((info?: CloseInfo) => void) | null;
   onerror: (() => void) | null;
 }
 
@@ -33,6 +44,8 @@ export type SignalEvent =
   | { kind: "open" }
   | { kind: "closed" }
   | { kind: "auth-expired"; detail: string }
+  /** operator removed us from the room (4410); no reconnect will follow */
+  | { kind: "removed"; reason: string }
   | { kind: "error"; code: string; detail: string };
 
 const WS_OPEN = 1; // browser WebSocket readyState constant (node-safe)
@@ -55,9 +68,12 @@ class NativeWebSocketAdapter implements LikeWebSocket {
       this.onopen?.();
     });
     this.ws.addEventListener("message", (ev) => this.onmessage?.({ data: ev.data }));
-    this.ws.addEventListener("close", () => {
+    this.ws.addEventListener("close", (ev) => {
       this.readyState = this.ws.readyState;
-      this.onclose?.();
+      // the browser hands us code/reason on the close event; a socket that died
+      // without one keeps the old 1006 (abnormal) meaning = retry as before
+      const c = ev as unknown as { code?: number; reason?: string };
+      this.onclose?.({ code: c.code ?? 1006, reason: c.reason ?? "" });
     });
     this.ws.addEventListener("error", () => this.onerror?.());
   }
@@ -70,7 +86,7 @@ class NativeWebSocketAdapter implements LikeWebSocket {
   }
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: unknown }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((info?: CloseInfo) => void) | null = null;
   onerror: (() => void) | null = null;
 }
 
@@ -165,9 +181,16 @@ export class SignalTransport {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (info) => {
         this.stopHeartbeat();
         clearTimeout(joinGuard);
+        if (info?.code === CLOSE_REMOVED) {
+          // terminal by contract, and stated as such so no future edit "helpfully"
+          // retries it: the token still validates, so retrying undoes the kick
+          this.closedByUs = true;
+          this.emit({ kind: "removed", reason: info.reason });
+          return;
+        }
         this.emit({ kind: "closed" });
         if (!this.closedByUs) this.scheduleReconnect();
       };

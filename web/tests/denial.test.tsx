@@ -90,6 +90,21 @@ describe("field page", () => {
   });
 });
 
+describe("removal (R7-b)", () => {
+  it("a terminal removal outranks the mute and the refusal lines", () => {
+    const s = seed("s75-removed", { muted: ["me"], denial: "busy" });
+    s.removedReason = "kicked by the dispatcher";
+    uiAt("/field/s75-removed", <FieldPage />);
+    const state = screen.getByTestId("floor-state");
+    expect(state.textContent).toContain("Removed by dispatcher");
+    expect(state.textContent).toContain("kicked by the dispatcher");
+    expect(state.textContent).not.toContain("Muted by dispatcher");
+    expect(state.textContent).not.toContain("Floor busy");
+    // the button says what it now is, instead of an offline promise to retry
+    expect(screen.getByText("REMOVED BY DISPATCHER")).toBeTruthy();
+  });
+});
+
 describe("participant page", () => {
   it("renames the talk toggle while muted, and says why it will be refused", () => {
     seed("s75-part", { muted: ["me"], denial: "unauthorized" });

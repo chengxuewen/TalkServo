@@ -139,6 +139,42 @@ describe("token lifecycle", () => {
     expect(events.some((e) => (e as { kind: string }).kind === "token")).toBe(true);
   });
 
+  // R7-b: a kick must survive the client's own resilience. Both tests observe the
+  // SAME mechanism (a new socket appearing) so neither can pass vacuously: if
+  // terminality were removed, the first test fails; if retry broke, the second does.
+  it("an operator removal (4410) is terminal and surfaces its reason", async () => {
+    const { c, ws } = await connectJoined();
+    const events: unknown[] = [];
+    c.on((e) => events.push(e));
+    const before = MockWebSocket.instances.length;
+    ws.serverCloseWith(4410, "kicked by the dispatcher");
+    // longer than the first backoff step (base 500ms, floor 100ms)
+    await new Promise((r) => setTimeout(r, 900));
+    const kinds = events.map((e) => (e as { kind: string }).kind);
+    expect(kinds).toContain("removed");
+    expect(kinds).toContain("disconnected"); // existing consumers still see the drop
+    const ev = events.find((e) => (e as { kind: string }).kind === "removed") as {
+      kind: string;
+      reason: string;
+    };
+    expect(ev.reason).toBe("kicked by the dispatcher");
+    expect(MockWebSocket.instances.length).toBe(
+      before,
+      "a kicked peer holding a valid token must not walk back in",
+    );
+  });
+
+  it("an ordinary drop still reconnects (weather, not a decision)", async () => {
+    const { ws } = await connectJoined();
+    const before = MockWebSocket.instances.length;
+    ws.serverClose();
+    await new Promise((r) => setTimeout(r, 900));
+    expect(MockWebSocket.instances.length).toBeGreaterThan(
+      before,
+      "R1 auto-reconnect must stay intact for real network drops",
+    );
+  });
+
   it("auth-expired is terminal (no reconnect storm)", async () => {
     const c = makeClient();
     const events: unknown[] = [];

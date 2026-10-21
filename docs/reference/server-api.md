@@ -10,7 +10,12 @@
 - **WS** `GET /ws` — upgrade; single JSON object per text frame.
 - Frame limit: `MAX_FRAME_BYTES` (default 64 KiB) → oversize = close `1009`.
 - First message must be `Join{v, jwt}` within 10 s of upgrade.
-- Close codes: `4400 bad_version` · `4401 expired/invalid token` · `1009 frame limit`.
+- Close codes: `4400 bad_version` · `4401 expired/invalid token` · `1009 frame limit` ·
+  `4410 removed by the operator` (plan-9 R7-b). The last one is **terminal for the client SDK**:
+  every other close is treated as a network drop and retried with the cached token, so a kick
+  delivered over a plain `1000` simply brings the peer back within seconds (that is what
+  PIT-26 proved). `reason` carries the human line (`kicked by the dispatcher`,
+  `room removed from the registry`).
 
 ## REST
 

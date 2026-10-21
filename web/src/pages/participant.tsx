@@ -15,7 +15,11 @@ import {
   useSessionStatus,
   jwtFromQuery,
 } from "../lib/session.js";
-import { MUTED_BY_DISPATCHER, denialCopy } from "../lib/floorCopy.js";
+import {
+  MUTED_BY_DISPATCHER,
+  REMOVED_BY_DISPATCHER,
+  denialCopy,
+} from "../lib/floorCopy.js";
 
 const { Title, Text } = Typography;
 
@@ -69,10 +73,14 @@ export function ParticipantPage() {
   }, [status.events]);
 
   const speaking = status.selfId ? mirror.grants.includes(status.selfId) : false;
-  // S7.5 deny != mute: standing ban (roster) and one-off refusal are different lines
+  // S7.5 deny != mute: standing ban (roster) and one-off refusal are different lines.
+  // R7-b: a removal outranks both — it is terminal for this session.
   const meMuted = !!status.selfId && mirror.muted.includes(status.selfId);
+  const removed = status.removedReason;
   const refusal =
-    !meMuted && !speaking && status.lastDenial ? denialCopy(status.lastDenial, false) : null;
+    !removed && !meMuted && !speaking && status.lastDenial
+      ? denialCopy(status.lastDenial, false)
+      : null;
   const speakers = mirror.peers.filter((p) => mirror.grants.includes(p.id));
 
   return (
@@ -107,29 +115,35 @@ export function ParticipantPage() {
         disabled={!status.connected}
         onClick={toggleMic}
       >
-        {!status.connected
-          ? "WAITING FOR CONNECTION"
-          : meMuted
-            ? "MUTED BY DISPATCHER"
-            : speaking
-              ? "ON AIR — click to mute"
-              : micOn
-                ? "REQUESTING FLOOR…"
-                : "JOIN THE CONVERSATION"}
+        {/* a removal is terminal and outranks the offline wording: "waiting for
+            connection" would promise a retry that will never come */}
+        {removed
+          ? "REMOVED BY DISPATCHER"
+          : !status.connected
+            ? "WAITING FOR CONNECTION"
+            : meMuted
+              ? "MUTED BY DISPATCHER"
+              : speaking
+                ? "ON AIR — click to mute"
+                : micOn
+                  ? "REQUESTING FLOOR…"
+                  : "JOIN THE CONVERSATION"}
       </Button>
 
       <div className="mirror-note" style={{ marginTop: 8 }}>
         gen {mirror.generation} — you speak only while granted ({mirror.mode} mode;
         dispatcher can open the floor to everyone)
       </div>
-      {(meMuted || refusal) && (
+      {(removed || meMuted || refusal) && (
         <Text
-          type={meMuted ? "danger" : "warning"}
+          type={removed || meMuted ? "danger" : "warning"}
           style={{ display: "block", marginTop: 8 }}
           data-testid="floor-state"
         >
-          {meMuted
-            ? `${MUTED_BY_DISPATCHER} — the floor will refuse you until it is lifted`
+          {removed
+            ? `${REMOVED_BY_DISPATCHER} — ${removed}; a fresh link is needed to rejoin`
+            : meMuted
+              ? `${MUTED_BY_DISPATCHER} — the floor will refuse you until it is lifted`
             : refusal}
         </Text>
       )}

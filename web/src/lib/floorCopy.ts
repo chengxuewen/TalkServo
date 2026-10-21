@@ -11,6 +11,14 @@
 /** Standing state label — the peer is muted by an authorized actor. */
 export const MUTED_BY_DISPATCHER = "Muted by dispatcher";
 
+/**
+ * Terminal state (plan-9 R7-b): the console removed this peer from the room and the
+ * transport will not retry, because the close code says the removal was deliberate.
+ * Distinct from "disconnected" on purpose — the network did not fail, an operator
+ * acted, and a peer who is told neither will keep pressing a dead button.
+ */
+export const REMOVED_BY_DISPATCHER = "Removed by dispatcher";
+
 /** Human wording for a floor refusal. `selfMuted` picks the mute reading of
  *  `unauthorized` over the command reading (modules/01 Rule 2 vs Rule 10). */
 export function denialCopy(reason: string, selfMuted: boolean): string {

@@ -28,6 +28,9 @@ export interface RoomSession {
    *  grants this peer, so a surface can show the refusal without ever confusing
    *  it with the standing `muted` roster the mirror already carries. */
   lastDenial: string | null;
+  /** set when the server closed us with the operator-removal code (4410): this
+   *  session ended by decision, not by weather, and no retry will come (R7-b) */
+  removedReason: string | null;
 }
 
 interface SessionKey {
@@ -83,6 +86,7 @@ export function ensureSession(
     selfId: null,
     connectPromise: null,
     lastDenial: null,
+    removedReason: null,
   };
   media.attach(client);
     if (typeof window !== "undefined") {
@@ -111,6 +115,9 @@ export function ensureSession(
       case "connected":
         session.connected = true;
         session.selfId = e.selfId;
+        break;
+      case "removed":
+        session.removedReason = e.reason || "removed by the dispatcher";
         break;
       case "disconnected":
         session.connected = false;
@@ -259,6 +266,9 @@ export interface SessionStatus {
   selfId: string | null;
   events: ClientEvent[];
   lastDenial: string | null;
+  /** set when the server closed us with the operator-removal code (4410): this
+   *  session ended by decision, not by weather, and no retry will come (R7-b) */
+  removedReason: string | null;
 }
 
 const EMPTY_STATUS: SessionStatus = {
@@ -266,6 +276,7 @@ const EMPTY_STATUS: SessionStatus = {
   selfId: null,
   events: EMPTY_EVENTS,
   lastDenial: null,
+  removedReason: null,
 };
 
 /** Cached status objects: getSnapshot must return a STABLE reference between
@@ -281,6 +292,7 @@ function statusOf(key: string): SessionStatus {
       selfId: s?.selfId ?? null,
       events: s?.events ?? EMPTY_EVENTS,
       lastDenial: s?.lastDenial ?? null,
+      removedReason: s?.removedReason ?? null,
     };
     statusCache.set(key, st);
   }

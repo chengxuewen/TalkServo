@@ -22,7 +22,10 @@ Three role screens + one admin console, one SPA (`web/`, Vite+React18+TS+AntD5+z
 > never blanks on an unknown one. When both are true the standing state wins the sentence.
 > A refusal also clears the optimistic hold (`holding`/`micOn` key off the event stream, not
 > off the reason string — two refusals in a row carry the same value). The dispatcher's mute
-> switch is bound to the roster rather than to its own last click, and un-mute hands back
+> switch is bound to the roster rather than to its own last click; a removal (R7-b, close code
+> `4410`) is terminal for the transport and outranks every other line — the button reads
+> `REMOVED BY DISPATCHER` instead of promising a retry that will never come (the token still
+> validates; only the session ended). And un-mute hands back
 > the privilege only. Pinned by `web/tests/denial.test.tsx` (copy) and the
 > `e2e/floor.spec.ts` mute row (real browser, real server, live delivery).
 

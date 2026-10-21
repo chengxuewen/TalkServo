@@ -164,18 +164,26 @@ async fn kick_closes_target_marks_removed_and_audits_reason() {
     assert_eq!(left["peer"], "bob");
     assert_eq!(left["kind"], "removed", "additive marker reaches survivors");
 
-    // kicked socket is closed by its own connection task (wire_tx Left signal)
-    let closed = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+    // R7-b: the kick must be TERMINAL for the client, not a network drop. Any other
+    // close code makes packages/client/src/signal.ts reconnect, and a peer holding a
+    // still-valid token walks back in within seconds — which is exactly what the
+    // cross-client e2e row caught (PIT-26).
+    let code = tokio::time::timeout(std::time::Duration::from_secs(5), async {
         loop {
             match b.next().await {
-                None | Some(Err(_)) | Some(Ok(WsMsg::Close(_))) => return true,
+                Some(Ok(WsMsg::Close(Some(f)))) => return u16::from(&f.code),
                 Some(Ok(_)) => continue,
+                other => panic!("kicked socket ended without a close frame: {other:?}"),
             }
         }
     })
     .await
-    .unwrap_or(false);
-    assert!(closed, "kicked peer socket closes");
+    .expect("the kicked connection closes promptly");
+    assert_eq!(
+        code,
+        talkservo_server::ws::CLOSE_REMOVED,
+        "kick must answer with the terminal close code, not 1000"
+    );
 
     // audit: kick line attributed to the console account, reason carried
     let mut found = None;

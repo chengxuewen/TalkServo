@@ -26,6 +26,8 @@ export type ClientEvent =
   | { kind: "media-restart"; room: string; reason: string }
   | { kind: "token"; jwt: string }
   | { kind: "auth-expired"; detail: string }
+  /** the console kicked us out (4410): the reason is the operator's own words */
+  | { kind: "removed"; reason: string }
   | { kind: "disconnected" }
   | { kind: "error"; code: string; detail: string };
 
@@ -168,6 +170,12 @@ export class TalkServoClient {
         this.send({ type: "resync" });
         return;
       case "closed":
+        this.emit({ kind: "disconnected" });
+        return;
+      case "removed":
+        // both, in this order: every existing consumer already treats
+        // `disconnected` as "not on air anymore", and the pages need the reason
+        this.emit({ kind: "removed", reason: e.reason });
         this.emit({ kind: "disconnected" });
         return;
       case "auth-expired":

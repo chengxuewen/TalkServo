@@ -20,7 +20,11 @@ import {
   useSessionStatus,
   jwtFromQuery,
 } from "../lib/session.js";
-import { MUTED_BY_DISPATCHER, denialCopy } from "../lib/floorCopy.js";
+import {
+  MUTED_BY_DISPATCHER,
+  REMOVED_BY_DISPATCHER,
+  denialCopy,
+} from "../lib/floorCopy.js";
 
 const { Text, Title } = Typography;
 
@@ -82,7 +86,9 @@ export function FieldPage() {
   // the denial says "that request was refused", and they must not share wording.
   useEffect(() => {
     if (!a11y || !status.selfId) return;
-    if (mirror.muted.includes(status.selfId)) {
+    if (status.removedReason) {
+      setAnnouncement(`${REMOVED_BY_DISPATCHER}. ${status.removedReason}.`);
+    } else if (mirror.muted.includes(status.selfId)) {
       setAnnouncement(`${MUTED_BY_DISPATCHER}. Pressing talk will be refused.`);
     } else if (status.lastDenial && !mirror.grants.includes(status.selfId)) {
       setAnnouncement(denialCopy(status.lastDenial, false));
@@ -156,10 +162,12 @@ export function FieldPage() {
   }, [keybind, keybindCapture, startHold, endHold]);
 
   const meHolder = status.selfId ? mirror.grants.includes(status.selfId) : false;
-  // S7.5 deny != mute: the roster is the standing ban, lastDenial is one refusal
+  // S7.5 deny != mute: the roster is the standing ban, lastDenial is one refusal.
+  // R7-b adds the third and loudest state: a removal is terminal, so it wins.
   const meMuted = !!status.selfId && mirror.muted.includes(status.selfId);
+  const removed = status.removedReason;
   const refusal =
-    !meMuted && !meHolder && status.lastDenial
+    !removed && !meMuted && !meHolder && status.lastDenial
       ? denialCopy(status.lastDenial, false)
       : null;
 
@@ -172,7 +180,8 @@ export function FieldPage() {
         <Tag color={status.connected ? "green" : "red"}>
           {status.connected ? "connected" : "offline"}
         </Tag>
-        {meMuted && <Tag color="volcano">{MUTED_BY_DISPATCHER}</Tag>}
+        {removed && <Tag color="red">{REMOVED_BY_DISPATCHER}</Tag>}
+        {!removed && meMuted && <Tag color="volcano">{MUTED_BY_DISPATCHER}</Tag>}
         <Badge count={`gen ${mirror.generation}`} color="blue" style={{ display: a11y ? "inline-block" : "none" }} />
         <Button icon={<SettingOutlined />} size="small" onClick={() => setDrawerOpen(true)} />
       </Space>
@@ -208,20 +217,28 @@ export function FieldPage() {
         onPointerUp={endHold}
         onPointerLeave={endHold}
       >
-        {holding ? "HOLDING — release to yield" : meHolder ? "SPEAKING (granted)" : "HOLD TO TALK"}
+        {removed
+          ? REMOVED_BY_DISPATCHER.toUpperCase()
+          : holding
+            ? "HOLDING — release to yield"
+            : meHolder
+              ? "SPEAKING (granted)"
+              : "HOLD TO TALK"}
       </Button>
       <div className="mirror-note" style={{ marginTop: 8 }}>
         press-and-hold (pointer or {keybind ?? "Space"})
       </div>
-      {(meMuted || refusal) && (
+      {(removed || meMuted || refusal) && (
         <Text
-          type={meMuted ? "danger" : "warning"}
+          type={removed || meMuted ? "danger" : "warning"}
           style={{ display: "block", marginTop: 8 }}
           data-testid="floor-state"
         >
-          {meMuted
-            ? `${MUTED_BY_DISPATCHER} — the floor will refuse you until it is lifted`
-            : refusal}
+          {removed
+            ? `${REMOVED_BY_DISPATCHER} — ${removed}; a fresh link is needed to rejoin`
+            : meMuted
+              ? `${MUTED_BY_DISPATCHER} — the floor will refuse you until it is lifted`
+              : refusal}
         </Text>
       )}
 

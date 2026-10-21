@@ -2,7 +2,11 @@
 
 import type { ClientMessage, ServerMessage } from "../src/types.js";
 
-type Ev = { open: []; message: [{ data: unknown }]; close: [] };
+type Ev = {
+  open: [];
+  message: [{ data: unknown }];
+  close: [{ code: number; reason: string }?];
+};
 
 export const READY_OPEN = 1;
 export const READY_CLOSED = 3;
@@ -26,7 +30,7 @@ export class MockWebSocket {
   // browser-style handler properties; emit() bridges to them
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: unknown }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((info?: { code: number; reason: string }) => void) | null = null;
   onerror: (() => void) | null = null;
 
   constructor(url: string) {
@@ -34,7 +38,7 @@ export class MockWebSocket {
     MockWebSocket.instances.push(this);
     this.on("open", () => this.onopen?.());
     this.on("message", (ev) => this.onmessage?.(ev));
-    this.on("close", () => this.onclose?.());
+    this.on("close", (info) => this.onclose?.(info));
   }
 
   /** Test drives connection establishment. */
@@ -45,6 +49,12 @@ export class MockWebSocket {
 
   serverPush(msg: ServerMessage) {
     this.emit("message", { data: JSON.stringify(msg) as unknown });
+  }
+
+  /** Close carrying a code, so terminal-vs-retry paths are testable (R7-b). */
+  serverCloseWith(code: number, reason = "") {
+    this.readyState = READY_CLOSED;
+    this.emit("close", { code, reason });
   }
 
   serverClose() {
