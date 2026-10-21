@@ -7,8 +7,8 @@
 | Document | Content | Status |
 |----------|---------|--------|
 | [whitepaper.md](whitepaper.md) | Positioning, Floor model overview, tech selection rationale, PoC roadmap, risks | planning draft 0.1 |
-| [architecture.md](architecture.md) | MASTER: overview, module index, open questions, acceptance, sister-project relation |
-| [modules/01-09](modules/) | design docs: floor model · signaling protocol · components · media pipeline · error model · deployment&security · sdk strategy · web ui · dev toolchain | Floor state machine, crate boundaries, signaling protocol, media pipeline, deployment modes, security, open questions | planning draft 0.1 |
+| [architecture.md](architecture.md) | MASTER: overview, module index, open questions, acceptance, sister-project relation | living (thin by design) |
+| [modules/01-09](modules/) | design docs: floor model · signaling protocol · components · media pipeline · error model · deployment&security · sdk strategy · web ui · dev toolchain — crate boundaries, floor state machine, wire contract, media pipeline, deployment modes, security | living (updated per landed slice) |
 
 ## Research archive — `reference/research/`
 
