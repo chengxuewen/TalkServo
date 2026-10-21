@@ -37,6 +37,8 @@ impl TestServer {
             config,
             started_at: std::time::Instant::now(),
             admin_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
+            admin_events: talkservo_server::admin_events::EventHub::new(),
+            admin_ws_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
             rooms: tokio::sync::Mutex::new(std::collections::HashMap::new()),
             audit: None,
             media: media.clone(),

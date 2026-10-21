@@ -14,18 +14,25 @@ pub fn config_for_test(secret: &str) -> Config {
 
 /// Test convenience: stub-media App (tests never run under live features).
 pub fn test_app(config: Config) -> Arc<AppState> {
+    let hub = crate::admin_events::EventHub::new();
     let audit = config
         .audit_log
         .as_ref()
-        .map(|p| crate::audit::spawn_for(p.as_path()));
-    Arc::new(AppState {
+        .map(|p| crate::audit::spawn_for_with_hub(p.as_path(), hub.clone()));
+    let app = Arc::new(AppState {
         config,
         rooms: tokio::sync::Mutex::new(HashMap::new()),
         started_at: std::time::Instant::now(),
         admin_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
         media: std::sync::Arc::new(talkservo_sfu::StubSfu::new()),
         audit,
-    })
+        admin_events: hub.clone(),
+        admin_ws_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
+    });
+    // same refresher the real binary runs, or the admin lane would never see a
+    // RoomsLive push; the task is scoped to this test process
+    crate::admin_events::spawn_rooms_refresher(hub, app.clone());
+    app
 }
 
 pub fn build_router(state: Arc<AppState>) -> axum::Router {

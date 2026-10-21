@@ -159,9 +159,14 @@ export class MediaManager {
         console.log("[talkservo] router_caps captured:", JSON.stringify(msg.media_codecs).slice(0, 120));
         this.routerCaps = msg.media_codecs;
       } else if (msg.type === "producer_available") {
-        // pull model: LISTENING needs no grant — D13 gates the SPEAKER's
-        // uplink, not listeners' downlinks. Every announced producer is
-        // consumable by room members (server re-checks the gate).
+        // pull model: the LISTENER needs no grant (D13 gates the SPEAKER's uplink,
+        // not listeners' downlinks) — but that is not "anything is audible": the
+        // server's R-F14 gate answers `consume` only for a producer whose owner
+        // currently HOLDS the floor, and answers Error{consume_denied} otherwise
+        // (ws.rs; room.rs::producer_owner_granted). So this sweep converges on the
+        // granted set and a silent line stays silent by design, which is what
+        // acceptance #12 measures. Do NOT read the old wording of this comment as
+        // "an operator could listen to anyone" — plan-9 §5 records what blocks that.
         this.producerByPeer.set(msg.peer, String(msg.producer_id));
         if (!this.handles.has(msg.peer)) {
           const pid = String(msg.producer_id);

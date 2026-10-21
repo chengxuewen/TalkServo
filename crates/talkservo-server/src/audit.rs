@@ -13,9 +13,11 @@
 //! `seq` cursor (`before`/`after`), filter by room/actor/event, limit clamped
 //! `1..=1000` (doc-audit GAP-8).
 
+use crate::admin_events::EventHub;
 use serde::Serialize;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::mpsc;
 
@@ -101,6 +103,9 @@ impl AuditEvent {
 pub struct AuditTx {
     tx: mpsc::UnboundedSender<AuditEvent>,
     pub path: PathBuf,
+    /// plan-9 W1 second sink: the admin event hub. None = push disabled (unit
+    /// tests, audit-off runs); the ledger sink never depends on it.
+    hub: Option<Arc<EventHub>>,
 }
 
 impl AuditTx {
@@ -110,6 +115,13 @@ impl AuditTx {
         if self.tx.send(ev).is_err() {
             AUDIT_DROPPED.fetch_add(1, Ordering::Relaxed);
             tracing::error!("audit writer task gone; event dropped");
+            return;
+        }
+        // The line is queued, so the second sink may now be told. This order is the
+        // point: a console that cannot keep up can never block, delay or fail an
+        // audited write (plan-9 §3.3).
+        if let Some(hub) = &self.hub {
+            hub.hint();
         }
     }
 }
@@ -158,15 +170,29 @@ fn count_lines(path: &Path) -> u64 {
 
 /// Create parent dir + spawn the writer for an instance-resolved path.
 pub fn spawn_for(path: &Path) -> AuditTx {
+    spawn_with_hub(path, None)
+}
+
+/// Same, with the admin-plane hub attached (plan-9 W1): every emitted line also
+/// produces one AuditHint for /admin/ws subscribers.
+pub fn spawn_for_with_hub(path: &Path, hub: Arc<EventHub>) -> AuditTx {
+    spawn_with_hub(path, Some(hub))
+}
+
+fn spawn_with_hub(path: &Path, hub: Option<Arc<EventHub>>) -> AuditTx {
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    spawn_writer(path.to_path_buf())
+    spawn_writer_with(path.to_path_buf(), hub)
 }
 
 /// Spawn the writer task; sender returned for sites. `seq` resumes from the
 /// existing file's line count so a restart continues the cursor monotonic.
 pub fn spawn_writer(path: PathBuf) -> AuditTx {
+    spawn_writer_with(path, None)
+}
+
+fn spawn_writer_with(path: PathBuf, hub: Option<Arc<EventHub>>) -> AuditTx {
     let (tx, mut rx) = mpsc::unbounded_channel::<AuditEvent>();
     let start_seq = count_lines(&path);
     let task_path = path.clone();
@@ -230,7 +256,7 @@ pub fn spawn_writer(path: PathBuf) -> AuditTx {
             }
         }
     });
-    AuditTx { tx, path }
+    AuditTx { tx, path, hub }
 }
 
 /// Query filters mirroring the Discord cursor contract.

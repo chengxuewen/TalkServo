@@ -25,6 +25,15 @@ pub struct App {
     pub admin_rate: std::sync::Mutex<(std::time::Instant, u32)>,
     /// audit writer channel (plan-7 S1; None = writer not spawned, sites no-op)
     pub audit: Option<crate::audit::AuditTx>,
+    /// admin-plane fan-out hub (plan-9 W1). Always present: whether a socket may
+    /// subscribe is decided by `admin_secret` + auth, not by the hub. Hints only
+    /// flow when the audit writer exists, because the audit emit is the one
+    /// producer (no audit_log => no push, and the console keeps reconciling).
+    pub admin_events: std::sync::Arc<crate::admin_events::EventHub>,
+    /// own connect window for /admin/ws, deliberately NOT shared with
+    /// `admin_rate` (plan-9 R5=A): a reconnect storm must not be able to lock the
+    /// operator out of login and token issuance.
+    pub admin_ws_rate: std::sync::Mutex<(std::time::Instant, u32)>,
     /// Concrete SFU backend (exactly one; feature-selected, modules/03).
     #[cfg(feature = "stub-media")]
     pub media: std::sync::Arc<talkservo_sfu::StubSfu>,

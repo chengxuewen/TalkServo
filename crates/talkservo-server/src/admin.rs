@@ -9,13 +9,20 @@
 //! the registry lock, DROP the lock, then send+await with a per-room 1s
 //! timeout; a wedged room task gets `"stale": true`, never a hung poll.
 
+use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+// (no futures_util import: axum's WebSocket has inherent recv/send, and an unused
+// trait import fails gate-clippy's -D warnings)
+use crate::admin_events::{
+    ADMIN_WS_CONNECTS_PER_MIN, AUTH_DEADLINE, AUTH_FRAME_MAX_BYTES, AdminIn, EventHub,
+};
 use serde::Deserialize;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 use tokio::sync::oneshot;
 
 use talkservo_sfu::Sfu as _;
@@ -29,6 +36,7 @@ pub fn router() -> Router<Arc<App>> {
         .route("/admin/api/overview", get(overview))
         .route("/admin/api/rooms", get(rooms_registry).post(rooms_create))
         .route("/admin/api/rooms/live", get(rooms_live))
+        .route("/admin/ws", get(admin_ws))
         .route(
             "/admin/api/rooms/{room}",
             axum::routing::delete(rooms_delete),
@@ -147,8 +155,16 @@ async fn rooms_live(State(app): State<Arc<App>>, headers: HeaderMap) -> Response
     if let Err(e) = guard(&app, &headers) {
         return e.into_response();
     }
-    let reports = fan_out(&app).await;
-    let body: Vec<serde_json::Value> = reports
+    let body = rooms_body(&app).await;
+    (StatusCode::OK, Json(body)).into_response()
+}
+
+/// The `/admin/api/rooms/live` body, shared by the REST handler and the /admin/ws
+/// RoomsLive pusher (plan-9 W1): one serializer for both, so a pushed snapshot and
+/// a polled one can never disagree about shape.
+pub async fn rooms_body(app: &Arc<App>) -> Vec<serde_json::Value> {
+    fan_out(app)
+        .await
         .into_iter()
         .map(|(room, mut r)| {
             if let Some(obj) = r.as_object_mut() {
@@ -156,8 +172,7 @@ async fn rooms_live(State(app): State<Arc<App>>, headers: HeaderMap) -> Response
             }
             r
         })
-        .collect();
-    (StatusCode::OK, Json(body)).into_response()
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -696,6 +711,135 @@ async fn rooms_delete(
             (StatusCode::NO_CONTENT, "").into_response()
         }
     }
+}
+
+// ── plan-9 W1: the admin push channel ──────────────────────────────────────
+
+/// A separate endpoint on purpose: an admin token cannot pass `/ws` (no `room`
+/// claim, see auth.rs) and must not be able to, so the admin plane gets its own
+/// contract, its own version counter and its own connect window. The signaling
+/// wire stays at 27 variants and plan-7 §4 is untouched.
+async fn admin_ws(State(app): State<Arc<App>>, ws: WebSocketUpgrade) -> Response {
+    if app.config.admin_secret.is_none() {
+        return (StatusCode::SERVICE_UNAVAILABLE, "admin surface disabled").into_response();
+    }
+    if !ws_rate_ok(&app) {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            "admin ws connect budget exceeded",
+        )
+            .into_response();
+    }
+    let hub = app.admin_events.clone();
+    ws.on_upgrade(move |socket| run_admin_socket(socket, app, hub))
+}
+
+fn ws_rate_ok(app: &Arc<App>) -> bool {
+    // its own window on its own constant (R5=A): reconnect backoff from a few tabs
+    // is normal traffic and must not consume the login/token budget
+    let mut w = app.admin_ws_rate.lock().expect("ws rate window");
+    if w.0.elapsed() > std::time::Duration::from_secs(60) {
+        w.0 = std::time::Instant::now();
+        w.1 = 0;
+    }
+    w.1 += 1;
+    w.1 <= ADMIN_WS_CONNECTS_PER_MIN
+}
+
+async fn run_admin_socket(mut socket: WebSocket, app: Arc<App>, hub: Arc<EventHub>) {
+    // Credential first, and only first. A browser cannot attach a header to a
+    // WebSocket, and the token must not ride the URL either (access logs would keep
+    // a copy of a credential), so the first frame is the auth surface.
+    let token = match first_frame(&mut socket).await {
+        Some(AdminIn::Auth { token }) => token,
+        _ => {
+            let _ = socket
+                .send(Message::Close(Some(CloseFrame {
+                    code: 1008,
+                    reason: "expected an auth frame".into(),
+                })))
+                .await;
+            return;
+        }
+    };
+    let Some(secret) = app.config.admin_secret.as_deref() else {
+        let _ = socket.send(Message::Close(None)).await;
+        return;
+    };
+    if auth::validate_admin(secret, &token).is_err() {
+        // a close code survives the browser API; a JSON body after a refused
+        // upgrade does not, which is why §3.2's 401 note became 1008 here
+        let _ = socket
+            .send(Message::Close(Some(CloseFrame {
+                code: 1008,
+                reason: "unauthorized".into(),
+            })))
+            .await;
+        return;
+    }
+    let Some(hello) = json_of(&hub.hello()) else {
+        return;
+    };
+    if socket.send(Message::Text(hello.into())).await.is_err() {
+        return;
+    }
+
+    let mut rx = hub.subscribe();
+    loop {
+        tokio::select! {
+            ev = rx.recv() => match ev {
+                Ok(ev) => {
+                    let Some(text) = json_of(&ev) else { continue };
+                    if socket.send(Message::Text(text.into())).await.is_err() {
+                        break;
+                    }
+                }
+                Err(broadcast::error::RecvError::Lagged(_)) => {
+                    // this tab fell behind the hub bound: hang up (it degrades to
+                    // its reconcile poll) and count the eviction so the next Hello
+                    // reports it instead of it being silent
+                    hub.note_eviction();
+                    break;
+                }
+                Err(_) => break,
+            },
+            msg = socket.recv() => match msg {
+                None => break,
+                Some(Err(_)) => break,
+                Some(Ok(Message::Text(t))) => {
+                    if matches!(serde_json::from_str::<AdminIn>(&t), Ok(AdminIn::Ping)) {
+                        let Some(pong) = json_of(&hub.pong()) else { continue };
+                        if socket.send(Message::Text(pong.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    // Subscribe and any later Auth are inert: both streams are
+                    // always on and the credential is a one-shot
+                }
+                Some(Ok(Message::Close(_))) => break,
+                Some(Ok(_)) => {}
+            }
+        }
+    }
+}
+
+async fn first_frame(socket: &mut WebSocket) -> Option<AdminIn> {
+    let raw = tokio::time::timeout(AUTH_DEADLINE, socket.recv())
+        .await
+        .ok()??;
+    let Message::Text(t) = raw.ok()? else {
+        return None;
+    };
+    if t.len() > AUTH_FRAME_MAX_BYTES {
+        return None;
+    }
+    serde_json::from_str(&t).ok()
+}
+
+fn json_of<T: serde::Serialize>(value: &T) -> Option<String> {
+    // serializing our own enums cannot realistically fail; returning Option keeps
+    // that a control-flow branch instead of an expect() on a socket path
+    serde_json::to_string(value).ok()
 }
 
 #[cfg(test)]

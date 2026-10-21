@@ -106,6 +106,23 @@ attempt at PoC; retry-1 lands with the live host).
 - E11: granted holder silent past `NO_RTP_WATCHDOG_MS` + `FLOOR_MEDIA_GRACE_MS` →
   `MediaFailed{peer}` + release + auto-promote (verified end-to-end over stub).
 
+## Admin event plane (`/admin/ws`, plan-9 W1)
+
+Full contract: [admin-events.md](admin-events.md). Summary: separate endpoint because an
+admin token structurally cannot pass `/ws` (no `room` claim); credential arrives as the
+FIRST frame (`{"type":"auth","token":…}`) — never a header (impossible from a browser)
+and never the query string (access logs). Server frames `hello` / `audit_hint` /
+`rooms_live` / `pong`, all carrying `v` from `ADMIN_EVENT_V`, independent of signaling
+`v:1`. A hint carries no row content: the Logs table's only source of a line is
+`GET /admin/api/audit` (its `after` cursor), which is also why `seq` stays stamped by the
+writer task alone. Hub is bounded (64/subscriber; a slow tab lags, hangs up, and is
+counted in the next `hello.dropped`); one shared refresher coalesces hints every 100 ms so
+N tabs cost one fan-out per burst; connects are budgeted at 120/min on a window of their
+own, deliberately separate from `admin_rate`. With `audit_log` unset there is no writer,
+so no hints and no pushes — the socket still authenticates and the console keeps
+reconciling. Verified in `tests/admin_events.rs` (incl. a user token refused on the admin
+socket, and 429 past the budget).
+
 ## Proactive pushes
 
 - `TokenRefresh{jwt}` at `exp − 5 min` (per-member re-sign; modules/02 §1).

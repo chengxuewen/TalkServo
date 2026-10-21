@@ -193,10 +193,13 @@ async fn serve(config: config::Config) {
         );
         std::process::exit(1);
     }
+    // plan-9 W1: the admin-plane hub is created first because the audit writer is
+    // its single producer — hints fan out from the same emit that queues the line.
+    let admin_hub = talkservo_server::admin_events::EventHub::new();
     let audit_tx = config
         .audit_log
         .as_ref()
-        .map(|p| talkservo_server::audit::spawn_for(p.as_path()));
+        .map(|p| talkservo_server::audit::spawn_for_with_hub(p.as_path(), admin_hub.clone()));
     let app_state = Arc::new(ws::App {
         config,
         rooms: tokio::sync::Mutex::new(HashMap::new()),
@@ -204,7 +207,12 @@ async fn serve(config: config::Config) {
         admin_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
         media: media_handle,
         audit: audit_tx,
+        admin_events: admin_hub.clone(),
+        admin_ws_rate: std::sync::Mutex::new((std::time::Instant::now(), 0)),
     });
+    // One snapshot task for the whole admin plane (hint -> coalesce -> one fan_out
+    // -> RoomsLive), so N console tabs cost one fan-out per burst, not N.
+    talkservo_server::admin_events::spawn_rooms_refresher(admin_hub, app_state.clone());
 
     // W-sequence step 2 (live host only): worker death → MediaRestart fanout
     // to every live room (media_recovery_ms reads the media_restart_done logs;
