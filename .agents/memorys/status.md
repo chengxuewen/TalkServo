@@ -76,7 +76,7 @@ deferred UI case, all by 2026-10-21). What is actually left:*
    live advisory (RUSTSEC-2024-0449 `unsafe-libyaml` via deprecated `serde_yaml`) which was
    REMOVED rather than ignored, by migrating to `serde-saphyr`.
    Check: `ctest --test-dir out/cmake-build -L gate` shows gate-deny Passed (≈1.4s).
-3. **Wave-2 IN FLIGHT** (same plan file): **W1 + W2 + W3 LANDED 2026-10-21** — `/admin/ws` with its own
+3. **Wave-2 CLOSED** (plan-9; W4's docs/tests landed with each slice): **W1 + W2 + W3 DONE 2026-10-21** — `/admin/ws` with its own
    `AdminEvent` contract (hints carry no row content, so `seq` stays a ledger-side concern), bounded hub
    with a counted eviction, its own 120/min connect budget, `docs/reference/admin-events.md`, TS mirror
    plus a Rust↔TS variant-set drift test, and the row probe that closed PIT-26; **W2 LANDED the
