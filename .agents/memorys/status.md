@@ -76,10 +76,13 @@ deferred UI case, all by 2026-10-21). What is actually left:*
    live advisory (RUSTSEC-2024-0449 `unsafe-libyaml` via deprecated `serde_yaml`) which was
    REMOVED rather than ignored, by migrating to `serde-saphyr`.
    Check: `ctest --test-dir out/cmake-build -L gate` shows gate-deny Passed (≈1.4s).
-3. **Wave-2 protocol batch** (deferred as a family by D23): AdminEvent WS push to replace the
-   console's 3s poll; operator Listen (needs the SFU admin consume path + an AdminListen/Role
-   wire addition). Both touch the wire → `api-interface-design` + a plan doc BEFORE code, and
-   plan-7 §4's "no new SignalingMessage variants" ruling must be re-adjudicated, not assumed.
+3. **Wave-2 proposed, not approved**: `docs/plans/2026-10-21-alpha-wave2-realtime-control.md`
+   (adjudicated, awaiting go) covers the D23 deferred family. Its §2 corrects the assumption carried here until now:
+   an admin token cannot structurally pass `/ws` (AdminClaims has no `room`, auth.rs:96-104), so the
+   push channel goes on a separate `/admin/ws` with its own `AdminEvent` contract — **plan-7 §4's
+   "no new SignalingMessage variants" ruling does NOT need re-adjudicating**. Listen is the opposite:
+   it is blocked by D13 producer-pause / acceptance #12, not by a missing wire variant, and the plan
+   recommends deferring it. The R1-R5 walkthrough came back 2026-10-21 (R2 push+30s reconcile / R3 hint-only Logs, which dissolved R6 / R4 Listen deferred with its four prerequisites / R5 one socket per tab on its own connect budget): the plan is ADJUDICATED and awaits the go, no code yet.
 4. **Alpha ops backlog opened by D24**: GAP-3 secret-rotation procedures, GAP-4 `audit.jsonl`
    ops story, GAP-5 Alpha ops doc home, GAP-6 Alpha gate consolidation.
 5. **Trigger-gated — do NOT start early**: Electron shell (D10, Alpha), SDK npm publish
