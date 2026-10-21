@@ -74,21 +74,23 @@ registry create flow shipped broken (`PIT-28`: typed values never reached the PO
 The case must assert method + path + body.
 
 ```bash
-# ratchet: outbound-body assertions in the admin suite (baseline 2, both from 2026-10-21:
-# the kick DELETE body and the rooms-create POST body)
+# ratchet: outbound-body assertions in the admin suite (baseline 3 as of 2026-10-21:
+# kick DELETE body, rooms-create POST body, tokens issue POST body incl. mod_rooms)
 n=$(grep -c 'method === "POST"\|method === "DELETE"' web/tests/admin.test.tsx)
-[ "$n" -ge 2 ] || { echo "FAIL: outbound-body assertions fell to $n (baseline 2)"; exit 1; }
+[ "$n" -ge 3 ] || { echo "FAIL: outbound-body assertions fell to $n (baseline 3)"; exit 1; }
 echo "PASS: $n outbound-body assertions"
 ```
 Adding a write path to `web/src/lib/adminApi.ts` must raise that baseline in the same
 commit — an un-raised number means the new call is covered by nothing but a click.
 
 Honest coverage statement as of 2026-10-21, so nobody reads the ratchet as full cover:
-body-asserted = `kickPeer` (vitest + e2e), `createRoom` (vitest + e2e). Asserted only at
-the API/Rust layer = `deleteRoom`, `forceRelease`, `createAccount`, `removeAccount`,
-`login` (the last has a vitest case that asserts the stored token, not the request body).
-`login` and `audit` are exercised end-to-end by the Rust lanes; the UI-only paths above are
-the ones a payload regression would slip through.
+body-asserted = `kickPeer` (vitest + e2e), `createRoom` (vitest + e2e), `issue` incl.
+`mod_rooms` (vitest, added 2026-10-21 closing the last S7.4 deferral; the claim itself is
+asserted on the wire, not on the select). Asserted only at the API/Rust layer = `deleteRoom`,
+`forceRelease`, `createAccount`, `removeAccount`, `login` (the last has a vitest case that
+asserts the stored token, not the request body). `login` and `audit` are exercised
+end-to-end by the Rust lanes; the UI-only paths above are the ones a payload regression
+would slip through.
 
 ### 2. An env-gated spec needs a lane that sets the env var
 

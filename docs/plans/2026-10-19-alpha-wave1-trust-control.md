@@ -1,6 +1,6 @@
 # Plan-7: Alpha wave-1 — Trust & Control (D23) — draft for review
 
-> **STATUS: WAVE-1 COMPLETE — S1-S7 + S7.5 + the S7.4 cross-client e2e rows LANDED (2026-10-21; vitest 19/19, e2e 15 tests/5 files with the admin lane now enabled in the graph). Only the Tokens mod-rooms multi-select vitest case remains deferred.**
+> **STATUS: WAVE-1 COMPLETE — S1-S7 + S7.5 + the S7.4 cross-client e2e rows LANDED (2026-10-21; vitest 19/19, e2e 15 tests/5 files with the admin lane now enabled in the graph). Nothing deferred: the Tokens mod-rooms claim case landed 2026-10-21.**
 > Design truth: `docs/modules/08-web-ui.md` + `.agents/memorys/decisions.md` D23 (incl. UI annex + borrow annex).
 > Sister precedent: plan-5 format (slices → gates → commit per slice).
 
@@ -170,7 +170,8 @@ WS msg ──► room.rs intake ──► authorized?(claims, msg) ──no─�
   filter, Logs render + dropped warning, expand+Kick-with-reason -> DELETE body assert, peer Drawer
   (6.2 fields), Rooms registry + tier-gated writes; stub-lane e2e green (admin click-through,
   floor, talk). The three cross-client rows LANDED 2026-10-21 (S7.4 close, see the close note
-  below); still deferred: the Tokens mod-rooms multi-select vitest case alone.
+  below); the Tokens mod-rooms multi-select case landed too the same day (S4 UI case in
+  `web/tests/admin.test.tsx` asserts `mod_rooms` on the issued token's POST body).
   Lane fix: TS_KDF_ITERS knob - debug-build PBKDF2 costs ~9s per login and stalled the admin
   e2e assertion windows (PIT-23).
 - [x] 7.6 **crash recovery (user A ruling, 2026-10-19)**: `crash_recovery` integration —
@@ -326,4 +327,4 @@ console (paths, endpoints, intervention kit, tier gate, diagrams) and architectu
   only) and landed as such — see the S7.5 walkthrough record in §7
 - [x] Gates — R4: + permission matrix, audit fail-visible, legacy-token compat; no static grep gate
 
-**STATUS: WAVE-1 LANDED 2026-10-21 (S1-S7.5 + the three cross-client admin e2e rows). Remaining: the Tokens mod-rooms multi-select vitest case. See .agents/memorys/status.md.**
+**STATUS: WAVE-1 LANDED 2026-10-21 (S1-S7.5 + the three cross-client admin e2e rows + the Tokens mod-claims UI case). Wave closed; nothing deferred. See .agents/memorys/status.md.**

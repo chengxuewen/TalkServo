@@ -27,7 +27,10 @@ const routes: Record<string, unknown> = {
     },
     { room: "ghost", stale: true },
   ],
-  "/admin/api/rooms": [{ room: "ops-01", owner: "squad", locked: false }],
+  "/admin/api/rooms": [
+    { room: "ops-01", owner: "squad", locked: false },
+    { room: "ops-02", owner: "patrol", locked: true },
+  ],
   "/admin/api/audit": {
     events: [
       { seq: 2, ts_ms: 1792470000000, event: "kick", room: "ops-01", actor: "admin", target: "bob", reason: "abuse" },
@@ -143,6 +146,79 @@ describe("admin console", () => {
     );
     await waitFor(() =>
       expect(screen.getByText(/participant: https:\/\/lan:8443\/room\/ops-01\?jwt=/)).toBeTruthy(),
+    );
+  });
+
+  it("Tokens mod-rooms multi-select puts the claims on the issued token (S4 UI)", async () => {
+    setAdminJwt("tok");
+    mockFetch();
+    const { container } = ui();
+    fireEvent.click(await screen.findByText("Tokens"));
+    const item = () =>
+      [...container.querySelectorAll(".ant-form-item")].find((fi) =>
+        fi.textContent?.includes("Moderator of"),
+      );
+    await waitFor(() => expect(item()).toBeTruthy());
+    fireEvent.change(within(container).getByPlaceholderText("field-7"), {
+      target: { value: "squad-lead" },
+    });
+    fireEvent.change(within(container).getByPlaceholderText("ops-01"), {
+      target: { value: "ops-01" },
+    });
+
+    // the registry options come from /admin/api/rooms (ops-01 + ops-02); AntD
+    // opens a Select on mouseDown and paints the list into a body-level dropdown
+    fireEvent.mouseDown(
+      (item() as HTMLElement).querySelector(".ant-select-selector") as HTMLElement,
+    );
+    await waitFor(() =>
+      expect(document.querySelectorAll(".ant-select-item-option").length).toBeGreaterThan(0),
+    );
+    const pick = (name: string) => {
+      const opt = [...document.querySelectorAll(".ant-select-item-option")].find(
+        (o) => o.textContent === name,
+      ) as HTMLElement;
+      expect(opt).toBeTruthy();
+      fireEvent.click(opt);
+    };
+    pick("ops-01");
+    pick("ops-02");
+
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: unknown) =>
+      String(url) === "/admin/api/tokens"
+        ? {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              jwt: "eyJmock",
+              field_url: "https://lan:8443/field/ops-01?jwt=eyJmock",
+              dispatch_url: "https://lan:8443/dispatch/ops-01?jwt=eyJmock",
+              participant_url: "https://lan:8443/room/ops-01?jwt=eyJmock",
+            }),
+          }
+        : { ok: true, status: 200, json: async () => routes[String(url)] },
+    );
+    await act(async () => {
+      fireEvent.click(within(container).getByText("Issue"));
+    });
+
+    // the claim has to reach the WIRE, not just the form state (testing.md rule 1)
+    await waitFor(
+      () => {
+        const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+          .calls as unknown as [string, { method?: string; body?: string }][];
+        const post = calls.find(
+          ([u, i]) => String(u) === "/admin/api/tokens" && i?.method === "POST",
+        );
+        expect(post).toBeTruthy();
+        const req = JSON.parse(post?.[1]?.body ?? "{}") as {
+          sub?: string;
+          mod_rooms?: string[];
+        };
+        expect(req.sub).toBe("squad-lead");
+        expect(req.mod_rooms).toEqual(["ops-01", "ops-02"]);
+      },
+      { timeout: 4000 },
     );
   });
 
