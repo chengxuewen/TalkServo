@@ -237,3 +237,17 @@ print nothing per file), or `awk` counting unescaped pipes per row.
 **Source**: this project, 2026-10-20 S7.5 doc pass — a `> deny ≠ mute` note was appended to
 the `/field/:room` row of the modules/08 route table and orphaned the `/room/:room` row;
 caught by the column-count check before commit, moved after the table.
+
+### 24. Edit-tool batch failures: shrink and re-read; a sandbox print is not a read
+
+Three occurrences in one session of `edits parameter must be a non-empty array`: a large
+multi-op batch containing **nested escaped quotes** (`\"` inside inserted Rust/TS strings)
+fails to parse as a whole — and when the batch fails, **nothing** applied, so assuming a
+partial apply and resending duplicates lines (rule 17 family). Shrink the batch, keep
+straight double quotes out of inserted prose (backticks or single quotes in the text you
+write), and re-read the tags before any resend. Separately: the Write tool refuses an
+existing path unless the native Read tool has read it — a sandbox `cat`/file print does not
+count, and discovering that costs a wasted call.
+**Blocking condition**: resending an identical failed batch; or `write`-ing a file no native
+read touched this session.
+**Source**: this project, 2026-10-20/21 (three parse-failure rounds + the Write-guard miss).
