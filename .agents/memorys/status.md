@@ -76,7 +76,16 @@ deferred UI case, all by 2026-10-21). What is actually left:*
    live advisory (RUSTSEC-2024-0449 `unsafe-libyaml` via deprecated `serde_yaml`) which was
    REMOVED rather than ignored, by migrating to `serde-saphyr`.
    Check: `ctest --test-dir out/cmake-build -L gate` shows gate-deny Passed (≈1.4s).
-3. **Wave-2 proposed, not approved**: `docs/plans/2026-10-21-alpha-wave2-realtime-control.md`
+3. **Wave-2 IN FLIGHT** (same plan file): **W1 + W3 LANDED 2026-10-21** — `/admin/ws` with its own
+   `AdminEvent` contract (hints carry no row content, so `seq` stays a ledger-side concern), bounded hub
+   with a counted eviction, its own 120/min connect budget, `docs/reference/admin-events.md`, TS mirror
+   plus a Rust↔TS variant-set drift test, and the row probe that closed PIT-26. W2 (console
+   adoption) and the push-latency measurement remain; landing W1 surfaced plan-9 R7 (below).
+   Observed while landing it: `gate-deny` failed once on a transient advisory-DB fetch and Passed on
+   re-run — the now-live gate needs network, so a red gate-deny means check connectivity before
+   believing a vulnerability. The plan's own §1/§6 claim "audit.rs is NOT touched" was corrected the
+   same day: the file gained the hub sink; only `seq` is untouched.
+   Old wording: proposed, not approved:
    (adjudicated, awaiting go) covers the D23 deferred family. Its §2 corrects the assumption carried here until now:
    an admin token cannot structurally pass `/ws` (AdminClaims has no `room`, auth.rs:96-104), so the
    push channel goes on a separate `/admin/ws` with its own `AdminEvent` contract — **plan-7 §4's
@@ -87,6 +96,11 @@ deferred UI case, all by 2026-10-21). What is actually left:*
    ops story, GAP-5 Alpha ops doc home, GAP-6 Alpha gate consolidation.
 5. **Trigger-gated — do NOT start early**: Electron shell (D10, Alpha), SDK npm publish
    (D14, Beta). (Codegraph indexing left this list: built 2026-10-21, see AGENTS.md.)
-6. **Watch item, no action**: PIT-26 — the cross-client roster row failed once (1 of 13) with no
-   proven mechanism and no retry added. If it returns, capture the witness's WS frames plus the
-   `window.__tsSessions` mirror dump; the entry lists what was already ruled out.
+6. **RULING NEEDED (plan-9 R7) — `kick` loses to the SDK's auto-reconnect.** PIT-26 is closed with
+   a mechanism (probe built into the row): the witness's frames show `peer_joined` →
+   `peer_left{kind:"removed"}` → `peer_joined` again, and the server log a real second Join ~3s
+   later. `packages/client/src/signal.ts:168-172` reconnects on any remote close, and only
+   `expired_token` / `invalid_token` are terminal, so a kick cannot outlast a valid token. `pixi
+   run e2e` is therefore intermittently red on that row BY DESIGN GAP, not by flake masking — no
+   retry was added and the assertion was not weakened. Options are in plan-9 §10; do not implement
+   one without the ruling.

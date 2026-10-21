@@ -40,12 +40,44 @@ async function adminLoggedIn(browser: Browser, request: APIRequestContext): Prom
   return page;
 }
 
-/** Join a room as a field peer and wait for the wire to say so. */
-async function joinField(browser: Browser, sub: string, room: string): Promise<Page> {
+/** Join a room as a field peer and wait for the wire to say so. `frames`
+ *  optionally collects every inbound WS payload, which is how PIT-26's
+ *  "did the frame never arrive, or arrive and get discarded?" gets answered. */
+async function joinField(
+  browser: Browser,
+  sub: string,
+  room: string,
+  frames?: string[],
+): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
+  if (frames) {
+    page.on("websocket", (ws) =>
+      ws.on("framereceived", (f) => frames.push(String(f.payload))),
+    );
+  }
   await page.goto(`${BASE()}/field/${room}?jwt=${userToken(sub, room)}`);
   await expect(page.getByText("connected")).toBeVisible({ timeout: 15_000 });
   return page;
+}
+
+/** PIT-26 capture: the mirror the page actually holds, for failure messages. */
+async function mirrorDump(page: Page, room: string): Promise<string> {
+  return page.evaluate((key) => {
+    const w = window as unknown as {
+      __tsSessions?: Map<
+        string,
+        { mirror: { peers: { id: string }[]; generation: number; muted: string[] } }
+      >;
+    };
+    const s = w.__tsSessions?.get(key);
+    return s
+      ? JSON.stringify({
+          peers: s.mirror.peers.map((p) => p.id),
+          generation: s.mirror.generation,
+          muted: s.mirror.muted,
+        })
+      : "no session";
+  }, `field:${room}`);
 }
 
 function adminToken(): string {
@@ -149,7 +181,8 @@ test.describe("admin console (stub lane)", () => {
   }) => {
     test.setTimeout(120_000);
     const room = "kick-room";
-    const witness = await joinField(browser, "witness", room);
+    const frames: string[] = [];
+    const witness = await joinField(browser, "witness", room, frames);
     const victim = await joinField(browser, "victim", room);
     await expect(witness.getByText("victim")).toBeVisible({ timeout: 10_000 });
 
@@ -158,7 +191,20 @@ test.describe("admin console (stub lane)", () => {
 
     // the point of this row: a page nobody touched learns the departure (PIT-21 rule
     // - assert the OTHER peers' mirrors, never only the acting client's own screen)
-    await expect(witness.getByText("victim")).toBeHidden({ timeout: 10_000 });
+    try {
+      await expect(witness.getByText("victim")).toBeHidden({ timeout: 10_000 });
+    } catch {
+      // PIT-26: this row has now failed twice under `ctest -L e2e-stub` and never
+      // under a direct `npx playwright test`. Fail with the evidence that
+      // distinguishes the two hypotheses instead of with a screenshot.
+      const about = frames.filter((f) => f.includes("victim"));
+      throw new Error(
+        "victim still on the witness page. " +
+          `mirror=${await mirrorDump(witness, room)}; ` +
+          `frames-mentioning-victim=${about.length ? JSON.stringify(about.slice(-4)) : "NONE"}; ` +
+          `total-inbound-frames=${frames.length}`,
+      );
+    }
     // and the kicked peer's own surface stops claiming a live session
     await expect(victim.getByText("offline")).toBeVisible({ timeout: 15_000 });
   });

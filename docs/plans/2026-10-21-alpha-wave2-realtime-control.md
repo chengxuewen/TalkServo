@@ -1,6 +1,6 @@
 # Plan-9: Alpha wave-2 — Realtime Control Plane (D23 deferred family)
 
-> **STATUS: ADJUDICATED 2026-10-21 — R1 name kept, R2 A, R3 B, R4 A, R5 A; R6 was dissolved by R3. Awaiting the user's "go" before any code is written.**
+> **STATUS: W1 + W3 LANDED 2026-10-21** (`/admin/ws` push plane with its own `AdminEvent` contract, bounded hub + counted eviction, own connect budget, `docs/reference/admin-events.md`, TS mirror + drift gate, 6 integration + 7 unit tests, media.ts hygiene). **W2 (console adoption) and the §4 latency measurement remain — and R7 (§10: a kick loses to the SDK's auto-reconnect) needs a ruling before anyone touches the e2e row.** Rulings R1-R5 in §9; R6 dissolved by R3.
 > Design truth: [../modules/08-web-ui.md](../modules/08-web-ui.md) (console surface), [../modules/02-signaling-protocol.md](../modules/02-signaling-protocol.md) §3 (claims shape, audience isolation), [../modules/01-floor-model.md](../modules/01-floor-model.md) (D13 gating), [../modules/06-deployment-security.md](../modules/06-deployment-security.md) (auth ladder).
 > Ledger: D18 (admin minimal surface), D23 + its UI annex ("operator-audible Listen = wave-2 … deferred WITH AdminEvent WS push as the wave-2 protocol batch"), acceptance #12 in [../architecture.md](../architecture.md) §4.
 
@@ -26,7 +26,7 @@ The wave-1 close (plan-7) left a usable asset for both: **the audit trail is alr
 * **Listen — deferred by R4=A**, with its four prerequisites listed so re-opening it is a checklist, not a re-investigation (§5).
 * Any change to `SignalingMessage` / the user-side wire: the 27-variant contract and the R1 snapshot-resync model stay frozen (§2 explains why that is achievable).
 * `muted` riding a floor message (plan-7 S7.5 chose the snapshot-push mechanism; re-opening it here breaks the "no new variants" ruling for no user gain).
-* `audit.rs` seq handling: unchanged (R3=B removed the need — see §3.1).
+* `audit.rs` **seq handling**: unchanged (R3=B removed the need — see §3.1). The file itself is not untouched: `AuditTx` gained an optional hub sink and `emit` publishes a hint after the ledger send (§3.3). Corrected after implementation, because "audit.rs is not touched" was only ever true of `seq`.
 * GAP-3 secret rotation, GAP-4 `audit.jsonl` ops story, GAP-5 Alpha ops doc home, GAP-6 Alpha gate consolidation (D24 backlog — Alpha ops, not control plane).
 * Drain / keys / limits UI, room tree, multi-line monitoring (still Alpha); Electron shell (D10) and SDK npm publish (D14): trigger-gated.
 
@@ -120,7 +120,7 @@ Hygiene fix included in W3: `packages/client/src/media.ts:162-165` reads "LISTEN
 |---|---|---|
 | Domain core | `crates/talkservo-core/` | **no** — `apply()` purity and the wire contract untouched (that is the point of §2) |
 | SFU host | `crates/talkservo-sfu/` | **no** (Listen deferred ⇒ no consume/gating change) |
-| Server | `crates/talkservo-server/` | yes — new `admin_events.rs` + bounded `EventHub`, `admin.rs` ws route + its own connect window, `ws.rs` upgrade wiring, `main.rs` hub spawn. **`audit.rs` is NOT touched** (R3=B removed the seq change) |
+| Server | `crates/talkservo-server/` | yes — new `admin_events.rs` + bounded `EventHub`, `admin.rs` ws route + its own connect window, `ws.rs` App fields, `main.rs` + `test_bridge.rs` hub spawn and refresher. `audit.rs`: hub sink only (field, `spawn_for_with_hub`, one line in `emit`); **`seq` stays stamped in the writer task** (R3=B) |
 | Web console | `web/src/pages/admin/`, `web/src/lib/adminApi.ts` | yes — event client with debounce + push-then-reconcile state + stale indicator |
 | TS SDK | `packages/client/` | comment only (W3 hygiene); **no** admin code enters the SDK (D14 scope: signaling domain) |
 | Cargo features | `stub-media` / `sfu-mediasoup` lanes | W1/W2 are **feature-independent** (no media plane); must build and pass under both, and under `embedded-web` |
@@ -152,6 +152,30 @@ Hygiene fix included in W3: `packages/client/src/media.ts:162-165` reads "LISTEN
 | R3 | what Logs gets | **B — hint only, content always fetched** | one source of content ⇒ no drift; and it dissolved R6 |
 | R4 | Listen | **A — deferred out of wave-2** | blocked by R-F14 + D13/#12, not by a missing wire field; four prerequisites recorded |
 | R5 | sockets & budget | **A — one socket per tab, own connect budget as a constant** | sharing `admin_rate` lets a reconnect storm lock the operator out |
-| R6 | seq before fan-out | **moot (dissolved by R3=B)** | `audit.rs` untouched |
+| R6 | seq before fan-out | **moot (dissolved by R3=B)** | `seq` untouched; the file still gained the hub sink |
 
 **Ready for implementation on the user's "go".** W1+W2 (+W3 hygiene) is a complete shippable wave; its only hard part is sink isolation (§3.3). Keeping Listen out is what stops this wave from spending its risk budget on an accepted criterion (#12) instead.
+
+## 10. R7 — found while landing W1 (needs a ruling before anyone "fixes" the test)
+
+Landing the push plane put a probe into the cross-client kick row, and the probe answered the
+week-old PIT-26 question: the witness page really does see `peer_joined(victim)` →
+`peer_left(victim, kind:"removed")` → **`peer_joined(victim)` again** seconds later, with the
+server log showing a real second `join`. `packages/client/src/signal.ts:168-172` reconnects on
+any remote close, and the only terminal codes are `expired_token` / `invalid_token` (`:152-157`).
+So **a kick cannot outlast the target's own valid token**, and the S7.4 e2e row fails
+intermittently on it — a design gap, not a flaky test. Status: W1 is green on its own lanes;
+`pixi run e2e` is intermittently red on this row until R7 is decided.
+
+| | what it means | cost | blast radius |
+|---|---|---|---|
+| **R7-a** | accept it: kick = remove now, rejoin expected while the token lives; the console must show the return | no protocol change; the e2e row reworded to assert the return | operator-visible honesty; the action itself stays weak |
+| **R7-b** | make the kick terminal for the client: a dedicated close code the SDK treats like `expired_token` | ~2 files, no new server state | stops only the AUTOMATIC return — a determined peer reloads with the same token |
+| **R7-c** | refuse re-entry server-side: a (room, peer) removed-window gate on Join | real effect; new state + a TTL knob + its own audit event | a de-facto ban list the stateless-JWT design (D22) has been avoiding |
+
+**Recommendation: R7-b now; R7-c only if the beachhead actually needs "stay out".** b is the
+smallest change that stops the operator's action from lying to itself, and c introduces
+membership state this project has deliberately not carried. What is NOT allowed as a silent
+fallback is R7-a's test edit: weakening the assertion without deciding the behavior is exactly
+what PIT-1/U1 forbid.
+
