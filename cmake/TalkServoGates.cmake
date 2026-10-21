@@ -42,8 +42,11 @@ function(talkservo_gates)
   set_tests_properties(gate-deny PROPERTIES LABELS "gate;headless" TIMEOUT 300 SKIP_RETURN_CODE 77)
 
   # --- e2e face ---
+  # TS_ADMIN=1 belongs HERE too: without it the whole admin spec self-skips and the
+  # gate reports green while never exercising the console, the audit tab or the
+  # registry lock path. The harness already mints the same fixed admin secret.
   add_test(NAME e2e-stub
-      COMMAND sh -c "cd '${CMAKE_SOURCE_DIR}/web' && npx playwright test"
+      COMMAND sh -c "cd '${CMAKE_SOURCE_DIR}/web' && TS_ADMIN=1 npx playwright test"
       WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   set_tests_properties(e2e-stub PROPERTIES LABELS "e2e-stub;headless" TIMEOUT 900)
 

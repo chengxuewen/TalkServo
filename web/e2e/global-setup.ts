@@ -6,7 +6,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const SECRET = `e2e-${Date.now()}`;
-const ACCOUNTS_FILE = mkdtempSync(path.join(tmpdir(), "ts-e2e-accounts-")) + "/accounts.yaml";
+const LANE_DIR = mkdtempSync(path.join(tmpdir(), "ts-e2e-lane-"));
+const ACCOUNTS_FILE = path.join(LANE_DIR, "accounts.yaml");
+// The admin lane needs the two file-backed registries the server normally derives
+// from a config FILE. This harness runs on env only, so both would stay None:
+// audit disabled (GET /admin/api/audit -> 503) and the rooms registry unwritable
+// (POST /admin/api/rooms -> 400 "path not configured"). That is why the audit and
+// locked-room browser rows were never written after S1/S2 landed - the product path
+// worked (Rust lanes proved it) but no browser could reach it.
+const ROOMS_FILE = path.join(LANE_DIR, "rooms.yaml");
+const AUDIT_LOG = path.join(LANE_DIR, "audit.jsonl");
 const PORT = 8090;
 
 let server;
@@ -59,6 +68,8 @@ export default async function () {
         // writable accounts registry for the D22 user/pwd gate (spec creates
         // the first account via the script-minted bootstrap token)
         TS_ACCOUNTS_FILE: ACCOUNTS_FILE,
+        TS_ROOMS_FILE: ROOMS_FILE,
+        TS_AUDIT_LOG: AUDIT_LOG,
         ...(process.env.TS_ADMIN ? { TS_ADMIN_SECRET: adminSecret } : {}),
         // debug-build PBKDF2 at 600k iters costs ~9s per mint/verify and blows
         // the admin lane's assertion windows; cheap hashes for the test lane only

@@ -1,20 +1,51 @@
 // Plan-5 S2: admin console end-to-end on the stub lane — gate auth, live
 // monitor row, token issuance, and the click-through of an issued link
 // (proof the whole loop works through the REAL page, no test-only hooks).
-import { test, expect } from "@playwright/test";
+import { test, expect, type Browser, type APIRequestContext, type Page } from "@playwright/test";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 const REPO = path.resolve(new URL("../..", import.meta.url).pathname);
 const ROOM = "admin-room";
 
-function userToken(sub: string): string {
+function userToken(sub: string, room = ROOM): string {
   const out = spawnSync(
     "bash",
-    [path.join(REPO, "scripts", "issue-token.sh"), sub, ROOM, "field", "3600"],
+    [path.join(REPO, "scripts", "issue-token.sh"), sub, room, "field", "3600"],
     { encoding: "utf8", env: { ...process.env, TS_JWT_SECRET: process.env.TS_E2E_SECRET } },
   );
   return out.stdout.trim();
+}
+
+const BASE = () => process.env.TS_URL!;
+const OPS = "e2e-ops";
+const OPS_PASS = "e2e-pass-123";
+
+/** Idempotent account upsert (the bootstrap token is the CLI-side path) + the REAL
+ * UI login, so every row starts from a console the same way an operator does. */
+async function adminLoggedIn(browser: Browser, request: APIRequestContext): Promise<Page> {
+  const boot = await request.post(`${BASE()}/admin/api/accounts`, {
+    headers: { authorization: `Bearer ${adminToken()}` },
+    data: { user: OPS, password: OPS_PASS },
+  });
+  expect(boot.status(), "account upsert via registry").toBeLessThan(300);
+  const page = await (await browser.newContext()).newPage();
+  await page.goto(`${BASE()}/admin`);
+  await page.getByPlaceholder("Username").fill(OPS);
+  await page.getByPlaceholder("Password").fill(OPS_PASS);
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page.getByRole("button", { name: "Monitor" })).toBeVisible({
+    timeout: 15_000,
+  });
+  return page;
+}
+
+/** Join a room as a field peer and wait for the wire to say so. */
+async function joinField(browser: Browser, sub: string, room: string): Promise<Page> {
+  const page = await (await browser.newContext()).newPage();
+  await page.goto(`${BASE()}/field/${room}?jwt=${userToken(sub, room)}`);
+  await expect(page.getByText("connected")).toBeVisible({ timeout: 15_000 });
+  return page;
 }
 
 function adminToken(): string {
@@ -34,6 +65,8 @@ test.describe("admin console (stub lane)", () => {
 
   test("gate -> monitor -> issue -> click-through", async ({ browser, request }) => {
     test.setTimeout(90_000);
+    // bootstrap: the script-minted token creates the first human account
+    // (the real operator path), then the UI only ever sees user/pwd.
     // bootstrap: the script-minted token creates the first human account
     // (the real operator path), then the UI only ever sees user/pwd.
     const boot = await request.post(`${process.env.TS_URL}/admin/api/accounts`, {
@@ -86,5 +119,107 @@ test.describe("admin console (stub lane)", () => {
     expect(bounce.status(), "user token never authenticates admin API").toBe(401);
 
     await ctxF.close();
+  });
+
+  /** Expand the room row in Monitor and kick one peer through the confirm Modal. */
+  async function kickFromMonitor(admin: Page, room: string, peer: string, reason: string) {
+    await expect(admin.getByText(room)).toBeVisible({ timeout: 20_000 });
+    await admin
+      .locator("tr.ant-table-row", { hasText: room })
+      .first()
+      .locator(".ant-table-row-expand-icon")
+      .click();
+    // the nested peer table renders inside its own tr.ant-table-row; the room row's
+    // own cells never carry the peer id, so this is the peer row, not the parent
+    const row = admin.locator("tr.ant-table-row").filter({ hasText: peer }).last();
+    await row.getByRole("button", { name: "Kick" }).click();
+    const modal = admin.locator(".ant-modal");
+    await modal.getByPlaceholder(/Reason/).fill(reason);
+    const del = admin.waitForResponse(
+      (r) => r.url().includes(`/peers/${peer}`) && r.request().method() === "DELETE",
+    );
+    await modal.getByRole("button", { name: "Kick" }).click();
+    expect((await del).status(), `kick ${peer} answers 204`).toBe(204);
+    await expect(modal).toBeHidden({ timeout: 10_000 });
+  }
+
+  test("cross-client: a console kick clears the peer from ANOTHER peer's page (S7.4)", async ({
+    browser,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    const room = "kick-room";
+    const witness = await joinField(browser, "witness", room);
+    const victim = await joinField(browser, "victim", room);
+    await expect(witness.getByText("victim")).toBeVisible({ timeout: 10_000 });
+
+    const admin = await adminLoggedIn(browser, request);
+    await kickFromMonitor(admin, room, "victim", "cross-client kick reason");
+
+    // the point of this row: a page nobody touched learns the departure (PIT-21 rule
+    // - assert the OTHER peers' mirrors, never only the acting client's own screen)
+    await expect(witness.getByText("victim")).toBeHidden({ timeout: 10_000 });
+    // and the kicked peer's own surface stops claiming a live session
+    await expect(victim.getByText("offline")).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("audit: the console action lands as an evidence line in the Logs tab (S7.4)", async ({
+    browser,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    const room = "audit-room";
+    await joinField(browser, "noisy", room);
+
+    const admin = await adminLoggedIn(browser, request);
+    await kickFromMonitor(admin, room, "noisy", "audit evidence reason");
+
+    // Logs is deliberately manual-refresh (an evidence surface, not telemetry), so
+    // the refresh click is part of what this row proves
+    await admin.getByRole("button", { name: "Logs" }).click();
+    await admin.getByPlaceholder("room").fill(room);
+    await admin.getByRole("button", { name: "Refresh" }).click();
+    // one line per action; scope to the kick row, because the room filter keeps the
+    // join/leave lines for the SAME peer on screen and strict mode would match them all
+    const kickRow = admin.locator("tr.ant-table-row", { hasText: "kick" }).first();
+    await expect(kickRow.getByText("audit evidence reason")).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(kickRow.getByText("noisy", { exact: true })).toBeVisible(); // target
+    await expect(kickRow.getByText(OPS)).toBeVisible(); // actor = the console account
+    // R4 the other way round: a healthy writer must NOT warn about lost lines
+    await expect(admin.getByText(/failed to persist/)).toBeHidden();
+  });
+
+  test("locked room: the registry lock refuses a valid token, visibly (S7.4)", async ({
+    browser,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    const room = "locked-room";
+    const admin = await adminLoggedIn(browser, request);
+    await admin.getByRole("button", { name: "Rooms" }).click();
+    await admin.getByRole("button", { name: /New room/i }).click();
+    const modal = admin.locator(".ant-modal");
+    await modal.getByPlaceholder("ops-01").fill(room);
+    await modal.getByRole("switch").click(); // "Locked (refuse joins)"
+    await modal.getByRole("button", { name: "Save" }).click();
+    await expect(admin.getByText("🔒")).toBeVisible({ timeout: 10_000 });
+
+    // a structurally valid token for that room now cannot get in: hot registry read,
+    // no restart, no new wire variant (Error.code carries it)
+    const joiner = await (await browser.newContext()).newPage();
+    const frames: string[] = [];
+    joiner.on("websocket", (ws) =>
+      ws.on("framereceived", (f) => frames.push(String(f.payload))),
+    );
+    await joiner.goto(`${BASE()}/field/${room}?jwt=${userToken("late-joiner", room)}`);
+    await expect(joiner.getByText("connected")).toBeHidden();
+    await expect
+      .poll(() => frames.some((f) => f.includes("room_locked")), {
+        timeout: 15_000,
+        message: "the server never answered room_locked on the wire",
+      })
+      .toBe(true);
   });
 });
