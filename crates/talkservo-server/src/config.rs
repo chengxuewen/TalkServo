@@ -93,10 +93,17 @@ impl Config {
     pub fn load_yaml(path: &std::path::Path) -> Result<Self, String> {
         let text =
             std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
-        let doc: serde_yaml::Value =
-            serde_yaml::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))?;
+        // Dynamic shape on purpose-free terms: the document is walked as a flat
+        // mapping of scalars, and serde_json::Value (already a dependency for the
+        // REST plane) is the maintained equivalent of the old serde_yaml::Value.
+        // One visible difference: serde_json's map is ordered by key, not by source
+        // position - harmless here, because the loop below injects each key into the
+        // environment independently (only the order of `config_unknown_key` warnings
+        // shifts). Nested/null values still fall through to the rejection arm.
+        let doc: serde_json::Value =
+            serde_saphyr::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))?;
         let map = doc
-            .as_mapping()
+            .as_object()
             .ok_or_else(|| "server.yaml must be a flat mapping".to_string())?;
         // B sidecar: <config_dir>/../identity/env holds the 0600 secrets
         // (and, on legacy instances, TS_BIND). Both file layers apply ONLY to
@@ -112,9 +119,9 @@ impl Config {
             Self::apply_identity_sidecar(&sc, &real_env);
         }
         for (k, v) in map {
-            let key = k
-                .as_str()
-                .ok_or_else(|| "yaml keys must be strings".to_string())?;
+            // serde_json map keys are Strings by construction, so the old
+            // "yaml keys must be strings" branch went away with the dynamic Value.
+            let key = k.as_str();
             // B2: keys the facade renders for OTHER processes (caddy) are
             // valid yaml but not env-mapped here — skip, no unknown-key warn.
             if key == "front_port" {
@@ -132,9 +139,9 @@ impl Config {
                 continue; // env wins (12-factor)
             }
             let val = match v {
-                serde_yaml::Value::String(str) => str.clone(),
-                serde_yaml::Value::Number(num) => num.to_string(),
-                serde_yaml::Value::Bool(flag) => flag.to_string(),
+                serde_json::Value::String(str) => str.clone(),
+                serde_json::Value::Number(num) => num.to_string(),
+                serde_json::Value::Bool(flag) => flag.to_string(),
                 other => {
                     let _ = other;
                     return Err(format!(

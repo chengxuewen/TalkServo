@@ -56,7 +56,7 @@ pub fn load(cfg: &crate::config::Config) -> Vec<RoomRow> {
         return Vec::new();
     };
     match std::fs::read_to_string(&p) {
-        Ok(text) => match serde_yaml::from_str::<Vec<RoomRow>>(&text) {
+        Ok(text) => match serde_saphyr::from_str::<Vec<RoomRow>>(&text) {
             Ok(rows) => rows,
             Err(e) => {
                 tracing::error!(event = "rooms_registry_unreadable", "using defaults: {e}");
@@ -76,7 +76,7 @@ pub fn save(cfg: &crate::config::Config, rows: &[RoomRow]) -> Result<(), String>
     if let Some(dir) = p.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    let body = serde_yaml::to_string(rows).map_err(|e| e.to_string())?;
+    let body = serde_saphyr::to_string(&rows).map_err(|e| e.to_string())?;
     let tmp = p.with_extension("yaml.tmp");
     std::fs::write(&tmp, body).map_err(|e| e.to_string())?;
     #[cfg(unix)]

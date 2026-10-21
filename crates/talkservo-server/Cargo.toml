@@ -21,9 +21,11 @@ axum.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "sync", "time"] }
 serde.workspace = true
 serde_json.workspace = true
-# D19: YAML instance config. sister-proven 0.9 (EOL upstream — pinned,
-# audit-gated; migrate to a maintained parser if cargo-deny flags it).
-serde_yaml = "0.9"
+# D19: YAML instance config. The sister-proven 0.9 line was pinned "migrate to a
+# maintained parser if cargo-deny flags it" - cargo-deny flagged it (RUSTSEC-2024-0449
+# unsafe-libyaml, reached through serde_yaml's deprecated tree; no safe upgrade exists).
+# serde-saphyr is pure safe Rust; only the two directions we use are compiled in.
+serde-saphyr = { version = "2", default-features = false, features = ["serialize", "deserialize"] }
 jsonwebtoken.workspace = true
 hmac.workspace = true
 sha1.workspace = true

@@ -32,7 +32,7 @@ Instance lifecycle inside the server binary (facade subcommands, oxmgr does the 
 ## Slices (each: implement → verify → commit)
 
 ### T1 server: YAML config layer + init/facade
-- serde YAML dependency selection via source-driven verification (serde_yaml is EOL — candidates serde_yml / yaml-rust2; pick maintained + workspace-compatible, lock in Cargo.toml + deny.toml review)
+- [x] serde YAML dependency selection via source-driven verification — CLOSED 2026-10-21 with a third candidate: `serde-saphyr` (neither serde_yml nor yaml-rust2 was chosen; `serde_yml` is itself the unmaintained `unsafe-libyaml` consumer the RustSec advisory warns about). Chosen when the newly-wired `gate-deny` flagged RUSTSEC-2024-0449; no new dynamic-value dep (config.rs walks `serde_json::Value`, already a workspace dep)
 - `Config::load(path) -> merged`: precedence **process env > server.yaml > defaults** (documented; env keeps systemd/compose injection authoritative)
 - subcommand dispatch in main.rs (run as fallback = zero breakage); init templates as pure `#[cfg(test)]`-covered renderers (MediaServo templates.rs discipline: zero process side-effects in render functions)
 - gates: unit (merge precedence, idempotent secrets, template render), stub workspace green, lint clean

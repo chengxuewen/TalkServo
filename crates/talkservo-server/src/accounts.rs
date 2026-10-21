@@ -46,7 +46,7 @@ pub fn valid_user(s: &str) -> bool {
 
 pub fn load(path: &std::path::Path) -> Vec<Account> {
     match std::fs::read_to_string(path) {
-        Ok(text) => serde_yaml::from_str(&text).unwrap_or_else(|e| {
+        Ok(text) => serde_saphyr::from_str(&text).unwrap_or_else(|e| {
             tracing::warn!(event = "accounts_parse", path = %path.display(), "treating as empty: {e}");
             Vec::new()
         }),
@@ -58,7 +58,9 @@ pub fn load(path: &std::path::Path) -> Vec<Account> {
 /// passwords). A failed write leaves the previous file untouched: a torn
 /// account store is a lockout.
 pub fn save(path: &std::path::Path, accounts: &[Account]) -> Result<(), String> {
-    let body = serde_yaml::to_string(accounts).map_err(|e| e.to_string())?;
+    // `&accounts`, not `accounts`: serde-saphyr's to_string takes a Sized `&T`, so the
+    // slice reference itself is the value.
+    let body = serde_saphyr::to_string(&accounts).map_err(|e| e.to_string())?;
     let tmp = path.with_extension("yaml.tmp");
     let mut opts = std::fs::OpenOptions::new();
     opts.write(true).create(true).truncate(true);
