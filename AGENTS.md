@@ -29,14 +29,14 @@ TalkServo — real-time voice **floor-control platform** (PTT exclusive / confer
 | Architecture truth (live) | docs/architecture.md → modules/01-09 | master is thin by design |
 | Why a decision exists | .agents/memorys/decisions.md D1-D25 | cite by id; D23 = Alpha wave-1 (plan-7, S1-S7.5 landed), D25 = PolyOrch build graph |
 | Binding rules on this repo | .agents/memorys/conventions.md C1-C4 | C1 English, C2 docs-tiering, C3 full-word routes, C4 ledger-index consistency |
-| Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..29 | MediaServo ids labeled, never assume |
+| Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..30 | MediaServo ids labeled, never assume |
 | Competitive/selection evidence | docs/reference/research/{ptt,media,ui,tooling}/ | FROZEN dossiers |
 | What is left to do | .agents/memorys/status.md → Next Steps | rewritten 2026-10-21 (it had kept advertising plan-1 items as open work) |
 | SDK/binding future shape | docs/modules/07 + D8 | nothing built at Beta trigger, not before |
 
 ## CODE MAP
 
-Measured 2026-10-19: core = `FloorState::apply()` rules 1-9 (crates/talkservo-core/src/floor.rs, 42 tests incl. PIT-21 rebroadcast and the S7.5 mute rules); server = WS signaling (ws_flow), admin REST (admin.rs), accounts/kdf (D22), lifecycle/instance (D19-D21); web = session bridge (lib/session.ts) + 4 pages; SDK = TalkServoClient + MediaManager + MediasoupClientStack (packages/client). Codegraph index not yet built — use Grep/Glob.
+Measured 2026-10-19: core = `FloorState::apply()` rules 1-9 (crates/talkservo-core/src/floor.rs, 42 tests incl. PIT-21 rebroadcast and the S7.5 mute rules); server = WS signaling (ws_flow), admin REST (admin.rs), accounts/kdf (D22), lifecycle/instance (D19-D21); web = session bridge (lib/session.ts) + 4 pages; SDK = TalkServoClient + MediaManager + MediasoupClientStack (packages/client). Codegraph index BUILT 2026-10-21 (231 files, 2,195 nodes, 5,886 edges; `.codegraph/` is gitignored) — `codegraph_explore`/`codegraph query` work against this project, refresh with `codegraph sync` after big refactors.
 
 ## CONVENTIONS (deviations only — full text lives in ledgers, do not restate here)
 
@@ -44,7 +44,7 @@ Measured 2026-10-19: core = `FloorState::apply()` rules 1-9 (crates/talkservo-co
 - **C2**: docs tiering — design→`docs/modules/NN`, knowledge→`docs/reference/`, frozen research→`reference/research/<domain>/`.
 - **C3**: user-facing route/CLI/API names use full mainstream words (`/admin`, `/field/:room`, `/dispatch/:room`, `/room/:room`) — no cryptic abbreviations.
 - **C4**: files that *index* the ledgers (AGENTS.md ranges, status.md decision table) must match ledger contents — `bash scripts/gate.sh` C4 block enforces; update index rows in the same commit as the ledger entry.
-- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D25, C1-C4, PIT-1..29.
+- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D25, C1-C4, PIT-1..30.
 - **Cargo.lock committed**; mediasoup UDP/ICE constraints in `.agents/rules/common/{docker,platform}.md` (Linux-native-first per D11 — their macOS posture is conditional).
 
 ## ANTI-PATTERNS (THIS PROJECT — learned in-session, enforced)

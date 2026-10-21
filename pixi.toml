@@ -37,7 +37,11 @@ lint        = "cargo clippy --workspace --all-targets -- -D warnings"
 test-sfu    = "cargo test -p talkservo-server --features sfu-mediasoup"
 format      = "cargo fmt --all -- --check"
 format-fix  = "cargo fmt --all"
-audit       = "cargo deny check"
+# $CARGO_HOME/bin must be on PATH: cargo-deny is a user-installed subcommand and is
+# otherwise invisible to the pixi env (the same gap cmake gate-deny used to have).
+# /usr/bin:/bin too: the shell pixi spawns starts with a PATH so thin that cargo-deny's
+# `git` (RustSec DB update) is not findable, which surfaces as "failed to spawn git".
+audit       = "PATH=\"${CARGO_HOME:-$HOME/.cargo}/bin:/usr/bin:/bin:$PATH\" cargo deny check"
 coverage    = "cargo tarpaulin --workspace --out Lcov"
 web-install = "npm ci --prefix web"
 web-build   = "cmake --build out/cmake-build --target talkservo-web-build"   # P2 forwarder

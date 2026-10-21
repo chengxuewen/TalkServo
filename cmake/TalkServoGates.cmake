@@ -33,11 +33,24 @@ function(talkservo_gates)
   add_test(NAME gate-clippy COMMAND ${_cmd} WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   set_tests_properties(gate-clippy PROPERTIES LABELS "gate;headless;slow" TIMEOUT 900)
 
-  # cargo-deny is an OPTIONAL tool (absent from the conda env today; the
-  # `audit` task has the same latent gap) - runtime probe, honest skip.
+  # cargo-deny is an OPTIONAL tool - the skip below stays honest when it is truly
+  # absent. But it is installed as a USER cargo subcommand ($CARGO_HOME/bin, default
+  # ~/.cargo/bin), which neither the pixi env nor ctest puts on PATH: the probe looked
+  # for a binary it could not see, so every run reported the supply-chain check as
+  # Skipped while the tool sat on the disk. Widening PATH costs nothing and the
+  # `audit` task gets the same treatment.
+  # /usr/bin:/bin are NOT optional here: cargo-deny shells out to `git` to update the
+  # RustSec DB, and the shell `pixi run` spawns starts with a PATH so thin that even
+  # /usr/bin is missing (measured: `command -v git` empty, `tail` not found) - the run
+  # then dies as "failed to spawn git: No such file or directory", which reads like a
+  # tooling bug and is really a missing PATH entry.
   get_filename_component(_cargodir "${POLYORCH_RUST_CARGO}" DIRECTORY)
+  set(_cargo_home "$ENV{CARGO_HOME}")
+  if(_cargo_home STREQUAL "")
+    set(_cargo_home "$ENV{HOME}/.cargo")
+  endif()
   add_test(NAME gate-deny
-      COMMAND sh -c "export PATH='${_cargodir}:\$PATH'; command -v cargo-deny >/dev/null 2>&1 || exit 77; exec cargo-deny check"
+      COMMAND sh -c "export PATH='${_cargo_home}/bin:${_cargodir}:/usr/bin:/bin:\$PATH'; command -v cargo-deny >/dev/null 2>&1 || exit 77; exec cargo-deny check"
       WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   set_tests_properties(gate-deny PROPERTIES LABELS "gate;headless" TIMEOUT 300 SKIP_RETURN_CODE 77)
 

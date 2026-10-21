@@ -69,10 +69,13 @@ deferred UI case, all by 2026-10-21). What is actually left:*
 
 1. **Push the local queue** — as of this writing the wave-1 close is local-only (`git status -sb`
    carries the live count). Unpushed commits are the one remaining way this work can be lost.
-2. **Restore the supply-chain gate.** `cargo-deny` is not installed, so `gate-deny` exits 77 and
-   every `ctest -L gate` run reports Skipped — dependency licence/vulnerability review is
-   currently nobody's job. Either install it or drop the block and say so in the label.
-   Check: `ctest --test-dir out/cmake-build -L gate` must show gate-deny Passed, not Skipped.
+2. **Supply-chain gate is live (closed 2026-10-21).** The earlier claim here — "`cargo-deny` is
+   not installed" — was WRONG and is retracted: the binary sat in `$CARGO_HOME/bin` all along,
+   invisible to the probe's PATH, so `gate-deny` reported Skipped forever (PIT-30). Fixed in
+   `cmake/TalkServoGates.cmake` + the `audit` task, and the first real run immediately found a
+   live advisory (RUSTSEC-2024-0449 `unsafe-libyaml` via deprecated `serde_yaml`) which was
+   REMOVED rather than ignored, by migrating to `serde-saphyr`.
+   Check: `ctest --test-dir out/cmake-build -L gate` shows gate-deny Passed (≈1.4s).
 3. **Wave-2 protocol batch** (deferred as a family by D23): AdminEvent WS push to replace the
    console's 3s poll; operator Listen (needs the SFU admin consume path + an AdminListen/Role
    wire addition). Both touch the wire → `api-interface-design` + a plan doc BEFORE code, and
@@ -80,7 +83,7 @@ deferred UI case, all by 2026-10-21). What is actually left:*
 4. **Alpha ops backlog opened by D24**: GAP-3 secret-rotation procedures, GAP-4 `audit.jsonl`
    ops story, GAP-5 Alpha ops doc home, GAP-6 Alpha gate consolidation.
 5. **Trigger-gated — do NOT start early**: Electron shell (D10, Alpha), SDK npm publish
-   (D14, Beta), codegraph index (user's call; AGENTS.md currently directs Grep/Glob instead).
+   (D14, Beta). (Codegraph indexing left this list: built 2026-10-21, see AGENTS.md.)
 6. **Watch item, no action**: PIT-26 — the cross-client roster row failed once (1 of 13) with no
    proven mechanism and no retry added. If it returns, capture the witness's WS frames plus the
    `window.__tsSessions` mirror dump; the entry lists what was already ruled out.
