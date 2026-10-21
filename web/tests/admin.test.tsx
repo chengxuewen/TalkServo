@@ -232,4 +232,39 @@ describe("admin console", () => {
     expect(await screen.findByText(/registry writes require admin/)).toBeTruthy();
     sessionStorage.removeItem("ts-admin-role");
   });
+
+  it("rooms create posts the TYPED values, not the empty draft (S7.5 e2e caught this)", async () => {
+    setAdminJwt("tok");
+    mockFetch();
+    ui();
+    fireEvent.click(await screen.findByText("Rooms"));
+    await screen.findByText("squad"); // registry loaded, tab live
+    fireEvent.click(screen.getByText(/New room/i));
+    const modal = document.querySelector(".ant-modal") as HTMLElement;
+    expect(modal).toBeTruthy();
+    fireEvent.change(within(modal).getByPlaceholderText("ops-01"), {
+      target: { value: "night-ops" },
+    });
+    fireEvent.click(within(modal).getByRole("switch")); // Locked (refuse joins)
+    await act(async () => {
+      fireEvent.click(within(modal).getByText("Save"));
+    });
+    await waitFor(
+      () => {
+        const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+          .calls as unknown as [string, { method?: string; body?: string }][];
+        const post = calls.find(
+          ([u, i]) => String(u) === "/admin/api/rooms" && i?.method === "POST",
+        );
+        expect(post).toBeTruthy();
+        const row = JSON.parse(post?.[1]?.body ?? "{}") as {
+          room?: string;
+          locked?: boolean;
+        };
+        expect(row.room).toBe("night-ops");
+        expect(row.locked).toBe(true);
+      },
+      { timeout: 4000 },
+    );
+  });
 });

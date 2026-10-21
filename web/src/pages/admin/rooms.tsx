@@ -12,6 +12,19 @@ export function RoomsTab({ api, tier }: { api: AdminApi; tier: string }): React.
   const [rows, setRows] = useState<RoomConfigRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  // The Modal's OK button sits OUTSIDE the Form, so AntD never runs onFinish and the
+  // typed values used to vanish: save() posted the raw draft (an EMPTY room id for
+  // "New room"), the server answered 400, and the registry looked un-writable. The
+  // e2e registry row found it; the vitest row only checked the button existed.
+  const [form] = Form.useForm<Draft>();
+
+  const openDraft = (d: Draft) => {
+    // the form store outlives the fields, so seeding here survives the modal opening
+    // on the next render and clears whatever the previous edit left behind
+    form.resetFields();
+    form.setFieldsValue(d);
+    setDraft(d);
+  };
 
   const reload = () =>
     api
@@ -24,8 +37,16 @@ export function RoomsTab({ api, tier }: { api: AdminApi; tier: string }): React.
 
   const save = async () => {
     if (!draft) return;
+    let values: Draft;
     try {
-      await api.createRoom(draft as { room: string } & Partial<RoomConfigRow>);
+      values = await form.validateFields(); // a failed rule keeps the modal open
+    } catch {
+      return;
+    }
+    try {
+      await api.createRoom(
+        { ...draft, ...values } as { room: string } & Partial<RoomConfigRow>,
+      );
       setDraft(null);
       setError(null);
       reload();
@@ -52,7 +73,11 @@ export function RoomsTab({ api, tier }: { api: AdminApi; tier: string }): React.
       {!writable && (
         <Alert type="info" message="operator tier: registry writes require admin" style={{ marginBottom: 12 }} />
       )}
-      <Button type="primary" disabled={!writable} onClick={() => setDraft({ room: "", owner: "", locked: false })}>
+      <Button
+        type="primary"
+        disabled={!writable}
+        onClick={() => openDraft({ room: "", owner: "", locked: false })}
+      >
         New room
       </Button>
       <Table<RoomConfigRow>
@@ -72,7 +97,7 @@ export function RoomsTab({ api, tier }: { api: AdminApi; tier: string }): React.
             key: "ops",
             render: (_, r) => (
               <span>
-                <Button size="small" disabled={!writable} onClick={() => setDraft({ ...r })}>
+                <Button size="small" disabled={!writable} onClick={() => openDraft({ ...r })}>
                   Edit
                 </Button>
                 <Popconfirm
@@ -92,7 +117,7 @@ export function RoomsTab({ api, tier }: { api: AdminApi; tier: string }): React.
       />
       <Modal open={draft !== null} okText="Save" onOk={() => void save()} onCancel={() => setDraft(null)}>
         {draft && (
-          <Form layout="vertical" initialValues={draft} onFinish={(v: Draft) => setDraft({ ...draft, ...v })}>
+          <Form form={form} layout="vertical" initialValues={draft}>
             <Form.Item name="room" label="Room id" rules={[{ required: true }]}>
               <Input placeholder="ops-01" disabled={!!rows.find((r) => r.room === draft.room)} />
             </Form.Item>
