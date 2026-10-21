@@ -91,5 +91,12 @@ consumer to migrate yet (the SDK never speaks this plane — D14 scope).
   works and stays silent, budget 429 at the constant, two tabs both hinted.
 * `admin_events.rs` unit tests — no-subscriber is not a loss, lag is reported to the
   receiver, `absorb` collapses a burst, advertised debounce = compiled constant.
-* `web/tests/admin-events.test.ts` — Rust/TS variant-set equality, tagged-snake_case
-  shape, and the "no content in a hint" invariant.
+* `web/tests/admin-live.test.tsx` — the console side: the token never rides the URL, `hello`
+  is what flips the tab to live (connecting is not live), a burst of 5 hints costs exactly one
+  incremental fetch AND no full refetch, a pushed room paints without a poll, and a dropped
+  link becomes visible.
+* `e2e/admin.spec.ts` — `push:` and `degrade:` rows against the real server and two real tabs
+  (architecture §4 row 15 carries the measured figure).
+* `src/lib/adminEvents.ts` is the client mirror; the drift gate lives in
+  `crates/talkservo-server/tests/admin_events.rs` (variant sets compared, so a frame nobody
+  sent is still caught).

@@ -16,7 +16,7 @@ TalkServo — real-time voice **floor-control platform** (PTT exclusive / confer
 ├── docs/           # whitepaper + architecture MASTER + modules/ (design) + reference/ (living + frozen research) — see its AGENTS.md
 ├── crates/         # workspace: talkservo-core (42 tests) / -sfu / -server (88 stub-lane) — plan-1..6 EXECUTED
 ├── web/            # SPA (Vite+React18+AntD5): dispatch/field/participant/admin pages + e2e
-├── packages/client # TS SDK (22 tests, unpublished D14)
+├── packages/client # TS SDK (24 tests, unpublished D14)
 ├── scripts/ config/ docker/ pixi.toml  # toolchain + coturn + lanes (docs/modules/09)
 └── package.json    # codegraph MCP dev-dep
 ```

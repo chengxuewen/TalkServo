@@ -78,6 +78,15 @@ Additional (from design session):
 13. Trust & control (wave-1, D23): an unauthorized actor cannot change mode or mute (denial is audited); the operator tier cannot write the room registry or the account list (403); every admin mutation — login failure, mode change, mute, kick, force-release, registry write, token issue — lands one audit line with actor/target/reason; kick and force-release take effect on the live room within one poll. *(verified 2026-10-20 by the Rust lanes `authz_flow` / `permission_matrix` / `audit_flow` / `rooms_registry` / `mod_claims` / `intervention`; the browser-layer trio — another peer sees the departure, Logs shows the line, locked room rejects the join — is deferred to its own e2e batch)*
 14. Crash recovery (modules/05 E12, wave-1 S7.6): kill -9 the server mid-hold → respawn with the same env → previously issued tokens still verify, rooms rebuild lazily on first join, the floor re-grants, a late joiner learns the roster via peer_list. *(verified 2026-10-20 by the `crash_recovery` lane)*
 
+15. Realtime control plane (wave-2, plan-9): an operator action in one console tab repaints
+**another** console tab without waiting for a poll — measured 6–35 ms (6 samples, loopback
+stub lane; the clock starts at the DELETE response and stops when the other tab's cell changes,
+so it excludes the kicked peer's own teardown), against a 30 s reconcile and a 3 s degraded
+fallback. The link state is also a requirement, not a nicety: with the socket down the tab
+must SAY so (`push-state` notice) and keep working on the fallback poll — a console that looks
+healthy while it has stopped listening is the failure mode this wave exists to remove.
+*(verified 2026-10-21 by `e2e/admin.spec.ts` push + degrade rows, `web/tests/admin-live.test.tsx`)*
+
 Test layers: unit (core, any platform) → integration (stub-media) → e2e automated (Linux, real worker + Playwright fake-device 3-instance scenario) → manual public network. CI: fmt/clippy/test dual-OS + test-mediasoup ubuntu + nightly e2e (non-blocking) — reusing the ported ci-cd-automation skeleton.
 
 ## 5. Relationship to MediaServo

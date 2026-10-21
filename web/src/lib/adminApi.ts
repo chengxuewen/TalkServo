@@ -185,8 +185,11 @@ export class AdminApi {
       reason ? { reason } : undefined,
     );
   }
-  audit(q: { event?: string; room?: string; actor?: string; limit?: number } = {}): Promise<AuditPage> {
+  // `after` is the server's seq cursor (audit.rs AuditQuery): the push plane gives a
+  // hint, this asks for just what is newer — the ONLY way a row enters the table
+  audit(q: { event?: string; room?: string; actor?: string; limit?: number; after?: number } = {}): Promise<AuditPage> {
     const ps = new URLSearchParams();
+    if (q.after != null) ps.set("after", String(q.after));
     if (q.event) ps.set("event", q.event);
     if (q.room) ps.set("room", q.room);
     if (q.actor) ps.set("actor", q.actor);

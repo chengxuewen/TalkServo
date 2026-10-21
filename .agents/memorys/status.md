@@ -9,8 +9,8 @@
 
 | Crate / Module | Tests | Notes |
 |-------|:----:|------|
-| packages/client (TS SDK, unpublished D14) | 16 | wire mirror + signal transport + store + facade + media manager; coverage 78.9% |
-| web/ (SPA, Vite+React18+AntD5) | 20 | dispatcher + field + participant pages (deny≠mute copy via lib/floorCopy.ts, plan-7 S7.5), admin five-tab console (pages/admin/, S7), S-3 session bridge, dark theme; embedded via feature `embedded-web`; e2e 15 tests/5 files in the graph lane (floor incl. the live mute row; admin: click-through + cross-client kick + audit Logs line + registry lock) |
+| packages/client (TS SDK, unpublished D14) | 24 | wire mirror + signal transport + store + facade + media manager; coverage 78.9% |
+| web/ (SPA, Vite+React18+AntD5) | 25 | dispatcher + field + participant pages (deny≠mute copy via lib/floorCopy.ts, plan-7 S7.5), admin five-tab console (pages/admin/, S7), S-3 session bridge, dark theme; embedded via feature `embedded-web`; e2e 15 tests/5 files in the graph lane (floor incl. the live mute row; admin: click-through + cross-client kick + audit Logs line + registry lock) |
 | crates/talkservo-core | 42 | ids + wire contract (27-variant, D16) + FloorState apply() rules 1-9 (Rule 2/8 re-scoped by S7.5: mute revokes grant + queue slot) + grant-set shrink rebroadcast (PIT-21); floor.rs coverage 87.5% |
 | crates/talkservo-sfu | 1 | Sfu trait (create/connect/produce/consume/apply_floor diff/peer_left/media_activity E11 seam) + StubSfu call-log backend + MediasoupSfu skeleton (supervisor seam) |
 | crates/talkservo-sfu | 1 | Sfu trait + exactly-one-backend compile gate (mediasoup\|stub) |
@@ -76,11 +76,14 @@ deferred UI case, all by 2026-10-21). What is actually left:*
    live advisory (RUSTSEC-2024-0449 `unsafe-libyaml` via deprecated `serde_yaml`) which was
    REMOVED rather than ignored, by migrating to `serde-saphyr`.
    Check: `ctest --test-dir out/cmake-build -L gate` shows gate-deny Passed (≈1.4s).
-3. **Wave-2 IN FLIGHT** (same plan file): **W1 + W3 LANDED 2026-10-21** — `/admin/ws` with its own
+3. **Wave-2 IN FLIGHT** (same plan file): **W1 + W2 + W3 LANDED 2026-10-21** — `/admin/ws` with its own
    `AdminEvent` contract (hints carry no row content, so `seq` stays a ledger-side concern), bounded hub
    with a counted eviction, its own 120/min connect budget, `docs/reference/admin-events.md`, TS mirror
-   plus a Rust↔TS variant-set drift test, and the row probe that closed PIT-26. W2 (console
-   adoption) and the push-latency measurement remain; landing W1 surfaced plan-9 R7 (below).
+   plus a Rust↔TS variant-set drift test, and the row probe that closed PIT-26; **W2 LANDED the
+   same day** (console push-first, 30s reconcile / 3s degraded fallback, visible link state,
+   debounced incremental Logs), which measured the push figure architecture §4 row 15 now
+   carries. Landing W1 surfaced plan-9 R7 (below), and R7's own fix is what made the console
+   adoption safe to ship.
    Observed while landing it: `gate-deny` failed once on a transient advisory-DB fetch and Passed on
    re-run — the now-live gate needs network, so a red gate-deny means check connectivity before
    believing a vulnerability. The plan's own §1/§6 claim "audit.rs is NOT touched" was corrected the

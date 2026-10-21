@@ -219,6 +219,82 @@ test.describe("admin console (stub lane)", () => {
     await expect(victim.getByText("Removed by dispatcher", { exact: true })).toBeVisible();
   });
 
+  test("push: a second console tab updates without waiting for its reconcile (W2)", async ({
+    browser,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    const room = "push-room";
+    await joinField(browser, "noisy-a", room);
+    await joinField(browser, "noisy-b", room);
+
+    const witnessTab = await adminLoggedIn(browser, request);
+    const actorTab = await adminLoggedIn(browser, request);
+
+    // live on both: no degrade notice anywhere (and it is the notice, not the poll
+    // cadence, that this row is really asserting)
+    await expect(witnessTab.getByTestId("push-state")).toHaveCount(0);
+
+    // expand ONLY the witness tab: kickFromMonitor expands the actor's row itself,
+    // and a second click on an already-expanded row collapses it again
+    await expect(witnessTab.getByText(room)).toBeVisible({ timeout: 20_000 });
+    await witnessTab
+      .locator("tr.ant-table-row", { hasText: room })
+      .first()
+      .locator(".ant-table-row-expand-icon")
+      .click();
+    await expect(witnessTab.getByText("noisy-b")).toBeVisible({ timeout: 10_000 });
+
+    await kickFromMonitor(actorTab, room, "noisy-b", "push evidence");
+
+    // the witness tab reconciles every 30s, so anything it shows inside 5s arrived by
+    // push. Measured rather than asserted-in-the-abstract: the number goes into
+    // architecture §4 as this wave's acceptance figure (operator action → another
+    // console tab repaints), and the bound is what the design promises
+    const t0 = Date.now();
+    await expect(witnessTab.getByText("noisy-b")).toBeHidden({ timeout: 5_000 });
+    const ms = Date.now() - t0;
+    console.log(`PUSH_LATENCY_MS=${ms}`);
+    expect(ms, "push must beat the 30s reconcile by a wide margin").toBeLessThan(3_000);
+    await expect(witnessTab.getByText("noisy-a")).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("degrade: a dropped push link is announced, not silently frozen (W2)", async ({
+    browser,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    const room = "drop-room";
+    await joinField(browser, "solo", room);
+    const admin = await adminLoggedIn(browser, request);
+    await expect(admin.getByTestId("push-state")).toHaveCount(0);
+
+    // stop() is the production stop path (logout bounce uses it), so this exercises
+    // the same code a real drop takes rather than a test-only hook
+    await admin.evaluate(() => {
+      const w = window as unknown as { __tsAdminEvents?: { stop(): void } };
+      w.__tsAdminEvents?.stop();
+    });
+    await expect(admin.getByTestId("push-state")).toBeVisible({ timeout: 5_000 });
+    await expect(admin.getByTestId("push-state")).toContainText("down");
+
+    // and the work still gets done: with no push, the fallback tick (3s) keeps the
+    // table honest. Asserted as a CHANGE on this room's own row, not on an absolute
+    // count — overview/rooms are server-global, and earlier rows in this file leave
+    // their rooms alive until the idle reaper, so "Peers 1" was simply wrong here
+    const row = admin.locator("tr.ant-table-row", { hasText: room }).first();
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    const before = await row.innerText();
+    const peer = await joinField(browser, "latecomer", room);
+    await expect
+      .poll(async () => (await row.innerText()) !== before, {
+        timeout: 10_000,
+        message: "the degraded poll stopped updating the table",
+      })
+      .toBe(true);
+    await peer.close();
+  });
+
   test("audit: the console action lands as an evidence line in the Logs tab (S7.4)", async ({
     browser,
     request,

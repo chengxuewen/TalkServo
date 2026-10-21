@@ -2,9 +2,20 @@
 // D23 UI annex: five tabs `Monitor | Rooms | Tokens | Accounts(admin) | Logs`;
 // Accounts renders for the admin tier only - the server's 403 is the real gate,
 // the Sider filter is UX (D24 audit note). Sections split per file (<=150 lines).
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Card, Input, Layout, Space } from "antd";
-import { AdminApi, adminJwt, adminRole, setAdminJwt } from "../../lib/adminApi.js";
+import {
+  AdminApi,
+  adminJwt,
+  adminRole,
+  setAdminJwt,
+  type RoomRow,
+} from "../../lib/adminApi.js";
+import {
+  AdminEvents,
+  type Link,
+  type Sock,
+} from "../../lib/adminEventsClient.js";
 import { MonitorTab } from "./monitor.js";
 import { RoomsTab } from "./rooms.js";
 import { TokensTab } from "./tokens.js";
@@ -23,15 +34,49 @@ export function AdminPage(): React.ReactElement {
   const [gateError, setGateError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("monitor");
 
-  const api = useMemo(
-    () =>
-      new AdminApi(() => {
-        setAdminJwt(null);
-        setAuthorized(false);
-        setGateError("session expired or rejected — log in again");
-      }),
-    [],
-  );
+  // plan-9 W2: one socket per tab (R5=A). Link state, the pushed rooms body and an
+  // audit-hint counter live here — the tabs receive them as props, so no component
+  // owns the transport and nobody can hold a stale subscription after a bounce
+  const [link, setLink] = useState<Link>("down");
+  const [snapshot, setSnapshot] = useState<RoomRow[] | null>(null);
+  const [hint, setHint] = useState(0);
+
+  const bounce = () => {
+    setAdminJwt(null);
+    setAuthorized(false);
+    setGateError("session expired or rejected — log in again");
+  };
+  const api = useMemo(() => new AdminApi(bounce), []);
+  const events = useMemo(() => {
+    // seam for the unit lane: vitest installs a fake socket here so the push paths
+    // (hello/rooms_live/audit_hint/drop) are assertable without a network. The
+    // production bundle takes the real WebSocket branch — no behavior switch, just
+    // the constructor.
+    const injected = (
+      window as unknown as { __tsAdminWsFactory?: (url: string) => Sock }
+    ).__tsAdminWsFactory;
+    return new AdminEvents({
+      token: () => adminJwt(),
+      onHint: () => setHint((n) => n + 1),
+      onRooms: (rooms) => setSnapshot(rooms as RoomRow[]),
+      onLink: setLink,
+      ...(injected ? { wsFactory: injected } : {}),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (authorized) events.start();
+    else events.stop();
+    return () => events.stop();
+  }, [authorized, events]);
+
+  if (typeof window !== "undefined") {
+    // e2e diagnostics hook (same spirit as __tsSessions): lets a test prove the
+    // degrade path by dropping the link, instead of trusting an unobservable timer
+    (
+      window as unknown as { __tsAdminEvents?: AdminEvents | null }
+    ).__tsAdminEvents = authorized ? events : null;
+  }
 
   const loginByPassword = async () => {
     try {
@@ -108,11 +153,13 @@ export function AdminPage(): React.ReactElement {
         </Space>
       </Sider>
       <Content style={{ padding: 24 }}>
-        {tab === "monitor" && <MonitorTab api={api} />}
+        {tab === "monitor" && (
+          <MonitorTab api={api} link={link} snapshot={snapshot} />
+        )}
         {tab === "rooms" && <RoomsTab api={api} tier={tier} />}
         {tab === "tokens" && <TokensTab api={api} />}
         {tab === "accounts" && <AccountsTab api={api} />}
-        {tab === "logs" && <LogsTab api={api} />}
+        {tab === "logs" && <LogsTab api={api} hint={hint} link={link} />}
       </Content>
     </Layout>
   );
