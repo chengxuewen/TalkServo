@@ -56,8 +56,13 @@ Workspace members at creation: `crates/{core,sfu,server}` only (D7); binding dir
 
 ```text
 new machine:  git clone → source bootstrap.sh     # detects/installs pixi (curl), pixi install, prints next step
+              then: pixi run client-install && pixi run web-install   # npm provisioning per clone; the graph never installs
 daily:        source pixi.sh                      # exec pixi shell -e dev (or `pixi run <task>` one-offs)
 verify loop:  pixi run lint && pixi run test        # daily, minutes
+              (a fresh clone needs BOTH pixi run client-install and pixi run web-install: talkservo-web-build
+               runs npm run build only, whose tsc --noEmit also typechecks ../packages/client/src - missing deps
+               surface as sh: 1: tsc: not found or Cannot find module mediasoup-client, and configure now warns
+               per package when either node_modules directory is absent)
 push-to-live: TS_LANE_LIVE=1 pixi run test-sfu   # mediasoup backend incl. the C++ worker: measured 1545s
 clean-env parity: scripts/docker-cargo.sh test -p talkservo-server --features sfu-mediasoup   (ubuntu:22.04 image, by hand — no hosted runner, D26)
 secrets:      scripts/scan-hardcode.sh            # path already referenced by security-hardening skill — implementation = this repo's grep-based scan

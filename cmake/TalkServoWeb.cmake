@@ -13,6 +13,23 @@ function(talkservo_web)
     message(FATAL_ERROR "call talkservo_ensure_polyorch() first - PolyOrch helpers absent")
   endif()
   polyorch_node_setup(QUIET)
+  # Provisioning is NOT the graph's job (polyorch_node_build only runs `npm run build`; the
+  # install lives in the pixi task `web-install` = `npm ci --prefix web`, per plan-8's line).
+  # Say so at configure time: the raw symptom for a fresh clone is `sh: 1: tsc: not found`
+  # buried in npm output, which reads like a broken toolchain (found by the plan-10 drill).
+  foreach(_pkg web packages/client)
+    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/${_pkg}/node_modules")
+      if(_pkg STREQUAL "web")
+        set(_provision_task web-install)
+      else()
+        set(_provision_task client-install)
+      endif()
+      message(WARNING "${_pkg}/node_modules is missing - run pixi run ${_provision_task} once per "
+                      "clone before the web lane, talkservo-lanes-stub-build or ctest -L rust|web can "
+                      "succeed: rust-embed needs web/dist, vite needs the web deps, and tsc --noEmit "
+                      "typechecks ../packages/client/src so the SDK needs its own deps installed.")
+    endif()
+  endforeach()
   if(NOT POLYORCH_NODE_FOUND)
     message(STATUS "talkservo web: node toolchain absent -- lane off (skeleton CI stays rust-only)")
     return()
@@ -44,7 +61,7 @@ function(talkservo_web)
   # build must run before those ctest entries even when nobody ran a build step first (the
   # plan-10 fresh-clone drill found the graph relying on an already-warm tree).
   add_test(NAME web-dist-fixture
-           COMMAND npm --prefix "${CMAKE_SOURCE_DIR}/web" run build
+           COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --target talkservo-web-build
            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   set_tests_properties(web-dist-fixture PROPERTIES
       FIXTURES_SETUP webdist TIMEOUT 300 LABELS "fixture")
@@ -59,6 +76,7 @@ function(talkservo_web)
            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   set_tests_properties(web-test PROPERTIES
       LABELS "web;headless"
+      FIXTURES_REQUIRED webdist
       TIMEOUT 180)
   message(STATUS "talkservo web: node lane registered (talkservo-web build/test)")
 

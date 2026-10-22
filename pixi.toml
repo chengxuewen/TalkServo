@@ -43,6 +43,10 @@ format-fix  = "cargo fmt --all"
 # `git` (RustSec DB update) is not findable, which surfaces as "failed to spawn git".
 audit       = "PATH=\"${CARGO_HOME:-$HOME/.cargo}/bin:/usr/bin:/bin:$PATH\" cargo deny check"
 coverage    = "cargo tarpaulin --workspace --out Lcov"
+# Both Node packages need provisioning per clone: `web` builds the SPA, and web/tsconfig also
+# typechecks ../packages/client/src (tsc --noEmit reaches into the SDK), so a clone missing the
+# SDK node_modules fails as: Cannot find module mediasoup-client (plan-10 drill, 2026-10-22).
+client-install = "npm ci --prefix packages/client"
 web-install = "npm ci --prefix web"
 web-build   = "cmake --build out/cmake-build --target talkservo-web-build"   # P2 forwarder
 web-test    = "ctest --test-dir out/cmake-build -L web"   # P2 forwarder
