@@ -173,6 +173,10 @@
 - **Solution**: the gate's export lists every directory the tool chain needs — `$CARGO_HOME/bin` (user subcommands), the lane cargo dir, and `/usr/bin:/bin` — keeping the `exit 77` skip for the genuinely-absent case. Same fix in the `audit` task.
 - **Verification**: `ctest --test-dir out/cmake-build -R gate-deny --output-on-failure` → `Passed` (~1.4s, not Skipped); `~/.pixi/bin/pixi run audit` → `advisories ok, bans ok, licenses ok, sources ok`. Sanity-probe the shell's PATH the same way before trusting any "tool missing" verdict: `pixi run -e dev sh -c 'command -v git || echo PATH_TOO_THIN'`.
 - **Prevention rule**: a probe that reports absence must prove absence *in the environment the child will actually run in*. When a gate has been Skipped for more than a day, run the underlying command by hand once — the skip is the least informative failure mode there is, and here it hid a live advisory.
+- **Recurrence (2026-10-22)**: `ninja -C out/cmake-build -t targets` printed NOTHING from a shell without the
+  pixi env on PATH, and the piped `grep` then reported success on the empty stream — the same blindness moved
+  into a plan's own verification step. Extended: run a probe once WITHOUT the pipe, confirm non-empty, then trust
+  a pipeline that ends in grep.
 
 ## PIT-31: "restoring" a file from session memory restores your own earlier damage — check `git show HEAD:<path>` instead (2026-10-21, two occurrences in one session)
 - **Symptom**: (a) while writing the admin-plane web check I believed `packages/client/src/types.ts` contained `Change/AuditRow/AuditPage`, and after an edit "restored" them; the file at HEAD is 106 lines and never had them (they live in `web/src/lib/adminApi.ts:66`). (b) One minute later I claimed `cmake/TalkServoWeb.cmake:45-48` referenced a stale `web/vite-config.cmake` — the source tree contains no such string anywhere; the grep hit had printed without a filename prefix and I assigned it to a file from memory.
@@ -209,3 +213,20 @@
 - **Solution**: flush per contiguous table block (reset state whenever a non-`|` line ends the block), re-run → `0 problems`. Treat any new checker as unproven until it has been shown to pass on a file you already believe is clean.
 - **Verification**: corrected checker over the five edited files prints `table column problems: 0`; `bash scripts/gate.sh` (LINK + C2 + C5 blocks) is the shipped equivalent for doc structure and returns 6 `[PASS]`.
 - **Prevention rule**: validate the harness before acting on its output, and prefer the repo's existing check over a re-invention; when findings align with your loop's own boundaries, suspect the checker first.
+- **Recurrence (2026-10-22, self-inflicted)**: timings captured as `cmd | grep ... | head -8` were meaningless —
+  `head` closed the pipe and SIGPIPE killed the measured process, so a 23-minute build "finished" in 10s. Write
+  measurement output to a file and read it after; never time a pipeline whose tail can exit early.
+
+## PIT-36: ctest label filters are partial regexes — a hierarchical label silently widens another lane (2026-10-22)
+- **Symptom**: the plan pinned `ctest -L "rust|web"` at 4 entries as the daily surface. Registering the live lane with the label `rust-live` made that same filter match 5 — the fast lane had absorbed the lane that costs 26 minutes.
+- **Root cause**: `-L` matches the regex against each label as a substring, so `rust` inside `rust-live` matches. Nothing says "this label belongs to a filter you already wrote"; the daily verb just gets slower and the cause reads like a naming choice.
+- **Solution**: name the label after what distinguishes the lane (`mediasoup`), not after a `parent-child` compound of an existing label. The ratchet catches the class by counting entries rather than by trusting names.
+- **Verification**: `ctest --test-dir out/cmake-build -L "rust|web" -N | grep "Total Tests"` → `Total Tests: 4`; `ctest -L mediasoup -N` → 1.
+- **Prevention rule**: before adding any ctest label, grep the repo for existing `-L` expressions and check the new label contains none of them as a substring. Labels are foreign keys into filters.
+
+## PIT-37: sibling gates sharing one command variable — deleting a line hands the next gate a stale command (2026-10-22)
+- **Symptom**: while reverting an experiment in `cmake/TalkServoGates.cmake`, the cleanup removed the `clippy` `_polyorch_rust_command(...)` line but left `add_test(NAME gate-clippy COMMAND ${_cmd})`. gate-clippy then ran gate-fmt's leftover `${_cmd}` — i.e. `cargo fmt --check` — and would report **green** for a lint surface it never examined. No gate can catch this: fmt passes.
+- **Root cause**: a single mutable name (`_cmd`) reused for independent commands makes each definition a hidden prerequisite of the next. Edit-by-deletion is normal in CMake, and the failure mode is silent-green, not an error.
+- **Solution**: distinct names per gate (`_fmt_cmd`, `_clippy_cmd`) so a deletion cannot re-point a test at its neighbour, plus a configure-time assertion that the gate-clippy argv actually contains `clippy` — the graph refuses to configure rather than ship a mislabeled gate. Verified both ways: generated `CTestTestfile.cmake` carries `cargo clippy`; rewriting the subcommand to `fmt` fails configure with `gate-clippy command does not invoke clippy`.
+- **Verification**: `grep -A2 "gate-clippy" out/cmake-build/CTestTestfile.cmake | grep -o 'clippy\|fmt' | sort -u` → `clippy` only.
+- **Prevention rule**: never reuse a scratch variable across independent registrations in the same scope; where a test's identity is claimed by its name, assert its argv at configure time. Same family as PIT-27 (self-skipping lane) and PIT-34 (guard not loaded) — green produced by a mechanism that is not the one named.

@@ -57,7 +57,8 @@ Workspace members at creation: `crates/{core,sfu,server}` only (D7); binding dir
 ```text
 new machine:  git clone → source bootstrap.sh     # detects/installs pixi (curl), pixi install, prints next step
 daily:        source pixi.sh                      # exec pixi shell -e dev (or `pixi run <task>` one-offs)
-verify loop:  pixi run lint && pixi run test && pixi run test-sfu
+verify loop:  pixi run lint && pixi run test        # daily, minutes
+push-to-live: TS_LANE_LIVE=1 pixi run test-sfu   # mediasoup backend incl. the C++ worker: measured 1545s
 clean-env parity: scripts/docker-cargo.sh test -p talkservo-server --features sfu-mediasoup   (ubuntu:22.04 image, by hand — no hosted runner, D26)
 secrets:      scripts/scan-hardcode.sh            # path already referenced by security-hardening skill — implementation = this repo's grep-based scan
 ```
@@ -78,14 +79,67 @@ secrets:      scripts/scan-hardcode.sh            # path already referenced by s
   resolution - without it, corepack fetches `npm/latest` through the proxy and dies),
   conda `nodejs >=22,<23` (node 26 breaks jsdom: unimplemented getComputedStyle kills the
   AntD admin gate test), and the lanes' `CARGO_TARGET_<triple>_LINKER` = conda `cc` (NOT
-  the CMake CXX driver: clang++-23 resolves the conda-prefixed cross-ld whose built-in
-  sysroot lacks `__libc_single_threaded` that the mediasoup-sys static objects need).
+  the CMake CXX driver; and the pin must reach EVERY cargo path a lane uses, not just the
+  build rule (plan-10 T4: the ctest bridge composed its own command without it, `cargo test`
+  relinks the bin and harnesses, and the relink took `cc` off PATH - which inside the pixi
+  env is `.pixi/envs/dev/bin/cc -> x86_64-conda-linux-gnu-cc`, whose sysroot lacks
+  `__libc_single_threaded` that the mediasoup-sys static objects need).
 - **P1.0 posture (plan-8)**: `polyorch_pixi_setup` runs WITHOUT `COPY_SCRIPTS` — our
   `pixi.sh`/`pixi.bat` stay repo-owned (subshell-entry semantics per §4 above; PolyOrch's
   template is a source-activate file, swapping it would change the daily ritual). Sister
   repos use COPY_SCRIPTS; we deliberately diverge here and record the choice.
 - **P1.0 env**: `cmake >=3.25` added to the pixi host dependencies (PolyOrch embed floor,
   PolyOrch D39 equivalent — foreign ledger id, not a TalkServo decision); resolved in Pixi.lock 2026-10-19.
+
+## 6. Lane target vocabulary and cache facts (plan-10, D27; landed 2026-10-22)
+
+Rule, one line: **`talkservo-<object>-<verb>`**, verb in {`build`, `test`, `clean`}; object =
+a lane `<crate>[-<config>]` or a scope `lanes[-<config>]`; config in {omitted, `stub`, `live`},
+and a lane carries the config suffix **only** where that package has more than one in-graph
+configuration. `stub|live` is deliberately the same word used by `TALKSERVO_PACKAGE_LANE`,
+`talkservo.sh --lane`, the `e2e-stub`/`e2e-live` labels and `TS_E2E_FEATURES` — one vocabulary,
+five surfaces. The `talkservo-` prefix is load-bearing, not decorative: CMake target names are
+global to the project and this graph is built to be embedded in a superbuild (first-wins
+sentinel), where a bare `lanes-clean` would collide with any sibling repo on the same pattern.
+
+Inventory (16 today; the 17th, `talkservo-server-live-test`, is registered but run-time gated):
+
+| lane | build | test | clean | cache group | ctest label |
+|---|---|---|---|---|---|
+| `talkservo-core` | -build | -test | -clean | `out/cargo-target/stub` | `rust;headless` |
+| `talkservo-sfu` | -build | -test | -clean | stub | `rust;headless` |
+| `talkservo-server-stub` | -build | -test | -clean | stub | `rust;headless` |
+| `talkservo-server-live` | -build | -test (`TS_LANE_LIVE=1`, else Skipped) | -clean | `out/cargo-target/live` | `mediasoup;headless;slow` |
+| `talkservo-web` | -build | -test | -clean (`web/dist`) | npm | `web;headless` |
+| scope `lanes` | `talkservo-lanes-stub-build` (aggregate, carries `ALL`) | — | `talkservo-lanes-clean` (cache root) | — | — |
+
+Four facts that cost measurement to learn, recorded so nobody re-pays them:
+
+- **One handle per (package, config) — lib and bin are not two build units.** The helper takes
+  exactly one artifact kind per handle, and `cargo build -p talkservo-server --bin …` compiles the
+  lib unit in the same call (verified: two `rustc` invocations, `--crate-type lib` then `--crate-type bin`).
+  The pre-plan-10 `talkservo-server` lib handle therefore tracked an artifact nothing consumed.
+  A second handle for the same package appears only when something really consumes the other
+  artifact — the reserved case is the D8 Beta C-ABI staticlib.
+- **`ctest -L` is a partial regex.** A label named `rust-live` is matched by the daily
+  `-L "rust|web"` filter, silently widening the fast lane into the slow one (measured: 5 entries
+  instead of 4). The live label is therefore `mediasoup`; the ratchet is
+  `ctest --test-dir out/cmake-build -L "rust|web" -N | grep "Total Tests"` → **4**.
+- **The gate's cache is not the lanes' cache, on purpose.** Sharing `gate-clippy` with the live
+  group was tried and reverted: after `cargo clean -p mediasoup-sys`, the gate command did not
+  finish in 23 minutes in the shared dir, because the C++ worker rebuild lands in the clippy path
+  either way. So `./target` (which once reached 33 GB) is clippy's own rmeta set, not duplication.
+  Corollary for humans: a manual `cargo …` without `--target-dir` forks whichever directory the
+  lanes are not using — for lane work, pass `--target-dir out/cargo-target/{stub,live}`.
+- **There is no default goal any more, by decision.** `build all` used to depend solely on the
+  embedded PolyOrch directory, so a bare `cmake --build out/cmake-build` built nothing and exited
+  0; the stub aggregate now carries `ALL` (cold measured 79s incl. `web/dist`), and it excludes
+  the live lane so the worker stays opt-in.
+
+Tooling note (PIT-30 recurrence): plain `ninja -C out/cmake-build -t targets` prints NOTHING from a
+shell without the pixi env on PATH, and a downstream `grep` then "passes" on the empty stream. Read
+`out/cmake-build/build.ninja` instead, or prefix with `~/.pixi/bin/pixi run -e dev`.
+
 
 
 D11 (this posture) · D5/D7 (default-features discipline + member gating) · D6 (mediasoup is why meson/ninja/clang exist at all) · platform.md/docker.md rule files annotated to defer to this module.
