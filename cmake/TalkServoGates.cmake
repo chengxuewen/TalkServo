@@ -29,7 +29,13 @@ function(talkservo_gates)
   add_test(NAME gate-fmt COMMAND ${_cmd} WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   set_tests_properties(gate-fmt PROPERTIES LABELS "gate;headless" TIMEOUT 120)
 
-  _polyorch_rust_command(_cmd SUBCOMMAND clippy --workspace --all-targets -- -D warnings ENV "${_fenv}")
+  # plan-10 T6, measured and REVERTED to cargo's default ./target: pointing clippy at the
+  # live cache group looked like free dedup (one workspace, two target dirs, ./target once
+  # measured 33 GB) but is not. `cargo clean -p mediasoup-sys` + the exact gate command in
+  # out/cargo-target/live did not finish in 23 minutes - the C++ worker rebuild lands inside
+  # the clippy path either way, so sharing bought nothing and only coupled the gate to the
+  # lane cache. The 33 GB was clippy's own rmeta set, not accidental duplication. Cold cost
+  # stays: warm gate-clippy measured 35.7s, cold runs tens of minutes in ANY directory.
   add_test(NAME gate-clippy COMMAND ${_cmd} WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   set_tests_properties(gate-clippy PROPERTIES LABELS "gate;headless;slow" TIMEOUT 900)
 
