@@ -140,9 +140,15 @@ deferred UI case, all by 2026-10-21). What is actually left:*
    stub-scope aggregate carries `ALL` because `build all` used to depend on nothing but the embedded PolyOrch
    directory — a bare `cmake --build` built nothing and exited 0. The mediasoup test verb is in-graph behind
    `TS_LANE_LIVE=1` (measured: Passed 1545s); landing it exposed that the ctest bridge lacked the linker pin,
-   so the live lane had never been test-verified and `pixi run test-sfu` could not have passed. PIT-36/PIT-37
-   record the two traps found on the way (label substring widening a filter; a gate inheriting its
-   neighbour's stale command variable). NOT re-run to completion this session: the fresh-clone drill and a
-   cold `pixi run gate` (tens of minutes each). Still open: the PolyOrch gitlink sits at 879856a against a
+   so the live lane had never been test-verified and `pixi run test-sfu` could not have passed. PIT-36/PIT-37/PIT-38/PIT-39
+   record the traps found on the way (label substring widening a filter; a gate inheriting its
+   neighbour's stale command variable). T5 then finished: cold `pixi run gate` 4/4 (gate-clippy 294.44s
+   cold, 1.13s warm) and the fresh-clone drill green end-to-end (submodule at the recorded pin, 17 prefixed
+   buttons, 12 ctest entries, `pixi run test` 5/5 BEFORE any build step, install staging `bin` + `dist`) —
+   and the drill earned its keep by finding four things the warm tree had been hiding: the missing
+   web/dist fixture (PIT-38), the undocumented npm provisioning (PIT-38, new `client-install` task +
+   configure-time warning), a 1000ms Testing-Library budget racing a ~900ms jsdom mount (PIT-24
+   recurrence), and a poisoned meson WrapDB cache that only `cargo clean -p mediasoup-sys` reveals
+   (PIT-39, with the recovery path). Still open: the PolyOrch gitlink sits at 879856a against a
    recorded pin of 5945f2a (F4 — user call, deliberately unstaged), and pushing the local queue is still the
    top risk.

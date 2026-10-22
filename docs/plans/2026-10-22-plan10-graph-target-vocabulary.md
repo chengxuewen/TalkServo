@@ -9,10 +9,12 @@
 > **EXECUTION STATUS 2026-10-22: T1-T4 + T6 + T7 LANDED** (commits `b07be4b` plan, `7b95b05`
 > vocabulary+derivation, `403c9f7` live test verb, `c1334f9` T6 reverted-with-numbers,
 > `5e3c91e` gate-clippy repair, `799c386` docs/ledger). F1=B, F2=O2, F3=C1-after-measurement,
-> F4 untouched. **T5 partially run**: `pixi run test` 4/4, `pixi run e2e` 1/1, live lane 1/1
-> under `TS_LANE_LIVE=1`; NOT run to completion: the fresh-clone drill and a cold
-> `pixi run gate` (each tens of minutes after `./target` and mediasoup-sys output were cleared
-> during the T6 experiment). Steps below are left as written; the two deviations are folded
+> F4 untouched. **T5 COMPLETE**: `pixi run test` 4/4, `pixi run e2e` 1/1
+> (`127.94s`), live lane 1/1 under `TS_LANE_LIVE=1` (1545s), cold `pixi run gate` 4/4
+> (gate-clippy 294.44s cold / 1.13s warm), and the fresh-clone drill green end to end: clone ->
+> submodule at the recorded pin -> `pixi install` -> both npm installs -> configure with 0
+> warnings, 17 prefixed buttons, 12 ctest entries -> **`pixi run test` 5/5 with no build step
+> run first** -> aggregate build -> `--component bin`/`dist` staging. Steps below are left as written; the two deviations are folded
 > into Task 4 Step 1 (gate script + `mediasoup` label) and the Executed-findings log.
 
 **Goal:** Replace the handle names that describe the same deliverable twice (`talkservo-server` lib + `talkservo-server-bin`) with one handle per (package, configuration), put every name on a single `<object>-<verb>` axis, delete the four hand-written consumer lists that can silently drift, and bring the mediasoup backend's test verb inside the graph.
@@ -229,3 +231,27 @@ Rule added to `docs/modules/09-dev-toolchain.md`: every graph button is named `t
    the test bridge and the clean command alike (the W4 property made literal). After it: live lane Passed in 1545s, daily 4/4.
 2. **A lane label can silently widen another lane's filter.** Measured, not theorised: `rust-live` joined the daily set;
    `mediasoup` does not. Ratchet kept: `ctest -L "rust|web" -N` must report exactly 4 entries.
+
+## What the drill caught that the working tree could not (T5, 2026-10-22)
+
+Four findings, all invisible in a warm tree, all fixed structurally rather than by remembering:
+
+1. **No `web/dist` producer on the ctest path** — `#[derive(RustEmbed)] folder ... does not exist`
+   at compile time in a fresh clone while 5/5 here. The `-build` ordering edge did not reach the
+   independently-composed bridge command. Fixed by `web-dist-fixture` + per-lane `FIXTURES_REQUIRED`
+   (`a976af0`), the fixture driving the graph's own web target so the SPA build exists in one place
+   (`d8535f9`). PIT-38.
+2. **npm provisioning was an undocumented prerequisite** — `sh: 1: tsc: not found`, then
+   `Cannot find module 'mediasoup-client'` once web was installed but the SDK was not (web/tsconfig
+   typechecks `../packages/client/src`). `polyorch_node_build` deliberately does not install, so the
+   graph now names the gap at configure time and `client-install` exists as a task. PIT-38, again.
+3. **A budget that only loses on cold hardware** — `web-test` failed exactly one case here, passed
+   4/4 in isolation and 25/25 twice: `testTimeout` says 15s because a mount costs ~900ms of real
+   CPU, while Testing Library still gave every `findBy*` 1000ms. One stated budget now
+   (`configure({ asyncUtilTimeout: 5000 })`). PIT-24 recurrence.
+4. **The environment I broke while measuring** — a SIGKILLed cold clippy left `mediasoup-sys`'
+   extracted `subprojects/openssl-3.0.8/` without its WrapDB patch, and `wrapdb.mesonbuild.com` is
+   unreachable from this host both through and around the proxy, so every later build failed with the
+   misleading `Subproject exists but has no meson.build`. Recovery = delete the extracted dir, copy
+   the patch from the sibling registry copy's packagecache; costs 32m30s to rebuild afterwards, and
+   explains the 333s `c1334f9` failure whose cause I had left open. PIT-39.

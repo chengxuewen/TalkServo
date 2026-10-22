@@ -182,6 +182,8 @@ In cleanup code, `pkill <name>` exits 1 when no process matches and kills the sc
 `pkill -f <string>` where <string> appears in your current shell's command (a path, a binary name you also pass as argument) kills your own shell — the tool call hangs silently. Use `ps -eo pid,comm` and kill by PID, or grep-pattern bracket tricks (`[c]hrome`).
 
 **Blocking condition**: any `pkill -f` / `pgrep -f` pattern with substring overlap with the current cmdline.
+
+**Recurrence (2026-10-22, by this repo's own agent)**: `pkill -f "bash /tmp/opencode/drill.sh"` — written to stop a drill I had started, with the exact script path quoted inside my own command line — killed the shell running it: the tool returned no output and hit its timeout while the commit I chained after `&&` never ran. The rule is not optional even when the pattern is one's own; pass a PID (`kill <pid>` from a recorded `$!`) or bracket the pattern (`[d]rill.sh`).
 **Source**: inherited from MediaServo PIT-170.
 
 ### 17. After batch-edit failure, grep state before retry; assert gates capture real exit codes
