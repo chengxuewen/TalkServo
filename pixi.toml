@@ -34,7 +34,7 @@ test        = 'ctest --test-dir out/cmake-build -L "rust|web"'   # P2 forwarder
 gate        = "ctest --test-dir out/cmake-build -L gate"          # P3 forwarder: ledger+fmt+clippy+deny
 e2e         = "ctest --test-dir out/cmake-build -L e2e-stub"       # P3 graph e2e entry (live: ctest -L e2e-live with env flags)
 lint        = "cargo clippy --workspace --all-targets -- -D warnings"
-test-sfu    = "cargo test -p talkservo-server --features sfu-mediasoup"
+test-sfu    = "TS_LANE_LIVE=1 ctest --test-dir out/cmake-build -L mediasoup"   # plan-10 T4: the live verb is in-graph; this is a forwarder
 format      = "cargo fmt --all -- --check"
 format-fix  = "cargo fmt --all"
 # $CARGO_HOME/bin must be on PATH: cargo-deny is a user-installed subcommand and is

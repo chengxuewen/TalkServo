@@ -35,12 +35,16 @@ option(TALKSERVO_POLYORCH_CRATES "register the PolyOrch-driven cargo lanes in th
 
 set(TALKSERVO_CACHE_ROOT "${CMAKE_SOURCE_DIR}/out/cargo-target")
 
-# talkservo_rust_lane(HANDLE PACKAGE KIND CACHE [FEATURES] [TEST] [TEST_LABELS] [CLEAN])
+# talkservo_rust_lane(HANDLE PACKAGE KIND CACHE [FEATURES] [TEST] [TEST_LABELS]
+#                       [TEST_GATE <ENV>] [TEST_GATE_VALUE <v>] [CLEAN])
+# TEST_GATE defers the ctest entry to run time: unless ENV=v, the entry exits 77 and ctest
+# reports Skipped. That is how the heavy live lane stays registered in the graph without
+# ever entering the daily `ctest -L "rust|web"` set (same mechanism e2e-live uses).
 # Derives manifest path, crate/artifact name, source folder and cache dir from
 # PACKAGE + KIND + CACHE, so no field can go stale against another field.
 function(talkservo_rust_lane)
   cmake_parse_arguments(PARSE_ARGV 0 L ""
-      "HANDLE;PACKAGE;KIND;CACHE;FEATURES;TEST;TEST_LABELS;CLEAN" "")
+      "HANDLE;PACKAGE;KIND;CACHE;FEATURES;TEST;TEST_LABELS;TEST_GATE;TEST_GATE_VALUE;CLEAN" "")
 
   foreach(_req HANDLE PACKAGE KIND CACHE)
     if(NOT L_${_req})
@@ -93,13 +97,18 @@ function(talkservo_rust_lane)
   # built-in sysroot, same missing symbol).
   string(TOUPPER "${POLYORCH_RUST_HOST_TARGET}" _linktr)
   string(REPLACE "-" "_" _linktr "${_linktr}")
+  # Pin the link driver: under the pixi env, a bare `cc` on PATH resolves to
+  # .pixi/envs/dev/bin/cc -> x86_64-conda-linux-gnu-cc, whose built-in sysroot lacks
+  # __libc_single_threaded. The absolute path is what works; see _laneenv below for
+  # where that pin must be carried (build rule AND ctest bridge).
   find_program(TALKSERVO_CONDA_CC cc REQUIRED)
   # NO_PROXY for pypi (both cases): mediasoup-sys build.rs pip-install hits a MITM proxy
   # that breaks pypi TLS specifically on this class of host (gitee/github still route fine).
-  polyorch_rust_set_env_vars(TARGET ${L_HANDLE}
+  set(_laneenv
       "CARGO_TARGET_${_linktr}_LINKER=${TALKSERVO_CONDA_CC}"
       "NO_PROXY=*"
       "no_proxy=*")
+  polyorch_rust_set_env_vars(TARGET ${L_HANDLE} ${_laneenv})
 
   set_property(GLOBAL APPEND PROPERTY TALKSERVO_LANE_HANDLES "${L_HANDLE}")
   set_property(GLOBAL APPEND PROPERTY TALKSERVO_LANE_HANDLES_${_cacheup} "${L_HANDLE}")
@@ -112,7 +121,7 @@ function(talkservo_rust_lane)
     # talkservo-core-clean cannot touch server artifacts that share the group. The
     # cache-root nuke is talkservo-lanes-clean: two actions, two honest names.
     _polyorch_rust_forward_env(TRIPLE "${POLYORCH_RUST_HOST_TARGET}" OUT_ENV _fenv)
-    _polyorch_rust_command(_clean SUBCOMMAND clean -p "${L_PACKAGE}" --target-dir "${_base}" ENV "${_fenv}")
+    _polyorch_rust_command(_clean SUBCOMMAND clean -p "${L_PACKAGE}" --target-dir "${_base}" ENV ${_fenv} ${_laneenv})
     add_custom_target(${L_HANDLE}-clean
         COMMAND ${_clean}
         COMMENT "cargo clean -p ${L_PACKAGE} (${L_CACHE} cache group)"
@@ -133,14 +142,28 @@ function(talkservo_rust_lane)
       FOLDER   "${_folder}")
 
   # W4 ctest bridge: same argv as the -test button (plus the lane's feature flags),
-  # same env wrapper.
+  # same env wrapper, INCLUDING the lane's own linker pin.
   _polyorch_rust_forward_env(TRIPLE "${POLYORCH_RUST_HOST_TARGET}" OUT_ENV _fenv)
   set(_argv test --package "${L_PACKAGE}" --manifest-path "${_manifest}" --target-dir "${_base}")
   if(L_FEATURES)
     list(APPEND _argv --no-default-features --features "${L_FEATURES}")
   endif()
-  _polyorch_rust_command(_cmd SUBCOMMAND ${_argv} ENV "${_fenv}")
-  add_test(NAME ${L_HANDLE}-test COMMAND ${_cmd})
+  # ENV must carry _laneenv too: the build rule gets the linker pin through the target
+  # property, but this command is composed independently — and `cargo test` RE-LINKS the
+  # bin and harnesses. Without the pin the relink resolves `cc` off PATH (conda-cc) and the
+  # mediasoup lane dies on __libc_single_threaded. Measured 2026-10-22: the live test entry
+  # failed 3 link units while the same argv with an absolute gcc linked in 4m40s — and the
+  # old `pixi run test-sfu` could never have passed, which is why nobody had run it.
+  _polyorch_rust_command(_cmd SUBCOMMAND ${_argv} ENV ${_fenv} ${_laneenv})
+  if(L_TEST_GATE)
+    # The list is passed through, not flattened into a shell string: the gate script execs
+    # the very argv the -test button uses, so button and ctest entry cannot drift (W4).
+    add_test(NAME ${L_HANDLE}-test
+        COMMAND bash "${CMAKE_SOURCE_DIR}/scripts/lane-gate.sh"
+                "${L_TEST_GATE}" "${L_TEST_GATE_VALUE}" -- ${_cmd})
+  else()
+    add_test(NAME ${L_HANDLE}-test COMMAND ${_cmd})
+  endif()
   set_tests_properties(${L_HANDLE}-test PROPERTIES
       WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
       SKIP_RETURN_CODE 77
@@ -167,10 +190,17 @@ function(talkservo_crates)
   # from TALKSERVO_EMBEDDED_WEB_HANDLES, never from a hand-written name list.
   talkservo_rust_lane(HANDLE talkservo-server-stub PACKAGE talkservo-server KIND BINARY
       CACHE stub FEATURES stub-media,embedded-web TEST ON TEST_LABELS "rust;headless" CLEAN ON)
-  # The real SFU backend: build-only for now. Its test verb lands in plan-10 T4; until
-  # then `pixi run test-sfu` still owns it, which modules/09 records either way.
+  # The real SFU backend, and the only target that compiles the C++ worker. Its test verb
+  # lives in the graph now (plan-10 T4) but is run-time gated: TS_LANE_LIVE=1 or the entry
+  # reports Skipped, because a worker build is minutes and the daily lane must stay seconds.
+  # The label is `mediasoup`, NOT `rust-live`: ctest's -L is a partial regex, so a label
+  # like rust-live is matched by the daily `-L "rust|web"` filter too (measured: 5 entries
+  # instead of 4). A label with no substring overlap keeps `ctest -L rust` meaning exactly
+  # what it meant before this lane existed.
   talkservo_rust_lane(HANDLE talkservo-server-live PACKAGE talkservo-server KIND BINARY
-      CACHE live FEATURES sfu-mediasoup,embedded-web TEST OFF CLEAN ON)
+      CACHE live FEATURES sfu-mediasoup,embedded-web
+      TEST ON TEST_LABELS "mediasoup;headless;slow"
+      TEST_GATE TS_LANE_LIVE TEST_GATE_VALUE 1 CLEAN ON)
 
   # Daily aggregate: every stub-group lane, never the live one (the C++ worker stays
   # opt-in per lane). ALL is deliberate (plan-10 F1=B): with no default goal a bare

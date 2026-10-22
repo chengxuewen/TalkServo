@@ -59,7 +59,7 @@ Objects carry a config suffix **only** where the same package has more than one 
 | 8 | `talkservo-server-stub-test` | test | `… test -p talkservo-server` (88 lib + integration) | same | `talkservo-server-stub-test` — `rust;headless` |
 | 9 | `talkservo-server-stub-clean` | clean | `cargo clean -p talkservo-server --target-dir out/cargo-target/stub` | — | — |
 | 10 | `talkservo-server-live-build` | build | same `--bin`, `--no-default-features --features sfu-mediasoup,embedded-web` (the only target that compiles the C++ worker) | `out/cargo-target/live` | — |
-| 11 | `talkservo-server-live-test` | test | `cargo test -p talkservo-server --no-default-features --features sfu-mediasoup,embedded-web`; **skips (77) unless `TS_LANE_LIVE=1`** | same | `talkservo-server-live-test` — `rust-live;headless;slow` |
+| 11 | `talkservo-server-live-test` | test | `cargo test -p talkservo-server --no-default-features --features sfu-mediasoup,embedded-web`; **skips (77) unless `TS_LANE_LIVE=1`** | same | `talkservo-server-live-test` — `mediasoup;headless;slow` |
 | 12 | `talkservo-server-live-clean` | clean | `cargo clean -p talkservo-server --target-dir out/cargo-target/live` | — | — |
 | 13 | `talkservo-web-build` | build | `npm run build` → `web/dist` (feeds `embedded-web` at compile time) | npm | — |
 | 14 | `talkservo-web-test` | test | `npm run test` (vitest) | npm | `web-test` — `web;headless` |
@@ -68,7 +68,7 @@ Objects carry a config suffix **only** where the same package has more than one 
 | 17 | `talkservo-lanes-clean` | scope | `cmake -E rm -rf out/cargo-target` (both groups) | — | — |
 
 Unchanged names/semantics: `gate-docs` (= `scripts/gate.sh`, the same script the pre-push hook runs), `gate-fmt`, `gate-clippy`, `gate-deny`, `e2e-stub`, `e2e-live`, install components `bin`/`dist`, `cmake --install`, CMake built-ins.
-ctest totals after: **11 entries**; `-L rust` = 3 (unchanged meaning: stub side), `-L rust-live` = 1 (new), `-L web` = 1, `-L gate` = 4, `-L e2e-stub` = 1, `-L e2e-live` = 1.
+ctest totals after: **11 entries**; `-L rust` = 3 (unchanged meaning: stub side), `-L mediasoup` = 1 (new), `-L web` = 1, `-L gate` = 4, `-L e2e-stub` = 1, `-L e2e-live` = 1.
 Deleted targets: `talkservo-server-build` (lib handle — its rlib had no consumer in the graph), `talkservo-server-bin-build` (-> #7), `talkservo-server-mediasoup-build` (-> #10), `lanes-mediasoup-clean` (folded into #17). Renamed: `lanes-clean` -> `talkservo-lanes-clean` (same action, now project-prefixed).
 
 ## 3. Before → after, and the rule that gets written down
@@ -152,11 +152,11 @@ Rule added to `docs/modules/09-dev-toolchain.md`: every graph button is named `t
 
 ## Task 4: bring the live backend's test verb into the graph
 
-**Files:** Modify `cmake/TalkServoCrates.cmake` (lane #11 `TEST=ON TEST_LABELS "rust-live;slow"` + runtime gate), `pixi.toml:37`.
+**Files:** Modify `cmake/TalkServoCrates.cmake` (lane #11 `TEST=ON TEST_LABELS "mediasoup;slow"` + runtime gate), `pixi.toml:37`.
 
 - [ ] **Step 1: register** `talkservo-server-live-test` with `COMMAND` = `sh -c "test \"\${TS_LANE_LIVE:-}\" = 1 || exit 77; <same argv as the -test button>"`, `SKIP_RETURN_CODE 77`. Mechanism copied from `TalkServoGates.cmake:66-69` (`e2e-live`) — no new knob vocabulary.
-- [ ] **Step 2: forwarder** `test-sfu = "TS_LANE_LIVE=1 ctest --test-dir out/cmake-build -L rust-live"`.
-- [ ] **Step 3: prove the skip is honest** — `ctest --test-dir out/cmake-build -L rust-live` unset env → `Skipped 1/1`; with `TS_LANE_LIVE=1` → `Passed` (expect worker build ≈4 min).
+- [ ] **Step 2: forwarder** `test-sfu = "TS_LANE_LIVE=1 ctest --test-dir out/cmake-build -L mediasoup"`.
+- [ ] **Step 3: prove the skip is honest** — `ctest --test-dir out/cmake-build -L mediasoup` unset env → `Skipped 1/1`; with `TS_LANE_LIVE=1` → `Passed` (expect worker build ≈4 min).
 - [ ] **Step 4: prove the fast lane did not get slower** — `ctest --test-dir out/cmake-build -L "rust|web" -N` → exactly 4 entries (3 rust + 1 web); the live entry must not appear.
 - [ ] **Step 5: commit** `test(build): mediasoup server lane gets an in-graph test verb behind TS_LANE_LIVE (plan-10 T4)`
 
@@ -208,3 +208,15 @@ Rule added to `docs/modules/09-dev-toolchain.md`: every graph button is named `t
 `cmake/TalkServoCrates.cmake` · `cmake/TalkServoWeb.cmake` · `cmake/TalkServoGates.cmake` (Task 6 only) · `cmake/TalkServoInstall.cmake` · `pixi.toml` · `talkservo.sh` · `docs/modules/09-dev-toolchain.md` · `docs/README.md` · `AGENTS.md` · `.agents/memorys/{decisions,status,pitfalls}.md` · `PolyOrch` gitlink (Task 8) · one-time: cache dirs move → first `pixi run test` pays a cold stub build, first live run pays the worker build again.
 
 **Rollback:** every task is one commit and touches only graph wiring; `git revert` of Task 1-4 restores the old names, and since the cache dirs are gitignored build outputs, `talkservo-lanes-clean` + a rebuild returns the host to a clean state. No data, protocol or code semantics change — the wire contract, features and test counts are untouched.
+
+## Executed-findings log (T4, 2026-10-22) — two facts that only came out by running it
+
+1. **The live lane had never been test-verified, and its command path lacked the linker pin.** The build rule gets
+   `CARGO_TARGET_<triple>_LINKER=/usr/bin/cc` from `polyorch_rust_set_env_vars`, but the ctest bridge composed its own
+   command through `_polyorch_rust_command` with only `_fenv` — and `cargo test` RE-LINKS the bin and harnesses. With no
+   pin the relink takes `cc` off PATH, which inside the pixi env is `.pixi/envs/dev/bin/cc -> x86_64-conda-linux-gnu-cc`,
+   whose sysroot lacks `__libc_single_threaded`. Result: `talkservo-server-live-test` failed 3 link units on first run,
+   and the pre-existing `pixi run test-sfu` could never have passed. Fix: one `_laneenv` list now feeds the build rule,
+   the test bridge and the clean command alike (the W4 property made literal). After it: live lane Passed in 1545s, daily 4/4.
+2. **A lane label can silently widen another lane's filter.** Measured, not theorised: `rust-live` joined the daily set;
+   `mediasoup` does not. Ratchet kept: `ctest -L "rust|web" -N` must report exactly 4 entries.
