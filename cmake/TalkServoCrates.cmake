@@ -164,6 +164,15 @@ function(talkservo_rust_lane)
   else()
     add_test(NAME ${L_HANDLE}-test COMMAND ${_cmd})
   endif()
+  if(L_FEATURES MATCHES "embedded-web")
+    # Register the need; TalkServoWeb.cmake supplies the fixture. A fresh tree must be able
+    # to run `ctest -L "rust|web"` with no prior build step: rust-embed fails at COMPILE time
+    # ("folder web/dist does not exist") when nobody built the SPA first, and the -build
+    # ordering edge alone does not cover this command path. The plan-10 fresh-clone drill
+    # caught it on 2026-10-22: the primary tree was green only because web/dist already
+    # existed there — a warm tree hiding a broken edge is exactly the PIT-27 family.
+    set_property(GLOBAL APPEND PROPERTY TALKSERVO_WEBDIST_TESTS "${L_HANDLE}-test")
+  endif()
   set_tests_properties(${L_HANDLE}-test PROPERTIES
       WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
       SKIP_RETURN_CODE 77

@@ -36,7 +36,21 @@ function(talkservo_gates)
   # the clippy path either way, so sharing bought nothing and only coupled the gate to the
   # lane cache. The 33 GB was clippy's own rmeta set, not accidental duplication. Cold cost
   # stays: warm gate-clippy measured 35.7s, cold runs tens of minutes in ANY directory.
-  _polyorch_rust_command(_clippy_cmd SUBCOMMAND clippy --workspace --all-targets -- -D warnings ENV "${_fenv}")
+  # Env parity with the lanes, WITHOUT sharing their cache: mediasoup-sys' build script
+  # fetches its openssl subproject through meson, and under this host's MITM proxy that
+  # download fails as "Subproject openssl is buildable: NO / has no meson.build" (measured
+  # 2026-10-22, cold gate-clippy). The live lanes pass because _laneenv carries NO_PROXY;
+  # the gate is the same build graph with a different environment, so it must carry the
+  # same bypass. The linker pin comes along for identity, not necessity (clippy links
+  # nothing) - a gate that diverges from the lanes in env fails in a way the lanes do not.
+  set(_clippy_env "NO_PROXY=*" "no_proxy=*")
+  get_filename_component(_cargodir "${POLYORCH_RUST_CARGO}" DIRECTORY)
+  if(DEFINED TALKSERVO_CONDA_CC)
+    string(TOUPPER "${POLYORCH_RUST_HOST_TARGET}" _clinktr)
+    string(REPLACE "-" "_" _clinktr "${_clinktr}")
+    list(APPEND _clippy_env "CARGO_TARGET_${_clinktr}_LINKER=${TALKSERVO_CONDA_CC}")
+  endif()
+  _polyorch_rust_command(_clippy_cmd SUBCOMMAND clippy --workspace --all-targets -- -D warnings ENV ${_fenv} ${_clippy_env})
   # configure-time assertion, not a wish: the c1334f9 cleanup deleted this command line and
   # gate-clippy silently inherited gate-fmt's ${_cmd} - a push gate that "passed" by running
   # `cargo fmt --check`. A stale variable is invisible to the gate itself, so the graph checks

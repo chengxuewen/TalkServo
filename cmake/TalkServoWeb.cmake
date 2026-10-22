@@ -40,6 +40,19 @@ function(talkservo_web)
     polyorch_node_test(TARGET talkservo-web)  # -test button verb
   endif()
 
+  # CTest fixture: the embedded-web lanes compile rust-embed against web/dist, so the SPA
+  # build must run before those ctest entries even when nobody ran a build step first (the
+  # plan-10 fresh-clone drill found the graph relying on an already-warm tree).
+  add_test(NAME web-dist-fixture
+           COMMAND npm --prefix "${CMAKE_SOURCE_DIR}/web" run build
+           WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+  set_tests_properties(web-dist-fixture PROPERTIES
+      FIXTURES_SETUP webdist TIMEOUT 300 LABELS "fixture")
+  get_property(_need_webdist GLOBAL PROPERTY TALKSERVO_WEBDIST_TESTS)
+  foreach(_t ${_need_webdist})
+    set_tests_properties(${_t} PROPERTIES FIXTURES_REQUIRED webdist)
+  endforeach()
+
   # ctest bridge (same script authority as the button: package.json "test" = vitest run).
   add_test(NAME web-test
            COMMAND npm --prefix "${CMAKE_SOURCE_DIR}/web" run test
