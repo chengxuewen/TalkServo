@@ -84,6 +84,13 @@ function(talkservo_web)
   # Node-side cleanup the graph owns. node_modules stays npm's business (plan-8 red line).
   add_custom_target(talkservo-web-clean
       COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_SOURCE_DIR}/web/dist"
-      COMMENT "removing web/dist (the embedded-web input)"
-      FOLDER "web")
+      COMMENT "removing web/dist (the embedded-web input)")
+  # One group for the whole web object: the Node helper only sets FOLDER when
+  # PolyOrch_RUST_FOLDER_ROOT is set, so its two targets are pinned here explicitly -
+  # otherwise web-build/web-test sit at the IDE root while web-clean is in "web".
+  foreach(_t talkservo-web-build talkservo-web-test talkservo-web-clean)
+    if(TARGET ${_t})
+      set_property(TARGET ${_t} PROPERTY FOLDER "web")
+    endif()
+  endforeach()
 endfunction()

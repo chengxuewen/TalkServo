@@ -116,16 +116,16 @@ function(talkservo_rust_lane)
     set_property(GLOBAL APPEND PROPERTY TALKSERVO_EMBEDDED_WEB_HANDLES "${L_HANDLE}")
   endif()
 
+  # No per-lane `cargo clean -p`: it is refused on a SHARED cache group directory unless that
+  # directory carries a valid CACHEDIR.TAG (measured: out/cargo-target/stub has debug/, tmp/ and
+  # .rustc_info.json but no tag, so talkservo-sfu-clean failed with "cannot clean ... missing or
+  # invalid CACHEDIR.TAG" - cleaning is aborted by cargo on purpose, to avoid deleting files it
+  # does not own). The surgical path is a documented shell command instead; the graph only offers
+  # deletion it can guarantee: rm -rf per cache group (talkservo-lanes-{stub,live}-clean) and of
+  # the cache root (talkservo-lanes-clean), all via polyorch_rust_clean.
+  # (plan-10 F2 revised: the original O2 choice is retracted on this evidence - see PIT-40.)
   if(L_CLEAN)
-    # Package-scoped by construction (cargo clean -p inside THIS cache group), so
-    # talkservo-core-clean cannot touch server artifacts that share the group. The
-    # cache-root nuke is talkservo-lanes-clean: two actions, two honest names.
-    _polyorch_rust_forward_env(TRIPLE "${POLYORCH_RUST_HOST_TARGET}" OUT_ENV _fenv)
-    _polyorch_rust_command(_clean SUBCOMMAND clean -p "${L_PACKAGE}" --target-dir "${_base}" ENV ${_fenv} ${_laneenv})
-    add_custom_target(${L_HANDLE}-clean
-        COMMAND ${_clean}
-        COMMENT "cargo clean -p ${L_PACKAGE} (${L_CACHE} cache group)"
-        FOLDER "${_folder}")
+    # accepted for interface stability, deliberately inert: see the note above
   endif()
 
   if(NOT L_TEST STREQUAL "ON")
@@ -222,8 +222,43 @@ function(talkservo_crates)
   endforeach()
   add_custom_target(talkservo-lanes-stub-build ALL DEPENDS ${_stub_deps}
       COMMENT "lanes-stub aggregate: ${_stub_deps}")
+  # add_custom_target has NO FOLDER keyword; a stray one is silently absorbed (measured: the
+  # rule's DESC became "crates/talkservo-server" and no IDE folder was set at all). FOLDER is a
+  # target PROPERTY, so it is set that way - everywhere in this repo, including for the helper-
+  # created Node targets, which only take it from PolyOrch_RUST_FOLDER_ROOT.
+  set_property(TARGET talkservo-lanes-stub-build PROPERTY FOLDER "lanes")
 
-  # one button for the whole cache root (both groups live under it now); the surgical
-  # path is the per-lane cargo clean above.
-  polyorch_rust_clean(NAME talkservo-lanes-clean BASE_DIR "${TALKSERVO_CACHE_ROOT}" FOLDER "crates")
+  # Deletion buttons, all the same mechanism (cmake -E rm -rf of a directory this graph owns):
+  # one per cache group, one for the root. The group dirs are the units cargo itself works in,
+  # so a group clean is exactly "drop that feature config's artifacts".
+  foreach(_group stub live)
+    polyorch_rust_clean(NAME talkservo-lanes-${_group}-clean
+        BASE_DIR "${TALKSERVO_CACHE_ROOT}/${_group}" FOLDER "lanes")
+  endforeach()
+  polyorch_rust_clean(NAME talkservo-lanes-clean BASE_DIR "${TALKSERVO_CACHE_ROOT}" FOLDER "lanes")
+endfunction()
+
+# talkservo_assert_target_folders() - call LAST (after web/gates/install) from CMakeLists.
+# Rationale: FOLDER has no effect under Ninja, so a missing or misspelled value is invisible
+# until someone opens the graph in an IDE - and the only reason that is worth enforcing here is
+# that this project's verbs are meant to be findable by name. Same stance as the gate-clippy
+# argv assertion in 5e3c91e: if a name claims a family, check the target is in it.
+function(talkservo_assert_target_folders)
+  get_property(_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+  set(_bad "")
+  foreach(_t ${_targets})
+    if(_t MATCHES "^talkservo-")
+      get_property(_f TARGET ${_t} PROPERTY FOLDER)
+      if(NOT _f)
+        list(APPEND _bad ${_t})
+      endif()
+      if(TALKSERVO_FOLDERS_REPORT)
+        message(STATUS "folder: ${_t} -> ${_f}")
+      endif()
+    endif()
+  endforeach()
+  if(_bad)
+    message(FATAL_ERROR "targets with no IDE FOLDER (use set_property, add_custom_target has no "
+                        "FOLDER keyword): ${_bad}")
+  endif()
 endfunction()

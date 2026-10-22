@@ -33,7 +33,8 @@ include(cmake/TalkServoGates.cmake)
 talkservo_gates()                       # P3: gate-docs/fmt/clippy/deny + e2e-stub/live ctest labels
 
 include(cmake/TalkServoInstall.cmake)
-talkservo_install_tree()                # P4: components bin (server+oxmgr) / dist (etc+scripts)
+talkservo_install_tree()
+talkservo_assert_target_folders()   # plan-10 ratchet: every talkservo-* verb declares its IDE group                # P4: components bin (server+oxmgr) / dist (etc+scripts)
 # add_subdirectory(crates/...) stays off — lanes ride the helper surface; cargo keeps
 # its workspace authority (D65 equivalence, plan-8 red line 2: mediasoup worker build.rs-own).
 

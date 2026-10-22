@@ -98,7 +98,8 @@ secrets:      scripts/scan-hardcode.sh            # path already referenced by s
 
 ## 6. Lane target vocabulary and cache facts (plan-10, D27; landed 2026-10-22)
 
-Rule, one line: **`talkservo-<object>-<verb>`**, verb in {`build`, `test`, `clean`}; object =
+Rule, one line: **`talkservo-<object>-<verb>`**, verb in {`build`, `test`} for a lane, plus
+`clean` wherever a deletable artifact actually exists (the cache groups, `web/dist`); object =
 a lane `<crate>[-<config>]` or a scope `lanes[-<config>]`; config in {omitted, `stub`, `live`},
 and a lane carries the config suffix **only** where that package has more than one in-graph
 configuration. `stub|live` is deliberately the same word used by `TALKSERVO_PACKAGE_LANE`,
@@ -107,16 +108,16 @@ five surfaces. The `talkservo-` prefix is load-bearing, not decorative: CMake ta
 global to the project and this graph is built to be embedded in a superbuild (first-wins
 sentinel), where a bare `lanes-clean` would collide with any sibling repo on the same pattern.
 
-Inventory (16 today; the 17th, `talkservo-server-live-test`, is registered but run-time gated):
+Inventory (15 targets, every one carrying an IDE `FOLDER`, asserted at configure time):
 
 | lane | build | test | clean | cache group | ctest label |
 |---|---|---|---|---|---|
-| `talkservo-core` | -build | -test | -clean | `out/cargo-target/stub` | `rust;headless` |
-| `talkservo-sfu` | -build | -test | -clean | stub | `rust;headless` |
-| `talkservo-server-stub` | -build | -test | -clean | stub | `rust;headless` |
-| `talkservo-server-live` | -build | -test (`TS_LANE_LIVE=1`, else Skipped) | -clean | `out/cargo-target/live` | `mediasoup;headless;slow` |
+| `talkservo-core` | -build | -test | — group clean | `out/cargo-target/stub` | `rust;headless` |
+| `talkservo-sfu` | -build | -test | — group clean | stub | `rust;headless` |
+| `talkservo-server-stub` | -build | -test | — group clean | stub | `rust;headless` |
+| `talkservo-server-live` | -build | -test (`TS_LANE_LIVE=1`, else Skipped) | — group clean | `out/cargo-target/live` | `mediasoup;headless;slow` |
 | `talkservo-web` | -build | -test | -clean (`web/dist`) | npm | `web;headless` |
-| scope `lanes` | `talkservo-lanes-stub-build` (aggregate, carries `ALL`) | — | `talkservo-lanes-clean` (cache root) | — | — |
+| scope `lanes` | `talkservo-lanes-stub-build` (aggregate, carries `ALL`) | — | `talkservo-lanes-{stub,live}-clean` per group + `talkservo-lanes-clean` root | — | — |
 
 Four facts that cost measurement to learn, recorded so nobody re-pays them:
 
@@ -130,6 +131,14 @@ Four facts that cost measurement to learn, recorded so nobody re-pays them:
   `-L "rust|web"` filter, silently widening the fast lane into the slow one (measured: 5 entries
   instead of 4). The live label is therefore `mediasoup`; the ratchet is
   `ctest --test-dir out/cmake-build -L "rust|web" -N | grep "Total Tests"` → **4**.
+- **Deletion is per cache group, not per crate.** `cargo clean -p talkservo-sfu --target-dir
+  out/cargo-target/stub` is refused whenever that directory lacks a valid `CACHEDIR.TAG` (cargo
+  aborts protectively to avoid deleting files it does not own - measured here: the stub group has
+  `debug/`, `tmp/` and `.rustc_info.json` but no tag). The graph therefore offers only `rm -rf` of
+  directories it owns outright; surgical per-package cleaning stays a shell command for whoever
+  needs it, with that caveat attached (PIT-41). `add_custom_target` has no `FOLDER` keyword either,
+  so IDE groups are set with `set_property(TARGET … PROPERTY FOLDER …)` and
+  `talkservo_assert_target_folders()` fails the configure if any `talkservo-*` target lacks one (PIT-40).
 - **The gate's cache is not the lanes' cache, on purpose.** Sharing `gate-clippy` with the live
   group was tried and reverted: after `cargo clean -p mediasoup-sys`, the gate command did not
   finish in 23 minutes in the shared dir, because the C++ worker rebuild lands in the clippy path

@@ -91,7 +91,7 @@ talkservo-server          (lib,  stub cfg)   →┐
 talkservo-server-bin      (bin,  stub cfg)   →┘ talkservo-server-stub-*              # 3 handles → 2 per backend
 talkservo-server-mediasoup(bin,  live cfg)   → talkservo-server-live-* (+ -test)
 lanes-clean + lanes-mediasoup-clean                -> talkservo-lanes-clean (parent dir)
-(none)                                       → talkservo-lanes-stub-build (aggregate), <handle>-clean per object
+(none)                                       → talkservo-lanes-stub-build (aggregate), group-scoped cleans
 ```
 
 Rule added to `docs/modules/09-dev-toolchain.md`: every graph button is named `talkservo-<object>-<verb>`, verb one of `build` / `test` / `clean`, object = a lane `<crate>[-<config>]` or a scope `lanes[-<config>]`, config one of {omitted, `stub`, `live`}; a lane carries the config suffix only when that package has more than one in-graph configuration. One handle per (package, config), tracking that config's delivered artifact: `BINARY` when the package has a bin, else `LIB`; a second handle for the same package exists only when something in the graph actually consumes the other artifact (the clause reserved for the future C-ABI staticlib, D8). The project prefix is mandatory, not decorative: target names are global to the CMake project and this graph is designed to be embedded in a superbuild (`cmake/TalkServoPolyOrch.cmake:12-16`, first-wins sentinel), where a bare `lanes-clean` would collide with any sibling repo adopting the same PolyOrch pattern; upstream names its own aggregate `polyorch-rust-all` (`PolyOrchRustHelpers.cmake:621` - named in a comment, the target is not created in the pinned version), and one prefix also makes the ninja target list filtered on the `talkservo-` prefix the complete build surface.
@@ -101,7 +101,7 @@ Rule added to `docs/modules/09-dev-toolchain.md`: every graph button is named `t
 | Fork | Options | My recommendation |
 |---|---|---|
 | **F1 default goal** | A: graph keeps no default target (bare `cmake --build` builds nothing, as today) / B: `talkservo-lanes-stub-build` gets the `ALL` keyword (bare `cmake --build` = the daily path, worker untouched) | **B** — a build system with a silent empty default is the "green from a mechanism that never ran" family (PIT-27); B costs nothing on the live lane because the aggregate excludes it |
-| **F2 per-object clean** | O1: only `talkservo-lanes-clean`, document `cargo clean -p <pkg> --target-dir out/cargo-target/stub` as the surgical path / O2: emit `<handle>-clean` for every object (rows 3,6,9,12,15) | **O2** — it puts `clean` on the same axis for every object (the objection that started this plan) and each name's scope is honest (`cargo clean -p` per package, `rm -rf` per cache group). Cost: +5 names |
+| **F2 per-object clean** | **REVISED after landing (PIT-41)**: O2 was implemented and then withdrawn — `cargo clean -p` is refused on a shared cache group that lacks a valid `CACHEDIR.TAG`, so the unit of deletion in the graph is the cache group (`talkservo-lanes-{stub,live}-clean` + the root button), and per-package cleaning stays a documented shell command with that caveat. O1 was the safer original recommendation; the reason I did not take it is recorded, not hidden. |
 | **F3 gate cache consolidation** | C1: leave `gate-fmt`/`gate-clippy` on `./target` / C2: give `gate-clippy` `--target-dir out/cargo-target/live` so its worker/build-script outputs are shared with lane #10 | **C2, but only if measured** (Task 6 runs the timing gate and keeps C1 if it doesn't help) |
 | **F4 PolyOrch gitlink** | **RULED =P1 2026-10-22**: bumped to `879856a` (one commit past `5945f2a`; upstream pnpm-workspaces Node face, still version 0.3.0). Both pins verified — the whole session battery ran on `879856a`, the fresh-clone drill ran the entire chain on `5945f2a`. The wrapper's FATAL text no longer hardcodes a SHA |
 
@@ -156,7 +156,7 @@ Rule added to `docs/modules/09-dev-toolchain.md`: every graph button is named `t
 
 - [ ] **Step 1: aggregate** `add_custom_target(talkservo-lanes-stub-build [ALL] DEPENDS <every stub-cache-group handle>-build)` — built from `TALKSERVO_LANE_HANDLES` filtered on `;stub`, never hand-listed; `[ALL]` only if F1=B.
 - [ ] **Step 2: scope clean** one `polyorch_rust_clean(NAME talkservo-lanes-clean BASE_DIR out/cargo-target …)` (parent of both groups), dropping `lanes-mediasoup-clean`.
-- [ ] **Step 3: object cleans** (F2=O2) `add_custom_target(<handle>-clean COMMAND <_polyorch_rust_command> clean -p <PACKAGE> --target-dir <BASE_DIR>)` emitted inside the lane function when `CLEAN=ON`; web's is `cmake -E rm -rf web/dist`.
+- [ ] **Step 3: object cleans** (F2=O2, SUPERSEDED — see the F4/F2 revision note: `cargo clean -p` needs a `CACHEDIR.TAG` the shared group dir lacks; replaced by `talkservo-lanes-{stub,live}-clean`) `add_custom_target(<handle>-clean COMMAND <_polyorch_rust_command> clean -p <PACKAGE> --target-dir <BASE_DIR>)` emitted inside the lane function when `CLEAN=ON`; web's is `cmake -E rm -rf web/dist`.
 - [ ] **Step 4: prove clean semantics** — build `talkservo-server-stub-build`; run `talkservo-core-clean`; then `test -f out/cargo-target/stub/debug/talkservo-server && echo "exe survived core-clean"` (must survive) and the core rlib must be gone. Then `talkservo-lanes-clean` and assert `out/cargo-target` absent.
 - [ ] **Step 5: prove the default goal** (F1=B) — `~/.pixi/bin/pixi run -e dev cmake --build out/cmake-build` builds web + 3 rust stub lanes and does **not** produce `out/cargo-target/live/*`.
 - [ ] **Step 6: commit** `feat(build): stub-scope aggregate and per-object package-scoped clean targets (plan-10 T3)`
@@ -255,3 +255,25 @@ Four findings, all invisible in a warm tree, all fixed structurally rather than 
    misleading `Subproject exists but has no meson.build`. Recovery = delete the extracted dir, copy
    the patch from the sibling registry copy's packagecache; costs 32m30s to rebuild afterwards, and
    explains the 333s `c1334f9` failure whose cause I had left open. PIT-39.
+
+## Post-review corrections (same day, after FOLDER analysis)
+
+Two defects came out of the user's `FOLDER` finding, and both were **mine from this plan**:
+
+1. `add_custom_target` has no `FOLDER` keyword. My five per-lane clean targets and the aggregate
+   carried a stray `FOLDER "…"` that CMake absorbed silently — `grep -c FOLDER build.ninja` = 0,
+   and the rule's `DESC` came out as `crates/talkservo-server` instead of my `COMMENT`
+   (PIT-40). Folders are now set with `set_property(TARGET … PROPERTY FOLDER …)` — also required for
+   the Node targets, which only take a folder when `PolyOrch_RUST_FOLDER_ROOT` is set — and
+   `talkservo_assert_target_folders()` (called last from `CMakeLists.txt`) fails the configure if any
+   `talkservo-*` target has none; `-DTALKSERVO_FOLDERS_REPORT=ON` prints all 15 for review.
+2. Those clean verbs had never been executed. Running them exposed that `cargo clean -p` refuses a
+   shared cache group without a valid `CACHEDIR.TAG` (PIT-41), so the per-lane buttons could not
+   have worked even if the keyword had been right. They are replaced by group-scoped
+   `polyorch_rust_clean` buttons, and the remaining verbs were then run for real:
+   `talkservo-web-clean` and `talkservo-lanes-stub-clean` executed, aggregate rebuilt the stub group
+   cold in 86s, `pixi run test` 5/5 afterwards.
+
+Process note worth keeping: the plan's F2 recommendation (O2) was the weaker choice and O1 was the
+safe one; I took O2 because it looked tidier on the naming axis. The evidence that reversed it cost
+one executed command. Lesson folded into PIT-40: a verb that has never been run is not done.
