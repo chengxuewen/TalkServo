@@ -142,6 +142,14 @@
 
 ## PIT-24: one-liner — in jsdom, testing-library `getByRole`/`findByRole` with a `name` option costs ~2.5s per call (accessible-name computation over the AntD tree; measured 4244ms cumulative vs 5ms for the drawer render it was waiting on). It also degrades ACROSS tests in one file, so the last cases blow the default 5s timeout while passing in isolation (`-t` filter). Use `container.querySelectorAll("button")` + `textContent` (or `getByText`) for interaction asserts, keep `*ByRole` for a11y-specific assertions; diagnose with per-step `Date.now()` marks before touching component code — a passing isolated run + failing full run is a speed problem, never a wiring problem.
 
+- **Recurrence (2026-10-22, the other half of the same coin)**: the suite raised `testTimeout` to 15s for
+  exactly this cost profile, but Testing Library keeps a *separate* per-query budget that still defaults to
+  1000ms — so a `findByText` after a ~900ms mount had ~100ms of slack. On a cold tree (first run after
+  `npm ci`, no vite dep cache) the plan-10 fresh-clone drill lost that race on a passing implementation
+  (`admin-live > rooms_live paints a room the poll never returned`), and the same run passed 4/4 in
+  isolation: the signature of a budget, not of a bug. Prevention extended: whenever a jsdom-cost note
+  raises one timeout, raise every budget that governs the same wait — `configure({ asyncUtilTimeout })` in
+  `web/tests/setup.ts` now states the budget once, next to the reasoning.
 ## PIT-25: an earlier server gate answers before the behavior under test — the refusal you assert is not the one you meant (2026-10-20, second occurrence same day)
 - **Symptom**: Rust `ws_flow` asserted `FloorDenied{unauthorized}` for a muted peer and got `rate_limited`; the Playwright mute row asserted the un-mute line clears and got the lingering "Too fast" sentence. Two different layers, same shape of failure.
 - **Root cause**: `room.rs` gates a FloorRequest on the request COOLDOWN (FLOOR_REQUEST_COOLDOWN_MS, default 500 ms) BEFORE core `apply()` can refuse it for being muted. Any test that presses twice in a row therefore measures the cooldown, not the rule it set out to prove. The second half: the refusal line is a *statement about a press*, so a stale refusal from the earlier press can outlive the state that caused it.
