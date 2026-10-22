@@ -6,6 +6,15 @@
 > Evidence base measured on this host 2026-10-22 (see §1, all commands re-runnable).
 > Open forks are in §4 — the plan cannot execute until the user answers them.
 
+> **EXECUTION STATUS 2026-10-22: T1-T4 + T6 + T7 LANDED** (commits `b07be4b` plan, `7b95b05`
+> vocabulary+derivation, `403c9f7` live test verb, `c1334f9` T6 reverted-with-numbers,
+> `5e3c91e` gate-clippy repair, `799c386` docs/ledger). F1=B, F2=O2, F3=C1-after-measurement,
+> F4 untouched. **T5 partially run**: `pixi run test` 4/4, `pixi run e2e` 1/1, live lane 1/1
+> under `TS_LANE_LIVE=1`; NOT run to completion: the fresh-clone drill and a cold
+> `pixi run gate` (each tens of minutes after `./target` and mediasoup-sys output were cleared
+> during the T6 experiment). Steps below are left as written; the two deviations are folded
+> into Task 4 Step 1 (gate script + `mediasoup` label) and the Executed-findings log.
+
 **Goal:** Replace the handle names that describe the same deliverable twice (`talkservo-server` lib + `talkservo-server-bin`) with one handle per (package, configuration), put every name on a single `<object>-<verb>` axis, delete the four hand-written consumer lists that can silently drift, and bring the mediasoup backend's test verb inside the graph.
 
 **Architecture:** Cargo stays the build engine; this graph only names and drives it (plan-8 red line). A lane is declared once through a new `talkservo_rust_lane()` named-argument function that composes the PolyOrch build/test/clean handles and registers itself into global properties; the web-ordering edges, the install handle choice and the aggregate all read those properties instead of repeating names.
