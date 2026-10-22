@@ -25,8 +25,8 @@ function(talkservo_gates)
       WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   set_tests_properties(gate-docs PROPERTIES LABELS "gate;headless" TIMEOUT 120)
 
-  _polyorch_rust_command(_cmd SUBCOMMAND fmt --all -- --check ENV "${_fenv}")
-  add_test(NAME gate-fmt COMMAND ${_cmd} WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+  _polyorch_rust_command(_fmt_cmd SUBCOMMAND fmt --all -- --check ENV "${_fenv}")
+  add_test(NAME gate-fmt COMMAND ${_fmt_cmd} WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   set_tests_properties(gate-fmt PROPERTIES LABELS "gate;headless" TIMEOUT 120)
 
   # plan-10 T6, measured and REVERTED to cargo's default ./target: pointing clippy at the
@@ -36,7 +36,16 @@ function(talkservo_gates)
   # the clippy path either way, so sharing bought nothing and only coupled the gate to the
   # lane cache. The 33 GB was clippy's own rmeta set, not accidental duplication. Cold cost
   # stays: warm gate-clippy measured 35.7s, cold runs tens of minutes in ANY directory.
-  add_test(NAME gate-clippy COMMAND ${_cmd} WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+  _polyorch_rust_command(_clippy_cmd SUBCOMMAND clippy --workspace --all-targets -- -D warnings ENV "${_fenv}")
+  # configure-time assertion, not a wish: the c1334f9 cleanup deleted this command line and
+  # gate-clippy silently inherited gate-fmt's ${_cmd} - a push gate that "passed" by running
+  # `cargo fmt --check`. A stale variable is invisible to the gate itself, so the graph checks
+  # that the thing named clippy actually carries clippy.
+  list(FIND _clippy_cmd "clippy" _clippy_at)
+  if(_clippy_at LESS_EQUAL -1)
+    message(FATAL_ERROR "gate-clippy command does not invoke clippy: ${_clippy_cmd}")
+  endif()
+  add_test(NAME gate-clippy COMMAND ${_clippy_cmd} WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   set_tests_properties(gate-clippy PROPERTIES LABELS "gate;headless;slow" TIMEOUT 900)
 
   # cargo-deny is an OPTIONAL tool - the skip below stays honest when it is truly
