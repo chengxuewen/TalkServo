@@ -233,6 +233,7 @@ Full plan: docs/plans/2026-10-19-alpha-wave1-trust-control.md (18 adjudications,
 **Date**: 2026-10-19 | **Amends**: D11 (dev toolchain: pixi stays env manager; BUILD ENTRY becomes CMake graph over it — "pixi = single entry" narrows to "pixi = single environment"), D5 (feature-gate discipline unchanged; lanes are now graph-visible).
 **Limits**: P1-P4 construction schedule lives in docs/plans/2026-10-19-plan8-polyorch-build-assembly.md §3; gitee-only upstream (mirror if network pain is real, not pre-emptive); submodule friction on fresh clones documented at P1.
 **Source**: user request to evaluate .refinfo/{VisiaEngine,ModuKit} PolyOrch usage; analysis showed perfect scenario-isomorphism (Rust core + multi-binding surface = PolyOrch's target); walkthrough rulings A / C->v2 / A; sibling contracts read from VisiaEnginePolyOrch.cmake + ModuKitPolyOrch.cmake (D39/D66).
+**Pin chain (annotated 2026-10-22, plan-10 F4)**: adopted at `5945f2a` (audited against upstream 0.3.0 on 2026-10-19); bumped to `879856a` on 2026-10-22 — the one-commit delta is upstream's pnpm-workspaces Node face (their D43), version still 0.3.0. Both pins are verified: every plan-10 lane/gate/e2e measurement ran on `879856a`, and the fresh-clone drill ran end to end on `5945f2a`.
 
 ## D26: Verification is local — no hosted CI; gate.sh in a pre-push hook, ci.yml kept as an inert job spec (2026-10-22)
 

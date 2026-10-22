@@ -103,7 +103,7 @@ Rule added to `docs/modules/09-dev-toolchain.md`: every graph button is named `t
 | **F1 default goal** | A: graph keeps no default target (bare `cmake --build` builds nothing, as today) / B: `talkservo-lanes-stub-build` gets the `ALL` keyword (bare `cmake --build` = the daily path, worker untouched) | **B** — a build system with a silent empty default is the "green from a mechanism that never ran" family (PIT-27); B costs nothing on the live lane because the aggregate excludes it |
 | **F2 per-object clean** | O1: only `talkservo-lanes-clean`, document `cargo clean -p <pkg> --target-dir out/cargo-target/stub` as the surgical path / O2: emit `<handle>-clean` for every object (rows 3,6,9,12,15) | **O2** — it puts `clean` on the same axis for every object (the objection that started this plan) and each name's scope is honest (`cargo clean -p` per package, `rm -rf` per cache group). Cost: +5 names |
 | **F3 gate cache consolidation** | C1: leave `gate-fmt`/`gate-clippy` on `./target` / C2: give `gate-clippy` `--target-dir out/cargo-target/live` so its worker/build-script outputs are shared with lane #10 | **C2, but only if measured** (Task 6 runs the timing gate and keeps C1 if it doesn't help) |
-| **F4 PolyOrch gitlink** | P1: verify the whole graph on the checked-out `879856a` and commit it as the new pin / P2: `git submodule update PolyOrch` back to the recorded `5945f2a` | depends on Task 8's green run; if green, **P1** (a pin nobody builds against is not a pin) |
+| **F4 PolyOrch gitlink** | **RULED =P1 2026-10-22**: bumped to `879856a` (one commit past `5945f2a`; upstream pnpm-workspaces Node face, still version 0.3.0). Both pins verified — the whole session battery ran on `879856a`, the fresh-clone drill ran the entire chain on `5945f2a`. The wrapper's FATAL text no longer hardcodes a SHA |
 
 ---
 
@@ -198,10 +198,10 @@ Rule added to `docs/modules/09-dev-toolchain.md`: every graph button is named `t
 
 ## Task 8: PolyOrch gitlink (F4)
 
-- [ ] **Step 1:** confirm what is checked out: `git -C PolyOrch rev-parse --short HEAD` (`879856a` after a 2026-10-22 10:45 `pull --tags origin main`, while the recorded pin is `5945f2a`) and that `git -C PolyOrch status --porcelain` is empty.
-- [ ] **Step 2:** run Tasks 5 Steps 1-3 **against the checked-out commit**.
-- [ ] **Step 3 (F4=P1):** if green → `git add PolyOrch && git commit -m "chore(deps): bump PolyOrch pin 5945f2a..879856a (graph lanes+gates green against it)"` and annotate D25's status.md line. **If red → P2:** `git submodule update PolyOrch`, record the failure in `pitfalls.md`, and re-run the battery to prove the old pin is still the truth.
-- [ ] **Step 4:** add a pitfall entry either way: the working tree had moved 3 days of builds without the gitlink being the authority we claim (D25 text), i.e. `git status` carried a ` M PolyOrch` nobody explained. Prevention: `git diff --quiet -- PolyOrch || echo "pin drift"` inside the gate face.
+- [x] **Step 1 (done):** confirm what is checked out: `git -C PolyOrch rev-parse --short HEAD` (`879856a` after a 2026-10-22 10:45 `pull --tags origin main`, while the recorded pin is `5945f2a`) and that `git -C PolyOrch status --porcelain` is empty.
+- [x] **Step 2 (done):** Tasks 5 ran against the checked-out `879856a` — cold gate 4/4, e2e 1/1, live lane 1/1, drill 5/5 (on the old pin).
+- [x] **Step 3 (F4=P1, taken):** green → `git add PolyOrch && git commit -m "chore(deps): bump PolyOrch pin 5945f2a..879856a (graph lanes+gates green against it)"` and annotate D25's status.md line. **If red → P2:** `git submodule update PolyOrch`, record the failure in `pitfalls.md`, and re-run the battery to prove the old pin is still the truth.
+- [x] **Step 4 (done):** recorded as D25's pin-chain annotation rather than a pitfall — nothing went wrong; the drift was an uncommitted human `pull`, now closed. The reusable rule (the gitlink must match reality, and error text must not hardcode a SHA) landed in `cmake/TalkServoPolyOrch.cmake`. the working tree had moved 3 days of builds without the gitlink being the authority we claim (D25 text), i.e. `git status` carried a ` M PolyOrch` nobody explained. Prevention: `git diff --quiet -- PolyOrch || echo "pin drift"` inside the gate face.
 
 ---
 

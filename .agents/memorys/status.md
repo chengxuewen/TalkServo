@@ -149,6 +149,8 @@ deferred UI case, all by 2026-10-21). What is actually left:*
    web/dist fixture (PIT-38), the undocumented npm provisioning (PIT-38, new `client-install` task +
    configure-time warning), a 1000ms Testing-Library budget racing a ~900ms jsdom mount (PIT-24
    recurrence), and a poisoned meson WrapDB cache that only `cargo clean -p mediasoup-sys` reveals
-   (PIT-39, with the recovery path). Still open: the PolyOrch gitlink sits at 879856a against a
-   recorded pin of 5945f2a (F4 — user call, deliberately unstaged), and pushing the local queue is still the
-   top risk.
+F4 then RULED =P1: the gitlink moved to 879856a (one commit past 5945f2a, upstream pnpm-workspaces
+   face, still version 0.3.0) and is committed here — every session battery ran on 879856a while the
+   fresh-clone drill ran the whole chain on 5945f2a, so both pins are verified and the recorded state
+   now matches reality. The wrapper no longer hardcodes a SHA in its FATAL text. Pushing the local
+   queue remains the top risk.

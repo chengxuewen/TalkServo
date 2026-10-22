@@ -29,8 +29,8 @@ function(talkservo_ensure_polyorch)
 
   if(NOT COMMAND polyorch_rust_setup)
     message(FATAL_ERROR
-      "PolyOrch embedded but its helpers are absent - check the gitlink pin "
-      "(5945f2a verified against the audited 0.3.0 snapshot 2026-10-19)")
+      "PolyOrch embedded but its helpers are absent - the gitlink is the version authority; "
+      "run git submodule update --init --recursive (audited baseline: upstream 0.3.0)")
   endif()
   message(STATUS "talkservo: PolyOrch self-embedded at its gitlink pin")
 endfunction()
