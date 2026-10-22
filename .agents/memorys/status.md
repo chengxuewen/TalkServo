@@ -1,6 +1,6 @@
 # TalkServo Status
 
-**Generated**: 2026-10-10 | Decisions: 25 entries | Phase: plan-4 LAN slice COMPLETE + SIGNOFF (11 pass/1 partial-deferred #8 of 12; D13 consumer reuse fix → keydown p50 ~320ms budget revised 350/600; #9 ICE matrix pass vs LAN coturn; #8 FEC deferred to real impaired network per ruling; public posture = Alpha); P0 multi-web talk LANDED (participant /room shell + Open-concurrency e2e + PIT-21 grant-set rebroadcast fix); Alpha wave-1 = trust & control S1-S7 LANDED 2026-10-20 (D23 + 18-ruling plan-7: audit JSONL / rooms registry / authz chain / mod-claims / tiers / intervention kit / five-tab admin console — vitest 18/18, stub-lane e2e incl. admin click-through + the live mute row, PIT-23 TS_KDF_ITERS lane knob); S7.5 deny≠mute LANDED as the A1/A2/A3 walkthrough (mute really revokes the seat and the queue slot, any room member can be muted, un-mute returns the privilege only; the wire keeps ONE shared `unauthorized` reason for D16 compat) — wave-1 CLOSED; the three deferred cross-client admin e2e rows LANDED 2026-10-21 — landing them found the RoomsTab create bug (typed values never reached the POST), the harness gap that made S1/S2 unreachable from a browser (audit_log/rooms_file derive from a config FILE, the lane runs on env) and a CI lane that self-skipped the whole admin spec (no TS_ADMIN); PIT-26 records one unreproduced flake; web test-hardening batch landed (tautology fix, cross-client asserts, 401-bounce, pw-config parity); lesson-review batch closed the loop: **C4 (ledger-index consistency) is now gate-enforced** via scripts/gate.sh + gate-gen.py (mutation-tested), plus PIT-27..29, two browser-lane coverage rules in testing.md and edit-safety rule 24; web test-hardening batch landed (tautology fix, cross-client asserts, 401-bounce, pw-config parity); plan-8 approved (Momus OKAY) and P1 LANDED (submodule pin 5945f2a, core lane -> ctest -L rust 39 green, pixi flows untouched); P2 LANDED (six lanes: rust x3 + web green via ctest, mediasoup artifact links - conda-cc linker pin, corepack/node22/jsdom toolchain pins recorded modules/09); P3 LANDED (gate.sh ledger-sync + fmt/clippy/deny + e2e-stub/live ctest labels - full table 9/9; lost-globalSetup forensics closed); P4 LANDED (install components bin/dist + talkservo.sh forwarders + CI graph jobs + fresh-clone drill 4/4 - plan-8 COMPLETE) | Branch: main
+**Generated**: 2026-10-10 | Decisions: 26 entries | Conventions: 5 (C1-C5) | Phase: plan-4 LAN slice COMPLETE + SIGNOFF (11 pass/1 partial-deferred #8 of 12; D13 consumer reuse fix → keydown p50 ~320ms budget revised 350/600; #9 ICE matrix pass vs LAN coturn; #8 FEC deferred to real impaired network per ruling; public posture = Alpha); P0 multi-web talk LANDED (participant /room shell + Open-concurrency e2e + PIT-21 grant-set rebroadcast fix); Alpha wave-1 = trust & control S1-S7 LANDED 2026-10-20 (D23 + 18-ruling plan-7: audit JSONL / rooms registry / authz chain / mod-claims / tiers / intervention kit / five-tab admin console — vitest 18/18, stub-lane e2e incl. admin click-through + the live mute row, PIT-23 TS_KDF_ITERS lane knob); S7.5 deny≠mute LANDED as the A1/A2/A3 walkthrough (mute really revokes the seat and the queue slot, any room member can be muted, un-mute returns the privilege only; the wire keeps ONE shared `unauthorized` reason for D16 compat) — wave-1 CLOSED; the three deferred cross-client admin e2e rows LANDED 2026-10-21 — landing them found the RoomsTab create bug (typed values never reached the POST), the harness gap that made S1/S2 unreachable from a browser (audit_log/rooms_file derive from a config FILE, the lane runs on env) and a CI lane that self-skipped the whole admin spec (no TS_ADMIN); PIT-26 records one unreproduced flake; web test-hardening batch landed (tautology fix, cross-client asserts, 401-bounce, pw-config parity); lesson-review batch closed the loop: **C4 (ledger-index consistency) is now gate-enforced** via scripts/gate.sh + gate-gen.py (mutation-tested), plus PIT-27..29, two browser-lane coverage rules in testing.md and edit-safety rule 24; web test-hardening batch landed (tautology fix, cross-client asserts, 401-bounce, pw-config parity); plan-8 approved (Momus OKAY) and P1 LANDED (submodule pin 5945f2a, core lane -> ctest -L rust 39 green, pixi flows untouched); P2 LANDED (six lanes: rust x3 + web green via ctest, mediasoup artifact links - conda-cc linker pin, corepack/node22/jsdom toolchain pins recorded modules/09); P3 LANDED (gate.sh ledger-sync + fmt/clippy/deny + e2e-stub/live ctest labels - full table 9/9; lost-globalSetup forensics closed); P4 LANDED (install components bin/dist + talkservo.sh forwarders + CI graph jobs + fresh-clone drill 4/4 - plan-8 COMPLETE) | Branch: main
 
 > TalkServo is a sister project of MediaServo (same RTC domain). Engineering lessons are accumulated from scratch;
 > MediaServo's historical ledgers live in its own repository under `.agents/memorys/` — they are not migrated here and must not impersonate this project's history.
@@ -58,6 +58,7 @@
 | D23 | Alpha wave-1 = trust & control: room authority chain + audit JSONL + tiers + intervention kit (+ UI/plan annexes; S7.5 walked A1/A2/A3) | ✅ adopted — S1-S7.5 LANDED 2026-10-20 |
 | D24 | doc-audit 2026-10-19: four-lane findings adjudicated; forward pointers over wholesale rewrite | ✅ adopted |
 | D25 | PolyOrch build assembly: submodule+CMake graph, scripts thin, runtime red lines | ✅ adopted |
+| D26 | Verification topology: no hosted CI (Gitee-only remote); `scripts/gate.sh` in `.githooks/pre-push`, pixi lanes are push obligations, `ci.yml` kept as an inert job spec | ✅ adopted |
 
 ## Next Steps
 
@@ -107,3 +108,27 @@ deferred UI case, all by 2026-10-21). What is actually left:*
    expired token — no backoff — while surfacing the operator's words; `Left` keeps `1000` so R1
    auto-reconnect still covers genuine drops. `pixi run e2e` has been green on that row since
    (2/2 under ctest, the previous reproduction path).
+7. **Verification topology RULED =C and LANDED 2026-10-22 (D26).** No hosted CI exists: the only remote is
+   Gitee, so the five GitHub jobs had never run. `ci.yml` stays as a portable job spec under an INERT banner;
+   enforcement moved local — `.githooks/pre-push` runs `scripts/gate.sh` on every push (enable once per clone:
+   `git config core.hooksPath .githooks`), `TS_GATE_FULL=1` adds `pixi run gate`, `--no-verify` is the
+   deliberate escape. Still uncovered by anything, stated plainly in architecture §4: clean-machine mediasoup
+   builds, the macOS `cargo check` target, and a cold cargo-deny — one host is the whole verification story,
+   which is exactly why the silently-rotting ledger gates are the ones inside the hook.
+8. **3c docs-drift pass LANDED 2026-10-22**: `docs/README.md` plan statuses corrected (plan-2 and plan-4 were
+   still labelled `skeleton` after shipping; wave-1 read `DRAFT (review pending)` and wave-2 `awaiting go`, both
+   closed 2026-10-21; the plan-5 row named `/a console`, a route C3 banned on 2026-10-09), the living-reference
+   table gained the `admin-events.md` and fixture rows it never listed, architecture §4's wave-1 note now covers
+   both waves, and the `signaling-schema.md` trigger was re-anchored (its condition had long been met while the
+   doc stayed unwritten). The real remaining item behind that row — a declared-variant-set drift test for
+   `SignalingMessage`, ~30 lines reusing the AdminEvent pattern — is recorded and UNWRITTEN: no external
+   integrator needs a schema yet.
+9. **lesson-review batch 2026-10-22 (C5 + PIT-34/35)**: the CI-location sweep turned into a new
+   convention — **C5**, living docs may not present hosted/automatic verification as if it runs; name
+   the command or mark it `inert`/`D26`. It is gate-embedded (5th block in `scripts/gate.sh`), and it
+   caught five live offenders on first run (AGENTS Docker note, modules/09 three lines + one example
+   label), which is the evidence that the rule earns its place rather than being written to file.
+   PIT-34 records the near-miss where a blocking test reported success because the hook was untracked
+   in a linked worktree — green from a mechanism that never ran; PIT-35 records an ad-hoc table checker
+   reporting 8 phantom defects because it carried column widths across tables, and points back at the
+   shipped doc gate instead.

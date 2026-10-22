@@ -2,7 +2,7 @@
 # scripts/gate.sh -- canonical ledger gates + link integrity (plan-8 P3).
 #
 # PIT-18 lesson, encoded structurally: ad-hoc retyped gate probes reported
-# false results. The C1-C3 blocks below are embedded VERBATIM from
+# false results. The C1-C5 blocks below are embedded VERBATIM from
 # .agents/memorys/conventions.md (base64, decoded at run time -- zero quoting
 # drift). Refresh ONLY via: python3 scripts/gate-gen.py
 #
@@ -69,6 +69,18 @@ runb64 "C4" \
 "ZWRnZXIgZW50cnk6ICQoZWNobyAkZ2hvc3RzIHwgdHIgJ1xuJyAnICcpIjsgZmFpbD0xOyB9Clsg"\
 "IiRmYWlsIiAtZXEgMCBdICYmIGVjaG8gUEFTUw=="
 # ---- END C4 ----
+
+# ---- C5 (verbatim from conventions.md; do not edit here) ----
+runb64 "C5" \
+"b3V0PSQoZ3JlcCAtcm5FICdHaXRIdWIgQWN0aW9uc3xhY3Rpb25zL3J1bnN8bmlnaHRseXxDSSBj"\
+"aGVjayB0YXJnZXR8Q0kgbGFuZXxDSVstIF1wYXJpdHknIEFHRU5UUy5tZCBkb2NzL2FyY2hpdGVj"\
+"dHVyZS5tZCBkb2NzL1JFQURNRS5tZCBkb2NzL21vZHVsZXMgZG9jcy9yZWZlcmVuY2Uvc2VydmVy"\
+"LWFwaS5tZCBkb2NzL3JlZmVyZW5jZS9hZG1pbi1ldmVudHMubWQgZG9jcy9yZWZlcmVuY2UvUkVB"\
+"RE1FLm1kIDI+L2Rldi9udWxsIHwgZ3JlcCAtdmlFICdpbmVydHxEMjYnKQppZiBbIC1uICIkb3V0"\
+"IiBdOyB0aGVuIGVjaG8gIkZBSUw6IGhvc3RlZC12ZXJpZmljYXRpb24gY2xhaW1zIHdpdGggbm8g"\
+"cnVubmFibGUgY29tbWFuZCBhbmQgbm8gaW5lcnQgbWFya2VyOiI7IGVjaG8gIiRvdXQiOyBleGl0"\
+"IDE7IGZpCmVjaG8gUEFTUw=="
+# ---- END C5 ----
 
 # ---- LINK (manual region: user rows live outside managed blocks) ----
 echo "=== LINK ==="

@@ -1,6 +1,6 @@
 # TalkServo Documentation Index
 
-> Updated: 2026-10-19 | Organization: Diataxis-inspired (specification / reference / research archive), mirroring the MediaServo docs layout.
+> Updated: 2026-10-22 | Organization: Diataxis-inspired (specification / reference / research archive), mirroring the MediaServo docs layout.
 
 ## Core documents
 
@@ -34,6 +34,8 @@ One-time competitive and selection research (frozen dossiers); living references
 | Document | Content | Status |
 |----------|---------|--------|
 | [reference/server-api.md](reference/server-api.md) | implemented server surface: routes, J-sequence, floor/media behaviors, config keys, honest gaps | living (plan-2) |
+| [reference/admin-events.md](reference/admin-events.md) | `/admin/ws` contract: handshake, frame tables, hint-not-row rule, hub/budget limits | living (plan-9 W1, landed 2026-10-21) |
+| [reference/fixtures/ws-transcript.json](fixtures/ws-transcript.json) | recorded signaling frames replayed by the SDK; re-recorded only with `TS_RECORD_FIXTURES=1` | living (one artifact, both ends) |
 
 ## Conventions (project-wide)
 
@@ -45,7 +47,7 @@ One-time competitive and selection research (frozen dossiers); living references
 
 | Document | Trigger |
 |----------|---------|
-| `docs/reference/signaling-schema.md` — OpenAPI/JSON-schema generated from `talkservo-core` wire types | when talkservo-core compiles |
+| `docs/reference/signaling-schema.md` — OpenAPI/JSON-schema generated from `talkservo-core` wire types | re-anchored 2026-10-22: the old trigger (`when talkservo-core compiles`) was met weeks ago and produced nothing, because the contract of record already exists in three places (the modules/02 variant table, the Rust enum, the drift-tested TS mirror). The gap this document was standing in for is really a declared-variant-set drift test for `SignalingMessage` — the AdminEvent one in `crates/talkservo-server/tests/admin_events.rs` is the pattern — not a fourth schema copy. New trigger: the first external integrator that cannot read a Rust enum |
 | `docs/reference/deployment.md` — split-services rollout, capacity, upgrade/rollout policy (OQ gap fix) | Alpha |
 | `docs/reference/config-handbook.md` — live mirror of the modules/06 §config table | first config drift |
 
@@ -56,11 +58,11 @@ All design docs already live in `docs/modules/01-09` (C2 tiering).
 | Plan | Scope | Status |
 |------|-------|--------|
 | [plans/2026-09-28-p0-workspace-core.md](plans/2026-09-28-p0-workspace-core.md) | P0-1 toolchain + talkservo-core first slice | **EXECUTED 2026-09-29** (4 gate commits) |
-| [plans/2026-09-28-plan2-server-sfu.md](plans/2026-09-28-plan2-server-sfu.md) | signaling server + SFU host | skeleton (expand at execution) |
+| [plans/2026-09-28-plan2-server-sfu.md](plans/2026-09-28-plan2-server-sfu.md) | signaling server + SFU host | **EXECUTED 2026-09-29** (signaling + SFU host live; expanded to step level at execution, rev v2.0) |
 | [plans/2026-09-28-plan3-web-client-sdk.md](plans/2026-09-28-plan3-web-client-sdk.md) | packages/client + web SPA | **EXECUTED 2026-09-29** (T1-T4 done; e2e browser-gated) |
-| [plans/2026-09-28-plan4-deployment-acceptance.md](plans/2026-09-28-plan4-deployment-acceptance.md) | public deployment + 12-item acceptance | skeleton |
+| [plans/2026-09-28-plan4-deployment-acceptance.md](plans/2026-09-28-plan4-deployment-acceptance.md) | public deployment + 12-item acceptance | **LAN slice SIGNOFF 2026-10-08** (11 pass / 1 deferred: #8 FEC needs a real impaired network); VPS rows T4-T6 blocked on public host provisioning (D17) |
 | [plans/2026-10-08-plan5-admin-surface.md](plans/2026-10-08-plan5-admin-surface.md) | admin minimal surface (/admin/api + /a console) per D18 | **EXECUTED 2026-10-08** (S0/S1/S2; e2e 4/4 incl. click-through) |
 | [plans/2026-10-08-plan6-tooling-ship-shell.md](plans/2026-10-08-plan6-tooling-ship-shell.md) | ship tooling: talkservo.sh + oxmgr instance facade + YAML config (D19) | **EXECUTED 2026-10-08** (shell + facade + vendored oxmgr + instance model) |
-| [plans/2026-10-19-alpha-wave1-trust-control.md](plans/2026-10-19-alpha-wave1-trust-control.md) | Alpha wave-1: audit + room authority + tiers + intervention kit (D23) | DRAFT (review pending) |
-| [plans/2026-10-21-alpha-wave2-realtime-control.md](plans/2026-10-21-alpha-wave2-realtime-control.md) | wave-2: /admin/ws AdminEvent push (separate contract, signaling wire untouched), Listen deferred (R-F14 + D13/#12, four prerequisites recorded) (D23 deferred family) | **ADJUDICATED R1-R5, awaiting go** |
-| [plans/2026-10-19-plan8-polyorch-build-assembly.md](plans/2026-10-19-plan8-polyorch-build-assembly.md) | D25: PolyOrch build graph (lanes/gates/install), scripts thin, P1-P4 | **COMPLETE 2026-10-19** (P1-P4 landed; fresh-clone 4/4; CI on graph verbs) |
+| [plans/2026-10-19-alpha-wave1-trust-control.md](plans/2026-10-19-alpha-wave1-trust-control.md) | Alpha wave-1: audit + room authority + tiers + intervention kit (D23) | **CLOSED 2026-10-21** (S1-S7.5 + the three deferred cross-client admin e2e rows; §8 sync obligations applied where mechanical) |
+| [plans/2026-10-21-alpha-wave2-realtime-control.md](plans/2026-10-21-alpha-wave2-realtime-control.md) | wave-2: /admin/ws AdminEvent push (separate contract, signaling wire untouched), Listen deferred (R-F14 + D13/#12, four prerequisites recorded) (D23 deferred family) | **CLOSED 2026-10-21** (W1 push plane + W2 console adoption + W3 hygiene; R7=B terminal kick landed; Listen deferred by R4=A) |
+| [plans/2026-10-19-plan8-polyorch-build-assembly.md](plans/2026-10-19-plan8-polyorch-build-assembly.md) | D25: PolyOrch build graph (lanes/gates/install), scripts thin, P1-P4 | **COMPLETE 2026-10-19** (P1-P4 landed; fresh-clone 4/4; the graph verbs are what the LOCAL lanes run — no hosted CI, D26) |

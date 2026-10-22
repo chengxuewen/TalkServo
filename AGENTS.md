@@ -27,9 +27,9 @@ TalkServo — real-time voice **floor-control platform** (PTT exclusive / confer
 |------|----------|-------|
 | What are we building / why | docs/whitepaper.md | v0.1 planning voice |
 | Architecture truth (live) | docs/architecture.md → modules/01-09 | master is thin by design |
-| Why a decision exists | .agents/memorys/decisions.md D1-D25 | cite by id; D23 = Alpha wave-1 (plan-7, S1-S7.5 landed), D25 = PolyOrch build graph |
-| Binding rules on this repo | .agents/memorys/conventions.md C1-C4 | C1 English, C2 docs-tiering, C3 full-word routes, C4 ledger-index consistency |
-| Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..33 | MediaServo ids labeled, never assume |
+| Why a decision exists | .agents/memorys/decisions.md D1-D26 | cite by id; D23 = Alpha wave-1 (plan-7, S1-S7.5 landed), D25 = PolyOrch build graph, D26 = verification is local (no hosted CI) |
+| Binding rules on this repo | .agents/memorys/conventions.md C1-C5 | C1 English, C2 docs-tiering, C3 full-word routes, C4 ledger-index consistency, C5 no phantom-CI claims |
+| Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..35 | MediaServo ids labeled, never assume |
 | Competitive/selection evidence | docs/reference/research/{ptt,media,ui,tooling}/ | FROZEN dossiers |
 | What is left to do | .agents/memorys/status.md → Next Steps | rewritten 2026-10-21 (it had kept advertising plan-1 items as open work) |
 | SDK/binding future shape | docs/modules/07 + D8 | nothing built at Beta trigger, not before |
@@ -44,7 +44,8 @@ Measured 2026-10-19: core = `FloorState::apply()` rules 1-9 (crates/talkservo-co
 - **C2**: docs tiering — design→`docs/modules/NN`, knowledge→`docs/reference/`, frozen research→`reference/research/<domain>/`.
 - **C3**: user-facing route/CLI/API names use full mainstream words (`/admin`, `/field/:room`, `/dispatch/:room`, `/room/:room`) — no cryptic abbreviations.
 - **C4**: files that *index* the ledgers (AGENTS.md ranges, status.md decision table) must match ledger contents — `bash scripts/gate.sh` C4 block enforces; update index rows in the same commit as the ledger entry.
-- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D25, C1-C4, PIT-1..33.
+- **C5**: living docs never present hosted/automatic verification as if it runs — name the command or mark `inert`/`D26`; gate-embedded block 5 in `scripts/gate.sh`.
+- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D26, C1-C5, PIT-1..35.
 - **Cargo.lock committed**; mediasoup UDP/ICE constraints in `.agents/rules/common/{docker,platform}.md` (Linux-native-first per D11 — their macOS posture is conditional).
 
 ## ANTI-PATTERNS (THIS PROJECT — learned in-session, enforced)
@@ -71,6 +72,7 @@ print(sum(not os.path.exists(os.path.normpath(os.path.join(os.path.dirname(p),m)
 E
 ~/.pixi/bin/pixi run test    # graph: ctest -L rust|web (P2 forwarder; direct parity = cargo test --workspace)
 ~/.pixi/bin/pixi run gate && ~/.pixi/bin/pixi run e2e    # P3: ledger gates + graph e2e (full: ctest -L "rust|web|gate|e2e-stub")
+git config core.hooksPath .githooks   # once per clone: pre-push runs scripts/gate.sh (no hosted CI — D26)
 ~/.pixi/bin/pixi run cmake-probe && ~/.pixi/bin/pixi run ctest --test-dir out/cmake-build -L rust   # plan-8 graph (P1: core lane)
 ~/.pixi/bin/pixi run lint    # fmt+clippy
 cd web && npx vitest run && npx tsc --noEmit   # web unit + types
@@ -81,5 +83,6 @@ cd web && npx playwright test e2e/floor.spec.ts e2e/talk.spec.ts   # stub-lane e
 
 - Doc-audit 2026-10-19 (D24): forward pointers in modules/01/08, architecture §4, server-api mark adjudicated wave-1 scope; full rewrites land with plan-7 §8 sync obligations.
 - Name availability: crates.io `talkservo` **taken** (placeholder, 0 versions) — reservation strategy before publishing (research/github-sweep-ptt).
-- Dev host is Linux x86_64 → mediasoup builds native; Docker = CI-parity only (D11).
+- Dev host is Linux x86_64 → mediasoup builds native; Docker = clean-environment parity image you run by hand (D11; no hosted runner — D26).
+- No hosted CI (D26): the only remote is Gitee, so `.github/workflows/ci.yml` is an inert job spec; enforcement = `.githooks/pre-push` + `pixi run test|gate|e2e` before pushing.
 - `.omo/run-continuation/` files churn constantly — never stage them.

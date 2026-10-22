@@ -8,8 +8,8 @@
 TalkServo's development host is Linux x86_64 — which is also the mediasoup worker's native platform. Therefore:
 
 - Daily loop builds/tests `talkservo-server --features sfu-mediasoup` **natively in the pixi sandbox**; no Docker prerequisite.
-- Docker is demoted to two roles: **CI-parity image** (ubuntu:22.04 build matrix) and **deployment artifact**. `docker-cargo.sh` exists as an ops tool, not a dev entry point.
-- macOS remains a supported *CI check target* (`--no-default-features`, stub-media) — MediaServo's Docker-required-everywhere posture was an artifact of macOS developer machines; we do not import that constraint into the dev path.
+- Docker is demoted to two roles: a **clean-environment parity image** (ubuntu:22.04, built and inspected by hand — there is no hosted runner, D26) and the **deployment artifact**. `docker-cargo.sh` exists as an ops tool, not a dev entry point.
+- macOS remains a supported *check target*, but nothing runs it automatically (D26): the command is `cargo check --workspace --no-default-features --features talkservo-server/stub-media`, and it is checked by whoever holds a Mac. MediaServo's Docker-required-everywhere posture was an artifact of macOS developer machines; we do not import that constraint into the dev path.
 - The inherited rule files `.agents/rules/common/platform.md` / `docker.md` carry a status note pointing here (their macOS guidance applies only if a macOS dev machine enters the picture).
 
 ## 2. Adopted / adapted / rejected matrix
@@ -22,7 +22,7 @@ TalkServo's development host is Linux x86_64 — which is also the mediasoup wor
 | MESON_ARGS/MESON unset trick (conda-vs-tasks.py buildtype clash) | adopt verbatim | same mediasoup-sys build path — the pitfall is universal, comment cites the sister PIT |
 | `[activation]` env injection (MESON/NINJA/LIBCLANG_PATH/PKG_CONFIG_PATH) | adopt | |
 | cargo-deny / tarpaulin / clippy -D warnings tasks | adopt | config files ported (`deny.toml`, `tarpaulin.toml`, `clippy.toml`) |
-| docker-cargo.sh | adapt | CI-parity wrapper; not part of bootstrap |
+| docker-cargo.sh | adapt | clean-environment parity wrapper, run by hand (D26); not part of bootstrap |
 | nodejs inside pixi | **new** (sister lacked it) | node>=22 in base deps → reproducible `web/` Vite builds |
 | bindings tasks (build-c/test-cxx/test-py/abi-drift/parity) | reject-for-now | trigger: Beta, when `bindings/` gains real code (D8) |
 | GStreamer/flatbuffers deps, imgui/vendor layers, Jetson aarch64 activation, *.bat windows suite, e2e brand/compat probes | reject | each needs a named TalkServo consumer first |
@@ -58,7 +58,7 @@ Workspace members at creation: `crates/{core,sfu,server}` only (D7); binding dir
 new machine:  git clone → source bootstrap.sh     # detects/installs pixi (curl), pixi install, prints next step
 daily:        source pixi.sh                      # exec pixi shell -e dev (or `pixi run <task>` one-offs)
 verify loop:  pixi run lint && pixi run test && pixi run test-sfu
-CI parity:    scripts/docker-cargo.sh test -p talkservo-server --features sfu-mediasoup   (ubuntu:22.04 image)
+clean-env parity: scripts/docker-cargo.sh test -p talkservo-server --features sfu-mediasoup   (ubuntu:22.04 image, by hand — no hosted runner, D26)
 secrets:      scripts/scan-hardcode.sh            # path already referenced by security-hardening skill — implementation = this repo's grep-based scan
 ```
 
@@ -85,7 +85,7 @@ secrets:      scripts/scan-hardcode.sh            # path already referenced by s
   template is a source-activate file, swapping it would change the daily ritual). Sister
   repos use COPY_SCRIPTS; we deliberately diverge here and record the choice.
 - **P1.0 env**: `cmake >=3.25` added to the pixi host dependencies (PolyOrch embed floor,
-  D39 equivalent); resolved in Pixi.lock 2026-10-19.
+  PolyOrch D39 equivalent — foreign ledger id, not a TalkServo decision); resolved in Pixi.lock 2026-10-19.
 
 
 D11 (this posture) · D5/D7 (default-features discipline + member gating) · D6 (mediasoup is why meson/ninja/clang exist at all) · platform.md/docker.md rule files annotated to defer to this module.

@@ -1,3 +1,11 @@
+# ─ INERT TODAY (D26, 2026-10-22) ────────────────────────────────────────────────
+# This repository's only git remote is Gitee, so GitHub Actions never triggers the jobs
+# below. The file is kept as the portable SPEC of what a clean-environment verification
+# should run (graph lanes, dual-OS check, mediasoup feature test, cargo-deny), and it goes
+# live the day a GitHub mirror exists. It is NOT evidence that verification is happening:
+# what runs today is local — scripts/gate.sh via .githooks/pre-push, plus the pixi lanes
+# (test / gate / e2e) as obligations on whoever pushes. See docs/architecture.md §4.
+# ────────────────────────────────────────────────────────────────────────────────
 name: ci
 
 # plan-8 P4 verb switch: the Linux verification lanes run through the PolyOrch

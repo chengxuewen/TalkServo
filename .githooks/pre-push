@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Pre-push gate (D26: this repo has NO hosted CI — the only git remote is Gitee, so
+# .github/workflows/ci.yml never executes and nothing off this machine verifies a push).
+#
+# Default set = scripts/gate.sh: the checks that rot silently and cost seconds
+# (C1 language, C2 doc tree, C3 route names, C4 ledger-index consistency, docs link
+# integrity). Run the heavy lanes too when you want fmt/clippy/deny in the same push:
+#
+#   TS_GATE_FULL=1 git push          # also runs `pixi run gate` (clippy + deny; minutes,
+#                                    # and gate-deny NEEDS network — a red deny means check
+#                                    # connectivity before believing a vulnerability)
+#
+# Deliberate escape hatch: `git push --no-verify`. Use it for a docs-only emergency, not
+# as habit — with no runner anywhere, this hook plus your own `pixi run test && e2e` is
+# the entire verification story for this repo.
+set -uo pipefail
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+
+echo "[pre-push] bash scripts/gate.sh"
+if ! bash scripts/gate.sh; then
+  echo "[pre-push] BLOCKED: a ledger/doc gate failed (see output above)." >&2
+  echo "[pre-push] A stale ledger index is a broken foreign key — fix it, don't bypass it." >&2
+  exit 1
+fi
+
+if [ "${TS_GATE_FULL:-}" = "1" ]; then
+  echo "[pre-push] TS_GATE_FULL=1 → pixi run gate (fmt + clippy + deny + ledger-sync)"
+  if ! ~/.pixi/bin/pixi run gate; then
+    echo "[pre-push] BLOCKED: gate lane failed (if gate-deny is red, check network first)." >&2
+    exit 1
+  fi
+fi
+
+echo "[pre-push] OK"

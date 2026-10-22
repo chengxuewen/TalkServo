@@ -67,7 +67,7 @@ TalkServo/
 ├── web/                       # React SPA (Vite → dist/ → rust-embed; sister uses www/ — we keep web/)
 ├── config/  scripts/  docker/ # sample config (env-driven, no secrets) · talkservo.sh / pixi entries · docker/: compose files + Dockerfile (ubuntu:22.04 worker; docker/ dir decided by modules/09, supersedes earlier deploy/ mention)
 ├── docs/                      # architecture master + modules/ + reference/ (C2)
-└── .github/workflows/         # fmt/check/clippy/test(mac+linux) + test-mediasoup(ubuntu) + e2e(nightly)
+└── .github/workflows/         # portable job SPEC, inert today (D26: only remote is Gitee) — graph lanes + dual-OS check + mediasoup + deny
 ```
 
 Phase-gated membership: PoC workspace = `crates/{core,sfu,server}` only; `talkservo-client` and everything under `bindings/` join the members list when their directories gain real code — no empty cargo shells.

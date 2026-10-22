@@ -73,3 +73,16 @@ ghosts=$(comm -13 <(echo "$ids") <(echo "$rows"))
 [ -n "$ghosts" ] && { echo "FAIL: status.md table cites ids with no ledger entry: $(echo $ghosts | tr '\n' ' ')"; fail=1; }
 [ "$fail" -eq 0 ] && echo PASS
 ```
+
+## C5: living docs may not cite hosted/automatic verification as if it executes — name the runnable command or mark it inert (2026-10-22)
+
+- **Constraint**: in living docs (`AGENTS.md`, `docs/architecture.md`, `docs/README.md`, `docs/modules/`, the living `docs/reference/*.md`), any sentence about CI, nightly runs, hosted runners, "CI check target" or "CI-parity" must either (a) name the command a human actually runs, or (b) carry an explicit `inert` / `D26` qualifier on the same line. Frozen dossiers under `docs/reference/research/` are exempt — they are never back-written (PIT-3), which is why the check is path-scoped instead of repo-wide.
+- **Rationale**: D26 found five jobs in `.github/workflows/ci.yml` that had never executed *and* six living-doc lines presenting a dual-OS CI, a `nightly e2e` and a "CI check target" as if some machine honored them. A doc that implies "CI checks this" outsources the check to nobody; the belief is exactly what lets a lane rot unexamined — the same failure family as an env-gated spec that self-skips green (PIT-27) and an assertion that passes for the wrong reason (PIT-33). C4 keeps the *ledger indexes* honest; C5 keeps the *verification claims* honest.
+- **Check**: embedded verbatim in `scripts/gate.sh` (refresh with `python3 scripts/gate-gen.py`, never hand-edit the embedded region).
+- **Source**: this project, session 2026-10-22 (CI-location ruling = option C / D26; the drift sweep that found the five lines).
+
+```bash
+out=$(grep -rnE 'GitHub Actions|actions/runs|nightly|CI check target|CI lane|CI[- ]parity' AGENTS.md docs/architecture.md docs/README.md docs/modules docs/reference/server-api.md docs/reference/admin-events.md docs/reference/README.md 2>/dev/null | grep -viE 'inert|D26')
+if [ -n "$out" ]; then echo "FAIL: hosted-verification claims with no runnable command and no inert marker:"; echo "$out"; exit 1; fi
+echo PASS
+```

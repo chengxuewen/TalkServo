@@ -62,7 +62,7 @@ Design principles:
 
 ## 4. Acceptance (normative)
 
-> **wave-1 note (updated 2026-10-20)**: audit log / room registry / command authorization / role tiers / intervention kit are **LANDED** (D23 + docs/plans/2026-10-19-alpha-wave1-trust-control.md, S1-S7) — acceptance rows 13-14 below carry their verification status. Still open inside wave-1: S7.5 (deny≠mute copy) and the deferred cross-client admin e2e rows (modules/08 §Acceptance).
+> **wave-1 + wave-2 note (updated 2026-10-22)**: audit log / room registry / command authorization / role tiers / intervention kit are **LANDED** (D23 + docs/plans/2026-10-19-alpha-wave1-trust-control.md, S1-S7) — acceptance rows 13-14 below carry their verification status. Row 15 (wave-2: plan-9 `/admin/ws` push plane + console adoption) LANDED 2026-10-21, and wave-1's two then-open items — S7.5 deny≠mute copy, the three deferred cross-client admin e2e rows — landed the same day. **Both waves are CLOSED**; rows 8 and 9 remain the deferred pair (real impaired network / public deployment).
 
 Functional (§9 of v0.1 retained): A holds → B/C denied; A audible to B/C; release → Idle; strictly-higher preempt works; holder drop → auto-release.
 
@@ -87,7 +87,7 @@ must SAY so (`push-state` notice) and keep working on the fallback poll — a co
 healthy while it has stopped listening is the failure mode this wave exists to remove.
 *(verified 2026-10-21 by `e2e/admin.spec.ts` push + degrade rows, `web/tests/admin-live.test.tsx`)*
 
-Test layers: unit (core, any platform) → integration (stub-media) → e2e automated (Linux, real worker + Playwright fake-device 3-instance scenario) → manual public network. CI: fmt/clippy/test dual-OS + test-mediasoup ubuntu + nightly e2e (non-blocking) — reusing the ported ci-cd-automation skeleton.
+Test layers: unit (core, any platform) → integration (stub-media) → e2e automated (Linux, real worker + Playwright fake-device 3-instance scenario) → manual public network. **Enforcement is local (D26)**: the only git remote is Gitee, so no hosted runner executes anything — `scripts/gate.sh` (C1-C4 + doc links) fires on every `git push` through `.githooks/pre-push` (`git config core.hooksPath .githooks`, once per clone), and `pixi run test|gate|e2e` are obligations on whoever pushes. `.github/workflows/ci.yml` is kept as a portable job spec for a future GitHub mirror and must not be cited as evidence of CI. What this posture gives up, stated plainly: clean-machine mediasoup builds, the macOS `cargo check` target and the cargo-deny audit are verified by exactly one host — this one.
 
 ## 5. Relationship to MediaServo
 
