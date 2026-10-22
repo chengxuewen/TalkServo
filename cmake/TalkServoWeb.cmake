@@ -21,14 +21,20 @@ function(talkservo_web)
   set(_mf "${CMAKE_SOURCE_DIR}/web/package.json")
   polyorch_node_build(TARGET talkservo-web MANIFEST "${_mf}")
 
-  # lane ordering: embedded-web cargo lanes bake web/dist at COMPILE time
-  # (rust-embed); the web lane must run first or fresh clones die with
-  # confusing E0599 from Assets. Guards: mediator targets exist per lane.
-  foreach(_dep talkservo-server talkservo-server-bin talkservo-server-mediasoup)
-    if(TARGET ${_dep}-build AND TARGET talkservo-web-build)
-      add_dependencies(${_dep}-build talkservo-web-build)
+  # Lane ordering: embedded-web cargo lanes bake web/dist at COMPILE time (rust-embed);
+  # the web lane must run first or fresh clones die with a confusing E0599 from Assets.
+  # The list comes from the lane registry (plan-10 T2). It used to be a hand-written name
+  # list, which is the silent kind of bug: renaming a lane drops the ordering edge and
+  # the symptom is a binary serving stale assets, not a build error.
+  get_property(_ew_handles GLOBAL PROPERTY TALKSERVO_EMBEDDED_WEB_HANDLES)
+  foreach(_h ${_ew_handles})
+    if(TARGET ${_h}-build AND TARGET talkservo-web-build)
+      add_dependencies(${_h}-build talkservo-web-build)
     endif()
   endforeach()
+  if(TARGET talkservo-lanes-stub-build AND TARGET talkservo-web-build)
+    add_dependencies(talkservo-lanes-stub-build talkservo-web-build)
+  endif()
 
   if(TALKSERVO_WEB AND COMMAND polyorch_node_test)
     polyorch_node_test(TARGET talkservo-web)  # -test button verb
@@ -42,4 +48,11 @@ function(talkservo_web)
       LABELS "web;headless"
       TIMEOUT 180)
   message(STATUS "talkservo web: node lane registered (talkservo-web build/test)")
+
+  # web/dist is the input the embedded-web lanes bake, so clearing it is the one
+  # Node-side cleanup the graph owns. node_modules stays npm's business (plan-8 red line).
+  add_custom_target(talkservo-web-clean
+      COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_SOURCE_DIR}/web/dist"
+      COMMENT "removing web/dist (the embedded-web input)"
+      FOLDER "web")
 endfunction()

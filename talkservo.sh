@@ -71,10 +71,12 @@ cmd_build() {
     local bdir="out/cmake-build" cfg="Debug" tgt
     [ -n "$prof" ] && { bdir="out/cmake-build-release"; cfg="Release"; }
     case "$LANE" in
-        live) tgt=talkservo-server-mediasoup-build ;;
-        stub) tgt=talkservo-server-bin-build ;;
+        live|stub) : ;;
         *)    echo "unknown lane $1 (stub|live)" >&2; exit 1 ;;
     esac
+    # plan-10 T2: the graph target name is composed from the lane word, so this script and
+    # the lane registry can no longer drift apart by one renamed handle.
+    tgt="talkservo-server-${LANE}-build"
     "$PIXI_BIN" run -e dev cmake -B "$bdir" -G Ninja -DCMAKE_BUILD_TYPE="$cfg" \
         -DTALKSERVO_PACKAGE_LANE="$LANE" -DTALKSERVO_OXMGR="$(command -v oxmgr || true)" >/dev/null
     "$PIXI_BIN" run -e dev cmake --build "$bdir" --target "$tgt"

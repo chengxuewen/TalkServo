@@ -14,11 +14,9 @@ function(talkservo_install_tree)
   if(NOT TALKSERVO_PACKAGE_LANE MATCHES "^(stub|live)$")
     message(FATAL_ERROR "TALKSERVO_PACKAGE_LANE must be stub or live, got '${TALKSERVO_PACKAGE_LANE}'")
   endif()
-  if(TALKSERVO_PACKAGE_LANE STREQUAL "live")
-    set(_handle talkservo-server-mediasoup)
-  else()
-    set(_handle talkservo-server-bin)
-  endif()
+  # The handle name is composed from the lane word (plan-10 T2) - no if/else name table
+  # to keep in sync: stub -> talkservo-server-stub, live -> talkservo-server-live.
+  set(_handle talkservo-server-${TALKSERVO_PACKAGE_LANE})
 
   polyorch_rust_install(
       TARGETS ${_handle}

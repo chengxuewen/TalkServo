@@ -29,7 +29,7 @@ requests = "*"
 [feature.dev.tasks]
 cmake-probe   = "cmake -B out/cmake-build -G Ninja"   # plan-8 P1 discoverability entry
 check       = "cargo check --workspace"
-build       = "cmake --build out/cmake-build --target talkservo-core-build talkservo-sfu-build talkservo-server-build talkservo-server-bin-build talkservo-server-mediasoup-build talkservo-web-build"   # P2 forwarder: all lane buttons (plan-8)
+build       = "cmake --build out/cmake-build --target talkservo-lanes-stub-build"   # plan-10: the aggregate replaced six enumerated lane names (and now carries ALL)
 test        = 'ctest --test-dir out/cmake-build -L "rust|web"'   # P2 forwarder
 gate        = "ctest --test-dir out/cmake-build -L gate"          # P3 forwarder: ledger+fmt+clippy+deny
 e2e         = "ctest --test-dir out/cmake-build -L e2e-stub"       # P3 graph e2e entry (live: ctest -L e2e-live with env flags)

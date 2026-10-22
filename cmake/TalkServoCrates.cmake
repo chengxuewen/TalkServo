@@ -1,30 +1,152 @@
-# TalkServoCrates.cmake — PolyOrch-driven cargo lanes (plan-8 P1 core, P2 full matrix).
+# TalkServoCrates.cmake — PolyOrch-driven cargo lanes (plan-8 P1 core, P2 matrix; plan-10 vocabulary).
 # cargo stays the build engine; the CMake graph DRIVES it (zero compilation rules here).
-# P2 additions: sfu + server lanes on the STUB config (daily/test gate), server BINARY
-# handle, and a mediasoup-feature ARTIFACT handle (build-only — its test verb stays the
-# `test-sfu` cargo task until P3 folds labels; dual-gate D16/D5 discipline preserved).
-# Shape copied from the measured ModuKit crates face (W4 lessons included):
-#   * polyorch_rust_test registers a BUILD target, NOT a ctest entry -> the bridge
-#     below adds one add_test per lane through the SAME _polyorch_rust_command wrapper
+#
+# Lane vocabulary (D27 / docs/plans/2026-10-22-plan10-graph-target-vocabulary.md):
+#   every button is  talkservo-<object>-<verb>,  verb in {build, test, clean},
+#   object = a lane  <crate>[-<config>]  or a scope  lanes[-<config>],
+#   config in {omitted, stub, live} and the suffix appears ONLY where one package has
+#   more than one in-graph configuration (today: talkservo-server). The `stub|live` words
+#   are the same vocabulary TALKSERVO_PACKAGE_LANE, talkservo.sh --lane, the e2e-stub /
+#   e2e-live ctest labels and TS_E2E_FEATURES already use — one word, four surfaces.
+#
+# One handle per (package, config), tracking that config's DELIVERED artifact:
+# BINARY when the package has a bin, LIB otherwise. Splitting lib and bin into two
+# handles was wrong rather than merely verbose: the helper accepts exactly one kind per
+# handle (PolyOrchRustHelpers.cmake:282 — "pick exactly one of BINARY, STATIC, SHARED,
+# EXAMPLE, LIB"), and cargo compiles the lib unit for a `--bin` invocation anyway —
+# measured 2026-10-22: one `cargo build -p talkservo-server --bin talkservo-server -v`
+# emitted `rustc … --crate-type lib` THEN `rustc … --crate-type bin` in the same call.
+# A separate lib handle therefore tracked an artifact nothing in the graph consumed, at
+# the price of a name. A second handle for the same package is added only when something
+# really consumes the other artifact (the clause reserved for the D8 Beta C-ABI staticlib).
+#
+# Shape notes inherited from the measured ModuKit crates face (W4 lessons included):
+#   * polyorch_rust_test registers a BUILD target, NOT a ctest entry -> the bridge below
+#     adds one add_test per lane through the SAME _polyorch_rust_command wrapper
 #     (pixi PATH prefix + host-leak strip), so button and ctest can never drift.
-#   * shared BASE_DIR (out/cargo-target, gitignored by the `out` rule).
+#   * one BASE_DIR per cache group. Sharing one dir across the stub and live feature
+#     configs of the SAME package made cargo rebuild-thrash (P2 first-red lesson); the
+#     groups are named, not tool-named: out/cargo-target/{stub,live}.
+#   * consumers never repeat a lane name: TalkServoWeb.cmake reads
+#     TALKSERVO_EMBEDDED_WEB_HANDLES, TalkServoInstall.cmake composes
+#     talkservo-server-${TALKSERVO_PACKAGE_LANE}, talkservo.sh composes the target name.
 
 option(TALKSERVO_POLYORCH_CRATES "register the PolyOrch-driven cargo lanes in the graph" ON)
 
-# Lane table - <handle>@<cargo package>@<folder-mirror>@<kind>@<crate lib name>@<base>@<features>|<test 0/1>.
-# handle != package for alias lanes (server-bin / mediasoup artifact share the package
-# with the stub lane; cargo --package must carry the REAL name - P2 first-red lesson).
-# Empty features = package defaults. features set => NO_DEFAULT_FEATURES + FEATURES
-# (dual-gate: exactly one backend per compile unit, Cargo.toml cfg-assert enforces).
-# One BASE_DIR per FEATURE CONFIG (P2 first-red lesson): artifact output names must be
-# unique per cargo-target dir, and sharing one dir across feature sets makes cargo
-# rebuild-thrash; stub/default ride the main cache, mediasoup gets its own.
-set(TALKSERVO_RUST_LANES
-    "talkservo-core@talkservo-core@crates/talkservo-core@lib@talkservo_core@out/cargo-target@|1"
-    "talkservo-sfu@talkservo-sfu@crates/talkservo-sfu@lib@talkservo_sfu@out/cargo-target@stub-media|1"
-    "talkservo-server@talkservo-server@crates/talkservo-server@lib@talkservo_server@out/cargo-target@stub-media,embedded-web|1"
-    "talkservo-server-bin@talkservo-server@crates/talkservo-server@binary@talkservo-server@out/cargo-target@stub-media,embedded-web|0"
-    "talkservo-server-mediasoup@talkservo-server@crates/talkservo-server@binary@talkservo-server@out/cargo-target-mediasoup@sfu-mediasoup,embedded-web|0")
+set(TALKSERVO_CACHE_ROOT "${CMAKE_SOURCE_DIR}/out/cargo-target")
+
+# talkservo_rust_lane(HANDLE PACKAGE KIND CACHE [FEATURES] [TEST] [TEST_LABELS] [CLEAN])
+# Derives manifest path, crate/artifact name, source folder and cache dir from
+# PACKAGE + KIND + CACHE, so no field can go stale against another field.
+function(talkservo_rust_lane)
+  cmake_parse_arguments(PARSE_ARGV 0 L ""
+      "HANDLE;PACKAGE;KIND;CACHE;FEATURES;TEST;TEST_LABELS;CLEAN" "")
+
+  foreach(_req HANDLE PACKAGE KIND CACHE)
+    if(NOT L_${_req})
+      message(FATAL_ERROR "talkservo_rust_lane: ${_req} is required (args: ${ARGN})")
+    endif()
+  endforeach()
+  if(NOT L_KIND MATCHES "^(LIB|BINARY)$")
+    message(FATAL_ERROR "talkservo_rust_lane(${L_HANDLE}): KIND must be LIB or BINARY, got '${L_KIND}'")
+  endif()
+  if(NOT L_CACHE MATCHES "^(stub|live)$")
+    message(FATAL_ERROR "talkservo_rust_lane(${L_HANDLE}): CACHE must be stub or live, got '${L_CACHE}'")
+  endif()
+
+  set(_folder "crates/${L_PACKAGE}")
+  set(_manifest "${CMAKE_SOURCE_DIR}/${_folder}/Cargo.toml")
+  set(_base "${TALKSERVO_CACHE_ROOT}/${L_CACHE}")
+  string(TOUPPER "${L_CACHE}" _cacheup)
+
+  # cargo's own naming rules: a lib target is the package name with dashes turned into
+  # underscores; a bin target keeps the name written in [[bin]] (here: the package name).
+  if(L_KIND STREQUAL "BINARY")
+    set(_crate "${L_PACKAGE}")
+    set(_kindkw BINARY)
+  else()
+    string(REPLACE "-" "_" _crate "${L_PACKAGE}")
+    set(_kindkw LIB)
+  endif()
+
+  polyorch_rust_build(
+      TARGET   ${L_HANDLE}
+      PACKAGE  ${L_PACKAGE}
+      CRATE    ${_crate}
+      ${_kindkw}
+      MANIFEST "${_manifest}"
+      BASE_DIR "${_base}"
+      FOLDER   "${_folder}")
+
+  # features ride set_features (polyorch_rust_build has no build-time NO_DEFAULT keyword
+  # - S1 forensics corrected a wrong guess). Empty FEATURES = package defaults.
+  if(L_FEATURES)
+    polyorch_rust_set_features(TARGET ${L_HANDLE} NO_DEFAULT_FEATURES FEATURES "${L_FEATURES}")
+  endif()
+
+  # P2 link-driver lesson (conda toolchain): the helper's host-leak strip removes
+  # CC/CXX, and CXX_<triple> only steers cc-rs compilations - cargo's final LINK would
+  # fall back to the conda `cc` wrapper, whose static-libstdc++ combination dies on
+  # __libc_single_threaded (undefined symbol) for C++-linking lanes. The daily flow works
+  # because activation sets CC=conda-clang; pin the equivalent, and pin it to plain `cc`,
+  # NOT to CMAKE_CXX_COMPILER (clang++-23 resolves the conda-prefixed ld with an old
+  # built-in sysroot, same missing symbol).
+  string(TOUPPER "${POLYORCH_RUST_HOST_TARGET}" _linktr)
+  string(REPLACE "-" "_" _linktr "${_linktr}")
+  find_program(TALKSERVO_CONDA_CC cc REQUIRED)
+  # NO_PROXY for pypi (both cases): mediasoup-sys build.rs pip-install hits a MITM proxy
+  # that breaks pypi TLS specifically on this class of host (gitee/github still route fine).
+  polyorch_rust_set_env_vars(TARGET ${L_HANDLE}
+      "CARGO_TARGET_${_linktr}_LINKER=${TALKSERVO_CONDA_CC}"
+      "NO_PROXY=*"
+      "no_proxy=*")
+
+  set_property(GLOBAL APPEND PROPERTY TALKSERVO_LANE_HANDLES "${L_HANDLE}")
+  set_property(GLOBAL APPEND PROPERTY TALKSERVO_LANE_HANDLES_${_cacheup} "${L_HANDLE}")
+  if(L_FEATURES MATCHES "embedded-web")
+    set_property(GLOBAL APPEND PROPERTY TALKSERVO_EMBEDDED_WEB_HANDLES "${L_HANDLE}")
+  endif()
+
+  if(L_CLEAN)
+    # Package-scoped by construction (cargo clean -p inside THIS cache group), so
+    # talkservo-core-clean cannot touch server artifacts that share the group. The
+    # cache-root nuke is talkservo-lanes-clean: two actions, two honest names.
+    _polyorch_rust_forward_env(TRIPLE "${POLYORCH_RUST_HOST_TARGET}" OUT_ENV _fenv)
+    _polyorch_rust_command(_clean SUBCOMMAND clean -p "${L_PACKAGE}" --target-dir "${_base}" ENV "${_fenv}")
+    add_custom_target(${L_HANDLE}-clean
+        COMMAND ${_clean}
+        COMMENT "cargo clean -p ${L_PACKAGE} (${L_CACHE} cache group)"
+        FOLDER "${_folder}")
+  endif()
+
+  if(NOT L_TEST STREQUAL "ON")
+    message(STATUS "talkservo lane ${L_HANDLE}: ${L_PACKAGE} [${L_KIND} @ ${L_CACHE}] registered (no test verb)")
+    return()
+  endif()
+
+  polyorch_rust_test(
+      PACKAGE  ${L_PACKAGE}
+      NAME     ${L_HANDLE}-test
+      TARGET   ${L_HANDLE}
+      MANIFEST "${_manifest}"
+      BASE_DIR "${_base}"
+      FOLDER   "${_folder}")
+
+  # W4 ctest bridge: same argv as the -test button (plus the lane's feature flags),
+  # same env wrapper.
+  _polyorch_rust_forward_env(TRIPLE "${POLYORCH_RUST_HOST_TARGET}" OUT_ENV _fenv)
+  set(_argv test --package "${L_PACKAGE}" --manifest-path "${_manifest}" --target-dir "${_base}")
+  if(L_FEATURES)
+    list(APPEND _argv --no-default-features --features "${L_FEATURES}")
+  endif()
+  _polyorch_rust_command(_cmd SUBCOMMAND ${_argv} ENV "${_fenv}")
+  add_test(NAME ${L_HANDLE}-test COMMAND ${_cmd})
+  set_tests_properties(${L_HANDLE}-test PROPERTIES
+      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+      SKIP_RETURN_CODE 77
+      LABELS "${L_TEST_LABELS}")
+  message(STATUS "talkservo lane ${L_HANDLE}: ${L_PACKAGE} [${L_KIND} @ ${L_CACHE}] + test (${L_TEST_LABELS})")
+endfunction()
 
 # talkservo_crates() - call AFTER talkservo_ensure_polyorch_rust().
 function(talkservo_crates)
@@ -36,84 +158,33 @@ function(talkservo_crates)
     return()
   endif()
 
-  foreach(_entry ${TALKSERVO_RUST_LANES})
-    string(REGEX REPLACE "\\|.*$" "" _specs "${_entry}")
-    string(REGEX REPLACE "^.*\\|" "" _dotest "${_entry}")
-    string(REPLACE "@" ";" _kv "${_specs}")
-    list(GET _kv 0 _pkg)      # handle (button/target/ctest naming)
-    list(GET _kv 1 _cpkg)    # real cargo package (--package argv)
-    list(GET _kv 2 _fold)
-    list(GET _kv 3 _kind)
-    list(GET _kv 4 _crate)
-    list(GET _kv 5 _base)
-    list(GET _kv 6 _feat)
-    set(_base "${CMAKE_SOURCE_DIR}/${_base}")
-    string(TOUPPER "${_kind}" _kindw)
-    set(_manifest "${CMAKE_SOURCE_DIR}/${_fold}/Cargo.toml")
+  talkservo_rust_lane(HANDLE talkservo-core        PACKAGE talkservo-core   KIND LIB
+      CACHE stub TEST ON TEST_LABELS "rust;headless" CLEAN ON)
+  talkservo_rust_lane(HANDLE talkservo-sfu         PACKAGE talkservo-sfu    KIND LIB
+      CACHE stub FEATURES stub-media TEST ON TEST_LABELS "rust;headless" CLEAN ON)
+  # The delivered shape of the everyday lane is the binary (rust-embed bakes web/dist at
+  # compile time); the ordering edge onto the Node lane is added by TalkServoWeb.cmake
+  # from TALKSERVO_EMBEDDED_WEB_HANDLES, never from a hand-written name list.
+  talkservo_rust_lane(HANDLE talkservo-server-stub PACKAGE talkservo-server KIND BINARY
+      CACHE stub FEATURES stub-media,embedded-web TEST ON TEST_LABELS "rust;headless" CLEAN ON)
+  # The real SFU backend: build-only for now. Its test verb lands in plan-10 T4; until
+  # then `pixi run test-sfu` still owns it, which modules/09 records either way.
+  talkservo_rust_lane(HANDLE talkservo-server-live PACKAGE talkservo-server KIND BINARY
+      CACHE live FEATURES sfu-mediasoup,embedded-web TEST OFF CLEAN ON)
 
-    # features ride set_features below (per-handle properties; polyorch_rust_build
-    # has no build-time NO_DEFAULT keyword - S1 forensics corrected a wrong guess).
-    polyorch_rust_build(
-        TARGET   ${_pkg}
-        PACKAGE  ${_cpkg}
-        CRATE    ${_crate}
-        ${_kindw}
-        MANIFEST "${_manifest}"
-        BASE_DIR "${_base}"
-        FOLDER   "${_fold}")
-
-    if(_feat)
-      polyorch_rust_set_features(TARGET ${_pkg} NO_DEFAULT_FEATURES FEATURES "${_feat}")
-    endif()
-
-    # P2 link-driver lesson (conda toolchain): the helper's host-leak strip removes
-    # CC/CXX, and CXX_<triple> only steers cc-rs compilations - cargo's final LINK
-    # would fall back to the conda `cc` wrapper, whose static-libstdc++ combination
-    # dies on __libc_single_threaded (undefined symbol) for C++-linking lanes. The
-    # daily flow works because activation sets CC=conda-clang. Pin the equivalent:
-    # linker = the configure-time C++ compiler (conda clang under pixi env dev).
-    string(TOUPPER "${POLYORCH_RUST_HOST_TARGET}" _linktr)
-    string(REPLACE "-" "_" _linktr "${_linktr}")
-    # NOTE: must be `cc`, NOT the CMAKE_CXX_COMPILER (clang++-23): the ++23 driver
-    # resolves the conda-prefixed x86_64-conda-linux-gnu-ld (old built-in sysroot,
-    # no __libc_single_threaded); plain cc links like the daily activation flow.
-    find_program(TALKSERVO_CONDA_CC cc REQUIRED)
-    # NO_PROXY for pypi (both cases): mediasoup-sys build.rs pip-install hits a
-    # MITM proxy that breaks pypi TLS specifically on this class of host
-    # (gitee/github still route fine through it) - surgical bypass, deterministic build.
-    polyorch_rust_set_env_vars(TARGET ${_pkg}
-        "CARGO_TARGET_${_linktr}_LINKER=${TALKSERVO_CONDA_CC}"
-        "NO_PROXY=*"
-        "no_proxy=*")
-
-    if(NOT _dotest STREQUAL "1")
-      continue()  # artifact handles: build-only; test verb lives elsewhere
-    endif()
-
-    polyorch_rust_test(
-        PACKAGE  ${_cpkg}
-        NAME     ${_pkg}-test
-        TARGET   ${_pkg}
-        MANIFEST "${_manifest}"
-        BASE_DIR "${_base}"
-        FOLDER   "${_fold}")
-
-    # W4 ctest bridge: same argv as the -test button (plus the lane's feature flags),
-    # same env wrapper.
-    _polyorch_rust_forward_env(TRIPLE "${POLYORCH_RUST_HOST_TARGET}" OUT_ENV _fenv)
-    set(_argv test --package "${_cpkg}" --manifest-path "${_manifest}" --target-dir "${_base}")
-    if(_feat)
-      list(APPEND _argv --no-default-features --features "${_feat}")
-    endif()
-    _polyorch_rust_command(_cmd SUBCOMMAND ${_argv} ENV "${_fenv}")
-    add_test(NAME ${_pkg}-test COMMAND ${_cmd})
-    set_tests_properties(${_pkg}-test PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        SKIP_RETURN_CODE 77
-        LABELS "rust;headless")
+  # Daily aggregate: every stub-group lane, never the live one (the C++ worker stays
+  # opt-in per lane). ALL is deliberate (plan-10 F1=B): with no default goal a bare
+  # `cmake --build` built NOTHING and still exited 0 — green from a mechanism that never
+  # ran (PIT-27 family), which is also why pixi.toml had to enumerate six target names.
+  get_property(_stub GLOBAL PROPERTY TALKSERVO_LANE_HANDLES_STUB)
+  set(_stub_deps "")
+  foreach(_h ${_stub})
+    list(APPEND _stub_deps "${_h}-build")
   endforeach()
+  add_custom_target(talkservo-lanes-stub-build ALL DEPENDS ${_stub_deps}
+      COMMENT "lanes-stub aggregate: ${_stub_deps}")
 
-  # clean buttons: one per feature-config cache (honest rm -rf, idempotent).
-  polyorch_rust_clean(NAME lanes-clean BASE_DIR "${CMAKE_SOURCE_DIR}/out/cargo-target" FOLDER "crates")
-  polyorch_rust_clean(NAME lanes-mediasoup-clean BASE_DIR "${CMAKE_SOURCE_DIR}/out/cargo-target-mediasoup" FOLDER "crates")
+  # one button for the whole cache root (both groups live under it now); the surgical
+  # path is the per-lane cargo clean above.
+  polyorch_rust_clean(NAME talkservo-lanes-clean BASE_DIR "${TALKSERVO_CACHE_ROOT}" FOLDER "crates")
 endfunction()
