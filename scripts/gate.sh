@@ -82,6 +82,11 @@ runb64 "C5" \
 "IDE7IGZpCmVjaG8gUEFTUw=="
 # ---- END C5 ----
 
+# ---- POLYORCH (manual graph-floor gate) ----
+echo "=== POLYORCH ==="
+if bash scripts/gate-polyorch.sh; then echo "[PASS] POLYORCH"; else echo "[FAIL] POLYORCH"; rc=1; fi
+# ---- END POLYORCH ----
+
 # ---- LINK (manual region: user rows live outside managed blocks) ----
 echo "=== LINK ==="
 if python3 -c '

@@ -79,6 +79,9 @@ secrets:      scripts/scan-hardcode.sh            # path already referenced by s
 
 - **PolyOrch supplier baseline (plan-11, 2026-10-23)**: the recorded gitlink is
   `f8f85db88240590e20dd910414a7ef3fd6d81982`; PolyOrch version is `0.7.1`.
+  TalkServo embeds PolyOrch through the `PolyOrch::PolyOrch` sentinel and requires
+  `INTERFACE_POLYORCH_VERSION >= 0.7.1`. The self-embed uses `EXCLUDE_FROM_ALL`, so
+  PolyOrch's own example/test targets do not become TalkServo build targets.
 - **P2 state (plan-8, 2026-10-19)**: `build`/`test`/`web-build`/`web-test` are now graph
   forwarders (`cmake --build --target talkservo-*-build` / `ctest -L "rust|web"`);
   `check`/`lint`/`format`/`audit`/`test-sfu` stay direct-cargo TOOLCHAIN tasks (no graph

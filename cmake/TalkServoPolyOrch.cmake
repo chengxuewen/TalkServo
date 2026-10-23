@@ -3,15 +3,40 @@
 # wiring (web / gates / install) grows here as talkservo_* functions per phase
 # (ModuKit D66 / VisiaEngine D39 wrapper shape).
 
-# talkservo_ensure_polyorch(): sentinel embed, first-wins (D39/D66 semantics).
-#   - A superbuild that already added PolyOrch wins; we reuse its copy.
+# talkservo_ensure_polyorch(): PolyOrch::PolyOrch sentinel embed, first-wins (D39/D66/plan-11).
+#   - A superbuild that already added PolyOrch wins only if it carries the versioned sentinel.
 #   - Otherwise self-embed the submodule at its gitlink pin (the gitlink is the sole
 #     version authority — this wrapper NEVER fetches, never tracks a branch).
 #   - TALKSERVO_POLYORCH_DIR: escape hatch for offline/superbuild checkouts.
+function(talkservo_require_polyorch_sentinel)
+  if(NOT TARGET PolyOrch::PolyOrch)
+    message(FATAL_ERROR
+      "PolyOrch was added but did not install PolyOrch::PolyOrch. TalkServo requires PolyOrch 0.7.1.")
+  endif()
+
+  get_property(_po_dir TARGET PolyOrch::PolyOrch PROPERTY INTERFACE_POLYORCH_CMAKE_DIR)
+  get_property(_po_ver TARGET PolyOrch::PolyOrch PROPERTY INTERFACE_POLYORCH_VERSION)
+
+  if(NOT _po_dir)
+    message(FATAL_ERROR
+      "PolyOrch was added but did not install PolyOrch::PolyOrch with INTERFACE_POLYORCH_CMAKE_DIR.")
+  endif()
+
+  if(NOT _po_ver OR _po_ver VERSION_LESS 0.7.1)
+    message(FATAL_ERROR
+      "TalkServo requires PolyOrch >= 0.7.1 (found '${_po_ver}'). Run git submodule update --init --recursive.")
+  endif()
+endfunction()
+
 function(talkservo_ensure_polyorch)
   if(COMMAND polyorch_rust_setup)
+    talkservo_require_polyorch_sentinel()
     message(STATUS "talkservo: reusing PolyOrch provided by the outer scope (first-wins)")
     return()
+  endif()
+
+  if(TARGET PolyOrch::PolyOrch)
+    talkservo_require_polyorch_sentinel()
   endif()
 
   if(TALKSERVO_POLYORCH_DIR)
@@ -25,12 +50,12 @@ function(talkservo_ensure_polyorch)
       "(gitlink pin; or set -DTALKSERVO_POLYORCH_DIR=<checkout>)")
   endif()
 
-  add_subdirectory("${_po}" "${CMAKE_BINARY_DIR}/_polyorch" SYSTEM)
+  add_subdirectory("${_po}" "${CMAKE_BINARY_DIR}/_polyorch" SYSTEM EXCLUDE_FROM_ALL)
 
+  talkservo_require_polyorch_sentinel()
   if(NOT COMMAND polyorch_rust_setup)
     message(FATAL_ERROR
-      "PolyOrch embedded but its helpers are absent - the gitlink is the version authority; "
-      "run git submodule update --init --recursive (audited baseline: upstream 0.3.0)")
+      "TalkServo requires PolyOrch >= 0.7.1 but polyorch_rust_setup is absent after embedding.")
   endif()
   message(STATUS "talkservo: PolyOrch self-embedded at its gitlink pin")
 endfunction()
