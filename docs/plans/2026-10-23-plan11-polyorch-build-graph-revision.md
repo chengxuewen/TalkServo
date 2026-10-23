@@ -1,5 +1,7 @@
 # PolyOrch Build Graph Revision Implementation Plan
 
+**Status:** implemented and verified locally (2026-10-23)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the eight adjudicated MediaServo/PolyOrch benchmark decisions in TalkServo's CMake build graph without adopting per-package clean, CMakePresets, Web workspace import, or SDK/bindings install scope.

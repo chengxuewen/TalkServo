@@ -27,7 +27,7 @@
 | 2-3 server/sfu + web/SDK (plans 2,3) | ✅ 2026-09-29 — signaling + SFU host; T1-T4 SPA/SDK, e2e browser-gated |
 | 4 acceptance (LAN slice, D17) | ✅ SIGNOFF — 11 pass / 1 deferred (#8 FEC needs a real impaired network); posture = Alpha |
 | 5 admin minimal surface (D18) | ✅ 2026-10-08 — /admin/api + console, click-through e2e |
-| 6-8 ship tooling + wave-1 + build graph | ✅ 2026-10-19/21 — oxmgr facade + YAML single-source (D19-D21); plan-7 S1-S7.5 LANDED; plan-8 PolyOrch graph COMPLETE (fresh-clone 4/4) |
+| 6-8 ship tooling + wave-1 + build graph | ✅ 2026-10-19/21/23 — oxmgr facade + YAML single-source (D19-D21); plan-7 S1-S7.5 LANDED; plan-8 PolyOrch graph COMPLETE (fresh-clone 4/4); plan-11 build-graph revision landed (PolyOrch 0.7.1 floor, ungated Rust lanes via supplier CTEST, live/web wrappers still guarded, lane reconciliation gate) |
 
 ## Decision Status
 

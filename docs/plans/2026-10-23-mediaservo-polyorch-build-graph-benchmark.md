@@ -1,7 +1,7 @@
 # MediaServo / PolyOrch Build Graph Benchmark Adjudication
 
 Date: 2026-10-23  
-Status: adjudicated by the user one by one; not yet implemented.  
+Status: adjudicated by the user one by one; landed through plan-11 on 2026-10-23.
 Scope: CMake/PolyOrch build graph, target vocabulary, test registration, clean semantics, Web lane, IDE entry surface, and lane drift protection.
 
 ## Summary Table
