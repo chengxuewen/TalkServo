@@ -117,7 +117,7 @@ five surfaces. The `talkservo-` prefix is load-bearing, not decorative: CMake ta
 global to the project and this graph is built to be embedded in a superbuild (first-wins
 sentinel), where a bare `lanes-clean` would collide with any sibling repo on the same pattern.
 
-Inventory (15 targets, every one carrying an IDE `FOLDER`, asserted at configure time):
+Inventory (17 targets, every one carrying an IDE `FOLDER`, asserted at configure time):
 
 | lane | build | test | clean | cache group | ctest label |
 |---|---|---|---|---|---|
@@ -127,6 +127,8 @@ Inventory (15 targets, every one carrying an IDE `FOLDER`, asserted at configure
 | `talkservo-server-live` | -build | -test (`TS_LANE_LIVE=1`, else Skipped) | — group clean | `out/cargo-target/live` | `mediasoup;headless;slow` |
 | `talkservo-web` | -build | -test | -clean (`web/dist`) | npm | `web;headless` |
 | scope `lanes` | `talkservo-lanes-stub-build` (aggregate, carries `ALL`) | — | `talkservo-lanes-{stub,live}-clean` per group + `talkservo-lanes-clean` root | — | — |
+| scope `gate` | `talkservo-gates-build` (runs `ctest -L gate`, not `ALL`) | — | — | — | — |
+| scope `e2e-stub` | `talkservo-e2e-stub-build` (runs `ctest -L e2e-stub`, depends on the stub aggregate, not `ALL`) | — | — | — | — |
 
 Four facts that cost measurement to learn, recorded so nobody re-pays them:
 

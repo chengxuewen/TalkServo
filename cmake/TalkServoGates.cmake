@@ -96,5 +96,24 @@ function(talkservo_gates)
       COMMAND sh -c "test \"\${TS_E2E_FEATURES:-}\" = live || exit 77; cd '${CMAKE_SOURCE_DIR}/web' && TS_E2E_FEATURES=live npx playwright test"
       WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   set_tests_properties(e2e-live PROPERTIES LABELS "e2e-live" TIMEOUT 1800 SKIP_RETURN_CODE 77)
-  message(STATUS "talkservo gates: gate-docs/fmt/clippy/deny + e2e-stub/e2e-live registered")
+  # IDE-facing aggregate verbs: these are deliberately not ALL. They make the
+  # gate/e2e graph surface clickable without turning `build all` into a test run.
+  add_custom_target(talkservo-gates-build
+      COMMAND ${CMAKE_CTEST_COMMAND}
+              --test-dir "${CMAKE_BINARY_DIR}"
+              -L gate
+              --output-on-failure
+      COMMENT "run ctest -L gate")
+  set_property(TARGET talkservo-gates-build PROPERTY FOLDER "lanes")
+
+  add_custom_target(talkservo-e2e-stub-build
+      DEPENDS talkservo-lanes-stub-build
+      COMMAND ${CMAKE_CTEST_COMMAND}
+              --test-dir "${CMAKE_BINARY_DIR}"
+              -L e2e-stub
+              --output-on-failure
+      COMMENT "run ctest -L e2e-stub")
+  set_property(TARGET talkservo-e2e-stub-build PROPERTY FOLDER "lanes")
+
+  message(STATUS "talkservo gates: gate-docs/fmt/clippy/deny + e2e-stub/e2e-live + IDE gate/e2e targets registered")
 endfunction()

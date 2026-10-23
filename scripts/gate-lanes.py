@@ -35,6 +35,13 @@ EXPECTED_DOCS_LANES = [
     ("talkservo-web", "web;headless"),
 ]
 
+IDE_BUILD_TARGETS = [
+    ("talkservo-gates-build", "-L gate", "lanes", []),
+    ("talkservo-e2e-stub-build", "-L e2e-stub", "lanes", ["talkservo-lanes-stub-build"]),
+]
+
+EXPECTED_TARGET_INVENTORY_LINE = "Inventory (17 targets"
+
 EXPECTED_CLEAN_TARGETS = {
     "talkservo-lanes-stub-clean",
     "talkservo-lanes-live-clean",
@@ -261,6 +268,55 @@ def check_gates_label_substrings(source: str) -> list[str]:
     return errors
 
 
+def gates_custom_target_block(text: str, target: str) -> str:
+    match = re.search(rf"add_custom_target\({target}\b(.*?)\)\s*\n", text, re.S)
+    return match.group(1) if match else ""
+
+
+def check_ide_build_targets(gates_text: str, docs_text: str, docs_source: str) -> list[str]:
+    errors: list[str] = []
+    source = str(GATES_PATH)
+
+    for target, label, folder, depends in IDE_BUILD_TARGETS:
+        block = gates_custom_target_block(gates_text, target)
+        if not block:
+            errors.append(
+                f"FAIL: {source} missing IDE custom target {target}: "
+                "expected add_custom_target"
+            )
+        else:
+            if label not in block:
+                errors.append(
+                    f"FAIL: {source} target {target} missing label {label}: "
+                    "expected a ctest label in the target command"
+                )
+            for dependency in depends:
+                if dependency not in block:
+                    errors.append(
+                        f"FAIL: {source} target {target} missing dependency {dependency}: "
+                        "expected DEPENDS to keep IDE e2e fresh"
+                    )
+        set_line = f'set_property(TARGET {target} PROPERTY FOLDER "{folder}")'
+        if set_line not in gates_text:
+            errors.append(
+                f"FAIL: {source} target {target} missing IDE FOLDER property: "
+                f"expected {set_line}"
+            )
+        if target not in docs_text:
+            errors.append(
+                f"FAIL: {docs_source} missing IDE custom target {target}: "
+                "expected target inventory to list it"
+            )
+
+    if EXPECTED_TARGET_INVENTORY_LINE not in docs_text:
+        errors.append(
+            f"FAIL: {docs_source} target inventory count drift: "
+            f"expected {EXPECTED_TARGET_INVENTORY_LINE!r}"
+        )
+
+    return errors
+
+
 def check_repo() -> int:
     errors: list[str] = []
 
@@ -281,6 +337,9 @@ def check_repo() -> int:
     errors.extend(check_install_handle(str(INSTALL_PATH)))
     errors.extend(check_web_label(str(WEB_PATH)))
     errors.extend(check_gates_label_substrings(str(GATES_PATH)))
+    errors.extend(
+        check_ide_build_targets(read_text(GATES_PATH), read_text(DOCS_PATH), str(DOCS_PATH))
+    )
 
     for error in errors:
         print(error)
@@ -328,6 +387,26 @@ def self_test() -> int:
     missing_clean_errors = check_clean_targets(missing_clean, {})
     if not any("talkservo-web-clean" in error for error in missing_clean_errors):
         errors.append("FAIL: self_test did not reject a missing required clean target")
+
+    valid_gates = ""
+    for target, label, folder, depends in IDE_BUILD_TARGETS:
+        depends_line = f"  DEPENDS {' '.join(depends)}\n" if depends else ""
+        valid_gates += f"add_custom_target({target}\n  COMMAND {label}\n{depends_line})\n"
+        valid_gates += f'set_property(TARGET {target} PROPERTY FOLDER "{folder}")\n'
+    valid_docs = "\n".join([target for target, _, _, _ in IDE_BUILD_TARGETS])
+    valid_docs += "\n" + EXPECTED_TARGET_INVENTORY_LINE
+    if check_ide_build_targets(valid_gates, valid_docs, "docs") != []:
+        errors.append("FAIL: self_test valid IDE target inventory was rejected")
+
+    missing_docs = valid_docs.replace(IDE_BUILD_TARGETS[0][0], "")
+    missing_docs_errors = check_ide_build_targets(valid_gates, missing_docs, "missing-docs")
+    if not any(IDE_BUILD_TARGETS[0][0] in error for error in missing_docs_errors):
+        errors.append("FAIL: self_test did not reject a missing IDE target in docs")
+
+    missing_definition = valid_gates.replace(f"add_custom_target({IDE_BUILD_TARGETS[1][0]}", "")
+    missing_definition_errors = check_ide_build_targets(missing_definition, valid_docs, "missing-def")
+    if not any(IDE_BUILD_TARGETS[1][0] in error for error in missing_definition_errors):
+        errors.append("FAIL: self_test did not reject a missing IDE target definition")
 
     for error in errors:
         print(error)
