@@ -87,6 +87,11 @@ echo "=== POLYORCH ==="
 if bash scripts/gate-polyorch.sh; then echo "[PASS] POLYORCH"; else echo "[FAIL] POLYORCH"; rc=1; fi
 # ---- END POLYORCH ----
 
+# ---- LANES (manual lane registry gate) ----
+echo "=== LANES ==="
+if python3 scripts/gate-lanes.py; then echo "[PASS] LANES"; else echo "[FAIL] LANES"; rc=1; fi
+# ---- END LANES ----
+
 # ---- LINK (manual region: user rows live outside managed blocks) ----
 echo "=== LINK ==="
 if python3 -c '

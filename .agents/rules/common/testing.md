@@ -102,3 +102,16 @@ evidence this project rejects (PIT-1, PIT-27).
 grep -q "TS_ADMIN=1" cmake/TalkServoGates.cmake \
   || { echo "FAIL: e2e-stub no longer sets TS_ADMIN=1; the admin spec would self-skip"; exit 1; }
 ```
+
+## Build-Lane Reconciliation (plan-11, 2026-10-23)
+
+### 3. A static parser needs a self-test, not only a green repo run
+
+A docs/CMake/Cargo reconciliation script can pass by parsing nothing or by matching
+only the current happy-path strings. The self-test must prove that a planted missing
+lane row and a planted forbidden `rust-live` label both fail.
+
+```bash
+python3 scripts/gate-lanes.py --self-test
+python3 scripts/gate-lanes.py
+```

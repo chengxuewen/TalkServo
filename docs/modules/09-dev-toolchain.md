@@ -158,6 +158,9 @@ Four facts that cost measurement to learn, recorded so nobody re-pays them:
   embedded PolyOrch directory, so a bare `cmake --build out/cmake-build` built nothing and exited
   0; the stub aggregate now carries `ALL` (cold measured 79s incl. `web/dist`), and it excludes
   the live lane so the worker stays opt-in.
+- **`scripts/gate-lanes.py --self-test` checks that Cargo members, CMake lane
+  registrations, docs inventory, install handles, clean targets, and ctest labels remain
+  one registry.
 
 Tooling note (PIT-30 recurrence): plain `ninja -C out/cmake-build -t targets` prints NOTHING from a
 shell without the pixi env on PATH, and a downstream `grep` then "passes" on the empty stream. Read
