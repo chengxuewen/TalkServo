@@ -76,6 +76,9 @@ secrets:      scripts/scan-hardcode.sh            # path already referenced by s
 > embed, Rust/Node/gate/install lanes — full blueprint + P1-P4 schedule in
 > docs/plans/2026-10-19-plan8-polyorch-build-assembly.md). pixi remains environment
 > single-source; this module's task tables stay current until their phase retires them.
+
+- **PolyOrch supplier baseline (plan-11, 2026-10-23)**: the recorded gitlink is
+  `f8f85db88240590e20dd910414a7ef3fd6d81982`; PolyOrch version is `0.7.1`.
 - **P2 state (plan-8, 2026-10-19)**: `build`/`test`/`web-build`/`web-test` are now graph
   forwarders (`cmake --build --target talkservo-*-build` / `ctest -L "rust|web"`);
   `check`/`lint`/`format`/`audit`/`test-sfu` stay direct-cargo TOOLCHAIN tasks (no graph
