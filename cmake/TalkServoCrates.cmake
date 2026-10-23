@@ -21,9 +21,9 @@
 # really consumes the other artifact (the clause reserved for the D8 Beta C-ABI staticlib).
 #
 # Shape notes inherited from the measured ModuKit crates face (W4 lessons included):
-#   * polyorch_rust_test registers a BUILD target, NOT a ctest entry -> the bridge below
-#     adds one add_test per lane through the SAME _polyorch_rust_command wrapper
-#     (pixi PATH prefix + host-leak strip), so button and ctest can never drift.
+#   * PolyOrch 0.7.1 can register the button and ctest entry from one CTEST call.
+#     Ungated Rust lanes use that path. Runtime-gated live lanes keep a wrapper so
+#     TS_LANE_LIVE can still decide at run time.
 #   * one BASE_DIR per cache group. Sharing one dir across the stub and live feature
 #     configs of the SAME package made cargo rebuild-thrash (P2 first-red lesson); the
 #     groups are named, not tool-named: out/cargo-target/{stub,live}.
@@ -133,37 +133,62 @@ function(talkservo_rust_lane)
     return()
   endif()
 
-  polyorch_rust_test(
-      PACKAGE  ${L_PACKAGE}
-      NAME     ${L_HANDLE}-test
-      TARGET   ${L_HANDLE}
-      MANIFEST "${_manifest}"
-      BASE_DIR "${_base}"
-      FOLDER   "${_folder}")
-
-  # W4 ctest bridge: same argv as the -test button (plus the lane's feature flags),
-  # same env wrapper, INCLUDING the lane's own linker pin.
-  _polyorch_rust_forward_env(TRIPLE "${POLYORCH_RUST_HOST_TARGET}" OUT_ENV _fenv)
-  set(_argv test --package "${L_PACKAGE}" --manifest-path "${_manifest}" --target-dir "${_base}")
+  set(_test_args "")
   if(L_FEATURES)
-    list(APPEND _argv --no-default-features --features "${L_FEATURES}")
+    set(_test_args --no-default-features --features "${L_FEATURES}")
   endif()
-  # ENV must carry _laneenv too: the build rule gets the linker pin through the target
-  # property, but this command is composed independently — and `cargo test` RE-LINKS the
-  # bin and harnesses. Without the pin the relink resolves `cc` off PATH (conda-cc) and the
-  # mediasoup lane dies on __libc_single_threaded. Measured 2026-10-22: the live test entry
-  # failed 3 link units while the same argv with an absolute gcc linked in 4m40s — and the
-  # old `pixi run test-sfu` could never have passed, which is why nobody had run it.
-  _polyorch_rust_command(_cmd SUBCOMMAND ${_argv} ENV ${_fenv} ${_laneenv})
+
   if(L_TEST_GATE)
-    # The list is passed through, not flattened into a shell string: the gate script execs
-    # the very argv the -test button uses, so button and ctest entry cannot drift (W4).
+    polyorch_rust_test(
+        PACKAGE  ${L_PACKAGE}
+        NAME     ${L_HANDLE}-test
+        TARGET   ${L_HANDLE}
+        MANIFEST "${_manifest}"
+        BASE_DIR "${_base}"
+        FOLDER   "${_folder}"
+        ARGS     ${_test_args})
+
+    # Runtime-gated live lanes keep a hand-written ctest wrapper so the
+    # TS_LANE_LIVE condition can still decide at run time. The wrapper uses
+    # the same argv, feature flags, and linker pin as the lane's build path.
+    _polyorch_rust_forward_env(TRIPLE "${POLYORCH_RUST_HOST_TARGET}" OUT_ENV _fenv)
+    set(_argv test --package "${L_PACKAGE}" --manifest-path "${_manifest}" --target-dir "${_base}")
+    if(L_FEATURES)
+      list(APPEND _argv --no-default-features --features "${L_FEATURES}")
+    endif()
+
+    # ENV must carry _laneenv too: the build rule gets the linker pin through the target
+    # property, but this command is composed independently — and `cargo test` RE-LINKS the
+    # bin and harnesses. Without the pin the relink resolves `cc` off PATH (conda-cc) and the
+    # mediasoup lane dies on __libc_single_threaded. Measured 2026-10-22: the live test entry
+    # failed 3 link units while the same argv with an absolute gcc linked in 4m40s — and the
+    # old `pixi run test-sfu` could never have passed, which is why nobody had run it.
+    _polyorch_rust_command(_cmd SUBCOMMAND ${_argv} ENV ${_fenv} ${_laneenv})
     add_test(NAME ${L_HANDLE}-test
         COMMAND bash "${CMAKE_SOURCE_DIR}/scripts/lane-gate.sh"
                 "${L_TEST_GATE}" "${L_TEST_GATE_VALUE}" -- ${_cmd})
+    set_tests_properties(${L_HANDLE}-test PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77
+        LABELS "${L_TEST_LABELS}")
   else()
-    add_test(NAME ${L_HANDLE}-test COMMAND ${_cmd})
+    # Ungated Rust lanes use supplier CTEST so the IDE button and ctest entry
+    # come from the same command vector.
+    polyorch_rust_test(
+        PACKAGE  ${L_PACKAGE}
+        NAME     ${L_HANDLE}-test
+        TARGET   ${L_HANDLE}
+        MANIFEST "${_manifest}"
+        BASE_DIR "${_base}"
+        FOLDER   "${_folder}"
+        ARGS     ${_test_args}
+        CTEST
+        CTEST_NAME ${L_HANDLE}-test
+        CTEST_LABELS "${L_TEST_LABELS}"
+        CTEST_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        CTEST_SKIP_RETURN_CODE 77)
   endif()
+
   if(L_FEATURES MATCHES "embedded-web")
     # Register the need; TalkServoWeb.cmake supplies the fixture. A fresh tree must be able
     # to run `ctest -L "rust|web"` with no prior build step: rust-embed fails at COMPILE time
@@ -173,10 +198,6 @@ function(talkservo_rust_lane)
     # existed there — a warm tree hiding a broken edge is exactly the PIT-27 family.
     set_property(GLOBAL APPEND PROPERTY TALKSERVO_WEBDIST_TESTS "${L_HANDLE}-test")
   endif()
-  set_tests_properties(${L_HANDLE}-test PROPERTIES
-      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-      SKIP_RETURN_CODE 77
-      LABELS "${L_TEST_LABELS}")
   message(STATUS "talkservo lane ${L_HANDLE}: ${L_PACKAGE} [${L_KIND} @ ${L_CACHE}] + test (${L_TEST_LABELS})")
 endfunction()
 
