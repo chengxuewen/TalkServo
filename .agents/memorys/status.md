@@ -150,7 +150,7 @@ deferred UI case, all by 2026-10-21). What is actually left:*
    configure-time warning), a 1000ms Testing-Library budget racing a ~900ms jsdom mount (PIT-24
    recurrence), and a poisoned meson WrapDB cache that only `cargo clean -p mediasoup-sys` reveals
 F4 then RULED =P1: the gitlink moved to 879856a (one commit past 5945f2a, upstream pnpm-workspaces
-   face, still version 0.3.0) and is committed here — every session battery ran on 879856a while the
-   fresh-clone drill ran the whole chain on 5945f2a, so both pins are verified and the recorded state
-   now matches reality. The wrapper no longer hardcodes a SHA in its FATAL text. Pushing the local
-   queue remains the top risk.
+   face, still version 0.3.0); plan-11 then moved the recorded gitlink to
+   `f8f85db88240590e20dd910414a7ef3fd6d81982` / PolyOrch `0.7.1` on 2026-10-23, so the current
+   recorded state is the 0.7.1 supplier floor. The wrapper no longer hardcodes a SHA in its FATAL text.
+   Pushing the local queue remains the top risk.

@@ -92,12 +92,12 @@ secrets:      scripts/scan-hardcode.sh            # path already referenced by s
   discovered in P2: `packageManager` field in both package.json files (corepack offline
   resolution - without it, corepack fetches `npm/latest` through the proxy and dies),
   conda `nodejs >=22,<23` (node 26 breaks jsdom: unimplemented getComputedStyle kills the
-  AntD admin gate test), and the lanes' `CARGO_TARGET_<triple>_LINKER` = conda `cc` (NOT
-  the CMake CXX driver; and the pin must reach EVERY cargo path a lane uses, not just the
-  build rule (plan-10 T4: the ctest bridge composed its own command without it, `cargo test`
-  relinks the bin and harnesses, and the relink took `cc` off PATH - which inside the pixi
-  env is `.pixi/envs/dev/bin/cc -> x86_64-conda-linux-gnu-cc`, whose sysroot lacks
-  `__libc_single_threaded` that the mediasoup-sys static objects need).
+  AntD admin gate test), and the live mediasoup lane's `CARGO_TARGET_<triple>_LINKER` = conda
+  `cc` (NOT the CMake CXX driver). Plan-11 review narrowed this pin: supplier CTEST has no
+  lane ENV keyword, so ungated stub lanes are deliberately unpinned on both build and test
+  to avoid rebuild thrash; the runtime-gated live lane keeps the pin in its hand-wrapped ctest
+  path because `cargo test` relinks the bin and harnesses and `cc` inside pixi has a sysroot
+  lacking `__libc_single_threaded` that mediasoup-sys static objects need.
 - **P1.0 posture (plan-8)**: `polyorch_pixi_setup` runs WITHOUT `COPY_SCRIPTS` — our
   `pixi.sh`/`pixi.bat` stay repo-owned (subshell-entry semantics per §4 above; PolyOrch's
   template is a source-activate file, swapping it would change the daily ritual). Sister

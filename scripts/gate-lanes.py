@@ -42,9 +42,26 @@ EXPECTED_CLEAN_TARGETS = {
     "talkservo-web-clean",
 }
 
-CLEAN_SCAN_PATHS = [
-    Path("cmake/TalkServoCrates.cmake"),
-    Path("cmake/TalkServoWeb.cmake"),
+REQUIRED_CLEAN_SOURCE = {
+    "talkservo-lanes-stub-clean": CRATES_PATH,
+    "talkservo-lanes-live-clean": CRATES_PATH,
+    "talkservo-lanes-clean": CRATES_PATH,
+    "talkservo-web-clean": WEB_PATH,
+}
+
+CLEAN_DEFINITION_PATHS = [
+    CRATES_PATH,
+    WEB_PATH,
+]
+
+FORBIDDEN_CLEAN_SCAN_PATHS = [
+    CRATES_PATH,
+    WEB_PATH,
+    INSTALL_PATH,
+    GATES_PATH,
+    DOCS_PATH,
+    Path("pixi.toml"),
+    Path("talkservo.sh"),
 ]
 
 
@@ -110,9 +127,9 @@ def cmake_code_without_comments(path: Path) -> str:
     return "\n".join(lines)
 
 
-def clean_targets() -> dict[str, str]:
+def clean_target_definitions() -> dict[str, str]:
     found: dict[str, str] = {}
-    for path in CLEAN_SCAN_PATHS:
+    for path in CLEAN_DEFINITION_PATHS:
         text = cmake_code_without_comments(path)
         for match in re.finditer(r"talkservo-[A-Za-z0-9_-]+clean", text):
             found[match.group(0)] = str(path)
@@ -122,6 +139,24 @@ def clean_targets() -> dict[str, str]:
         for group in ("stub", "live"):
             found[f"talkservo-lanes-{group}-clean"] = str(CRATES_PATH)
 
+    return found
+
+
+def forbidden_clean_target_mentions() -> dict[str, str]:
+    paths = list(FORBIDDEN_CLEAN_SCAN_PATHS)
+    scripts_dir = ROOT / "scripts"
+    if scripts_dir.is_dir():
+        for path in sorted(scripts_dir.glob("*.sh")):
+            paths.append(path.relative_to(ROOT))
+
+    found: dict[str, str] = {}
+    for path in paths:
+        full = ROOT / path
+        if not full.is_file():
+            continue
+        text = "\n".join(line.split("#", 1)[0] for line in full.read_text().splitlines())
+        for match in re.finditer(r"talkservo-[A-Za-z0-9_-]+clean", text):
+            found[match.group(0)] = str(path)
     return found
 
 
@@ -168,19 +203,29 @@ def check_docs_table(docs_rows: dict[str, list[str]], source: str) -> list[str]:
     return errors
 
 
-def check_clean_targets(source_map: dict[str, str]) -> list[str]:
+def check_clean_targets(
+    definitions: dict[str, str],
+    mentions: dict[str, str],
+) -> list[str]:
     errors: list[str] = []
-    found = set(source_map)
-    for forbidden in sorted(found - EXPECTED_CLEAN_TARGETS):
+    sources: dict[str, str] = {}
+    for name, source in definitions.items():
+        sources[name] = source
+    for name, source in mentions.items():
+        sources.setdefault(name, source)
+
+    for unexpected in sorted(set(sources) - EXPECTED_CLEAN_TARGETS):
         errors.append(
-            f"FAIL: {source_map[forbidden]} unexpected clean target {forbidden}: "
-            f"expected one of {sorted(EXPECTED_CLEAN_TARGETS)}"
+            f"FAIL: {sources[unexpected]} unexpected clean target {unexpected}: "
+            f"expected only {sorted(EXPECTED_CLEAN_TARGETS)}"
         )
-    for required in sorted(EXPECTED_CLEAN_TARGETS - found):
+
+    for required in sorted(EXPECTED_CLEAN_TARGETS - set(definitions)):
         errors.append(
-            f"FAIL: docs/modules/09-dev-toolchain.md missing allowed clean target {required}: "
-            f"expected one of {sorted(EXPECTED_CLEAN_TARGETS)}"
+            f"FAIL: {REQUIRED_CLEAN_SOURCE[required]} missing clean target {required}: "
+            f"expected only {sorted(EXPECTED_CLEAN_TARGETS)}"
         )
+
     return errors
 
 
@@ -230,7 +275,9 @@ def check_repo() -> int:
     errors.extend(check_lane_table(lanes, str(CRATES_PATH)))
 
     errors.extend(check_docs_table(docs_table(DOCS_PATH), str(DOCS_PATH)))
-    errors.extend(check_clean_targets(clean_targets()))
+    errors.extend(
+        check_clean_targets(clean_target_definitions(), forbidden_clean_target_mentions())
+    )
     errors.extend(check_install_handle(str(INSTALL_PATH)))
     errors.extend(check_web_label(str(WEB_PATH)))
     errors.extend(check_gates_label_substrings(str(GATES_PATH)))
@@ -265,6 +312,22 @@ def self_test() -> int:
     bad_label_errors = check_lane_table(bad_label, "bad-label")
     if not any("rust-live" in error for error in bad_label_errors):
         errors.append("FAIL: self_test did not reject the rust-live label substring")
+
+    if check_clean_targets({name: "valid" for name in EXPECTED_CLEAN_TARGETS}, {}) != []:
+        errors.append("FAIL: self_test valid clean target set was rejected")
+
+    forbidden_clean_errors = check_clean_targets(
+        {name: "valid" for name in EXPECTED_CLEAN_TARGETS},
+        {"talkservo-core-clean": "pixi.toml"},
+    )
+    if not any("talkservo-core-clean" in error for error in forbidden_clean_errors):
+        errors.append("FAIL: self_test did not reject a planted forbidden clean target")
+
+    missing_clean = {name: "valid" for name in EXPECTED_CLEAN_TARGETS}
+    missing_clean.pop("talkservo-web-clean")
+    missing_clean_errors = check_clean_targets(missing_clean, {})
+    if not any("talkservo-web-clean" in error for error in missing_clean_errors):
+        errors.append("FAIL: self_test did not reject a missing required clean target")
 
     for error in errors:
         print(error)

@@ -95,20 +95,28 @@ function(talkservo_rust_lane)
   # because activation sets CC=conda-clang; pin the equivalent, and pin it to plain `cc`,
   # NOT to CMAKE_CXX_COMPILER (clang++-23 resolves the conda-prefixed ld with an old
   # built-in sysroot, same missing symbol).
-  string(TOUPPER "${POLYORCH_RUST_HOST_TARGET}" _linktr)
-  string(REPLACE "-" "_" _linktr "${_linktr}")
-  # Pin the link driver: under the pixi env, a bare `cc` on PATH resolves to
-  # .pixi/envs/dev/bin/cc -> x86_64-conda-linux-gnu-cc, whose built-in sysroot lacks
-  # __libc_single_threaded. The absolute path is what works; see _laneenv below for
-  # where that pin must be carried (build rule AND ctest bridge).
-  find_program(TALKSERVO_CONDA_CC cc REQUIRED)
-  # NO_PROXY for pypi (both cases): mediasoup-sys build.rs pip-install hits a MITM proxy
-  # that breaks pypi TLS specifically on this class of host (gitee/github still route fine).
-  set(_laneenv
-      "CARGO_TARGET_${_linktr}_LINKER=${TALKSERVO_CONDA_CC}"
-      "NO_PROXY=*"
-      "no_proxy=*")
-  polyorch_rust_set_env_vars(TARGET ${L_HANDLE} ${_laneenv})
+  #
+  # Plan-11 review correction: supplier CTEST has no lane ENV keyword, so the pin cannot
+  # be carried into an ungated `polyorch_rust_test(... CTEST ...)` call. To keep build and
+  # test aligned, only C++-linking / runtime-gated lanes carry this pin. The stub lanes
+  # are unpinned on both sides; the live mediasoup lane remains pinned in its hand-wrapped
+  # ctest entry.
+  set(_laneenv "")
+  if(L_TEST_GATE OR L_FEATURES MATCHES "sfu-mediasoup")
+    string(TOUPPER "${POLYORCH_RUST_HOST_TARGET}" _linktr)
+    string(REPLACE "-" "_" _linktr "${_linktr}")
+    # Pin the link driver: under the pixi env, a bare `cc` on PATH resolves to
+    # .pixi/envs/dev/bin/cc -> x86_64-conda-linux-gnu-cc, whose built-in sysroot lacks
+    # __libc_single_threaded. The absolute path is what works.
+    find_program(TALKSERVO_CONDA_CC cc REQUIRED)
+    # NO_PROXY for pypi (both cases): mediasoup-sys build.rs pip-install hits a MITM proxy
+    # that breaks pypi TLS specifically on this class of host (gitee/github still route fine).
+    set(_laneenv
+        "CARGO_TARGET_${_linktr}_LINKER=${TALKSERVO_CONDA_CC}"
+        "NO_PROXY=*"
+        "no_proxy=*")
+    polyorch_rust_set_env_vars(TARGET ${L_HANDLE} ${_laneenv})
+  endif()
 
   set_property(GLOBAL APPEND PROPERTY TALKSERVO_LANE_HANDLES "${L_HANDLE}")
   set_property(GLOBAL APPEND PROPERTY TALKSERVO_LANE_HANDLES_${_cacheup} "${L_HANDLE}")
