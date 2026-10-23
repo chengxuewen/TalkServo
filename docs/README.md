@@ -1,6 +1,6 @@
 # TalkServo Documentation Index
 
-> Updated: 2026-10-22 | Organization: Diataxis-inspired (specification / reference / research archive), mirroring the MediaServo docs layout.
+> Updated: 2026-10-23 | Organization: Diataxis-inspired (specification / reference / research archive), mirroring the MediaServo docs layout.
 
 ## Core documents
 
@@ -67,3 +67,5 @@ All design docs already live in `docs/modules/01-09` (C2 tiering).
 | [plans/2026-10-21-alpha-wave2-realtime-control.md](plans/2026-10-21-alpha-wave2-realtime-control.md) | wave-2: /admin/ws AdminEvent push (separate contract, signaling wire untouched), Listen deferred (R-F14 + D13/#12, four prerequisites recorded) (D23 deferred family) | **CLOSED 2026-10-21** (W1 push plane + W2 console adoption + W3 hygiene; R7=B terminal kick landed; Listen deferred by R4=A) |
 | [plans/2026-10-19-plan8-polyorch-build-assembly.md](plans/2026-10-19-plan8-polyorch-build-assembly.md) | D25: PolyOrch build graph (lanes/gates/install), scripts thin, P1-P4 | **COMPLETE 2026-10-19** (P1-P4 landed; fresh-clone 4/4; the graph verbs are what the LOCAL lanes run — no hosted CI, D26) |
 | [plans/2026-10-22-plan10-graph-target-vocabulary.md](plans/2026-10-22-plan10-graph-target-vocabulary.md) | D27: lane target vocabulary (`talkservo-<object>-<verb>`), one handle per (package, config), derived consumers, live test verb in-graph | **EXECUTED 2026-10-22** (Momus OKAY; T1-T6 landed, T5 partial: drill + cold gate-clippy not re-run) |
+| [plans/2026-10-23-mediaservo-polyorch-build-graph-benchmark.md](plans/2026-10-23-mediaservo-polyorch-build-graph-benchmark.md) | MediaServo/PolyOrch benchmark adjudication: supplier baseline, CTEST migration, shim floor, clean posture, target naming, Web posture, presets posture, lane gate | **ADJUDICATED 2026-10-23** (user-adjudicated one by one; not implemented) |
+| [plans/2026-10-23-plan11-polyorch-build-graph-revision.md](plans/2026-10-23-plan11-polyorch-build-graph-revision.md) | plan-11 implementation plan: PolyOrch 0.7.1 baseline, embed sentinel floor, Rust-lane supplier CTEST, lane reconciliation gate, fresh-clone proof | **REVIEWED OKAY 2026-10-23** (Momus OKAY with two notes fixed; pending execution) |
