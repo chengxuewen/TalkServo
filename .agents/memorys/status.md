@@ -69,8 +69,8 @@ AGENTS.md points readers at for "next implementation step". Stale instructions a
 none. Wave-1 is CLOSED (plan-7 S1-S7.5 + the three cross-client admin e2e rows + the last
 deferred UI case, all by 2026-10-21). What is actually left:*
 
-1. **Push the local queue** — as of this writing the wave-1 close is local-only (`git status -sb`
-   carries the live count). Unpushed commits are the one remaining way this work can be lost.
+1. **Push the local queue — CLOSED 2026-10-23.** The plan-11 commits were manually pushed;
+   `git status -sb` is the live check for any future local queue.
 2. **Supply-chain gate is live (closed 2026-10-21).** The earlier claim here — "`cargo-deny` is
    not installed" — was WRONG and is retracted: the binary sat in `$CARGO_HOME/bin` all along,
    invisible to the probe's PATH, so `gate-deny` reported Skipped forever (PIT-30). Fixed in
@@ -153,4 +153,4 @@ F4 then RULED =P1: the gitlink moved to 879856a (one commit past 5945f2a, upstre
    face, still version 0.3.0); plan-11 then moved the recorded gitlink to
    `f8f85db88240590e20dd910414a7ef3fd6d81982` / PolyOrch `0.7.1` on 2026-10-23, so the current
    recorded state is the 0.7.1 supplier floor. The wrapper no longer hardcodes a SHA in its FATAL text.
-   Pushing the local queue remains the top risk.
+   The local queue was manually pushed on 2026-10-23.
