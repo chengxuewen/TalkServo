@@ -23,6 +23,15 @@ pub fn default_instance_dir(exe: &Path) -> PathBuf {
         .map_or_else(|| PathBuf::from(".server"), PathBuf::from)
 }
 
+/// Init default: the bin sibling WITHOUT the oxfile precondition — `init` is
+/// the thing that CREATES `run/oxfile.toml`, so requiring it first made a bare
+/// `init` in `out/<lane>/bin/` build the instance inside `bin/.server` (PIT-44).
+pub fn default_init_dir(exe: &Path) -> PathBuf {
+    exe.parent()
+        .and_then(|bin| bin.parent())
+        .map_or_else(|| PathBuf::from(".server"), PathBuf::from)
+}
+
 /// First routable IPv4 of the host (`hostname -I`) — SAN default for LAN
 /// certs; None when unresolvable (caller degrades + warns).
 pub fn detect_lan_ip() -> Option<String> {
@@ -756,6 +765,25 @@ mod tests {
         std::fs::create_dir_all(tmp.join("run")).unwrap();
         std::fs::write(tmp.join("run/oxfile.toml"), "").unwrap();
         assert_eq!(default_instance_dir(&exe), tmp);
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn default_init_dir_is_bin_sibling_even_fresh() {
+        // PIT-44: `init` CREATES run/oxfile.toml, so its default must NOT
+        // require the file to exist first (the old .server fallback made a
+        // bare `init` in out/<lane>/bin/ build the instance inside bin/.server).
+        let tmp = std::env::temp_dir().join(format!("ts-definit-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.join("bin")).unwrap();
+        let exe = tmp.join("bin/talkservo-server");
+        // fresh staging tree: NO run/ dir yet — init still targets the sibling
+        assert_eq!(default_init_dir(&exe), tmp);
+        // truly naked exe (dev, temp dir = no grandparent): keep the fallback.
+        // NOTE current_exe() can never be filesystem-root; "/" is only reachable
+        // in a synthetic test, and "/" as instance root is nonsense — keep .server.
+        let naked = PathBuf::from("talkservo-server");
+        assert_eq!(default_init_dir(&naked), PathBuf::from(".server"));
         std::fs::remove_dir_all(&tmp).ok();
     }
 

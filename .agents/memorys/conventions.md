@@ -95,7 +95,7 @@ echo PASS
 
 - **Constraint**: any `D{n}` / `C{n}` / `PIT-{n}` id cited in living files — docs (`docs/**.md` excluding `reference/research/`), `.agents/rules/**`, `.agents/skills/*/SKILL.md`, `.agents/memorys/{status,decisions}.md`, and `.rs` comments under `crates/` — must either resolve against `.agents/memorys/` (within the AGENTS.md ranges) or carry an explicit `MediaServo` / `sister` marker on the same line. Unlabeled foreign ids fabricate project history (the PIT-3 trap) and mislead every later agent.
 - **Rationale**: full-audit 2026-10-23 found eight unresolvable cites (`D202`, `C13`, `C9`, `D196`, `PIT-160`, `D39`/`D43`/`D66` in foreign contexts) across injected rules, skills, living docs and code comments. Local-lens citation discipline already exists in prose; it was not mechanical.
-- **Check**: embedded verbatim in `scripts/gate.sh` (refresh with `python3 scripts/gate-gen.py`). Scans for `\bD[0-9]+\b`, `\bC[0-9]+\b`, `\bPIT-[0-9]+\b` in the covered files; an id is a FAIL unless it resolves within the AGENTS.md ranges or the line matches `MediaServo|sister|inert`. Exemptions: `docs/reference/research/` (frozen), `docs/plans/` (historical working tier), this conventions file itself, and generic tokens like `CMAKE` (word-boundary + no-letter-prefix rules keep false positives near zero).
+- **Check**: embedded verbatim in `scripts/gate.sh` (refresh with `python3 scripts/gate-gen.py`). Scans for `\bD[0-9]+\b`, `\bC[0-9]+\b`, `\bPIT-[0-9]+\b` in the covered files; an id is a FAIL unless it resolves within ranges DERIVED FROM the ledgers themselves (the C4 method — adding a PIT needs no gate edit) or the line matches `MediaServo|sister|inert`. Exemptions: `docs/reference/research/` (frozen), `docs/plans/` (historical working tier), this conventions file itself, and generic tokens like `CMAKE` (word-boundary + no-letter-prefix rules keep false positives near zero).
 - **Source**: full doc-audit 2026-10-23, user adjudication #9 ("标来源+加 gate"). c1:allow-zh
 
 ```bash
@@ -103,7 +103,16 @@ python3 - <<'PY'
 import re, sys
 from pathlib import Path
 
-DMAX, CMAX, PMAX = 28, 6, 42  # AGENTS.md ledger ranges
+def _max_id(path, pat):
+    try:
+        ids = re.findall(pat, open(path, encoding='utf-8').read(), re.M)
+    except OSError:
+        return 0
+    return max((int(x) for x in ids), default=0)
+
+DMAX = _max_id('.agents/memorys/decisions.md', r'^## D(\d+)')      # live bounds from the ledgers
+CMAX = _max_id('.agents/memorys/conventions.md', r'^## C(\d+)')   # themselves (C4 method) — no
+PMAX = _max_id('.agents/memorys/pitfalls.md', r'^## PIT-(\d+)')  # constant to re-pin per entry
 paths = []
 for pat in ["docs/**/*.md", ".agents/rules/**/*.md", ".agents/skills/*/SKILL.md"]:
     paths += [p for p in Path('.').glob(pat)

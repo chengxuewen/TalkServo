@@ -15,7 +15,7 @@ async fn healthz() -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::json!({ "ok": true, "version": VERSION }))
 }
 
-const USAGE: &str = "usage: talkservo-server <init|start|stop|restart|status|logs|monit|ps|run|version> [<dir>]  (default dir: bin/ sibling when run/oxfile.toml is there, else .server/)
+const USAGE: &str = "usage: talkservo-server <init|start|stop|restart|status|logs|monit|ps|run|version> [<dir>]  (default dir: bin/ sibling; init always targets it, other verbs require its run/oxfile.toml or fall back to .server/)
   init <dir>              assemble an instance dir: etc/server.yaml + identity/env (0600, idempotent secrets) + run/oxfile.toml
   start|stop|restart <dir>  drive the process cluster via oxmgr (shipped by the deploy package / PATH)
   status <dir>            healthz probe (exit 0 healthy / 2 not running)
@@ -33,12 +33,20 @@ async fn main() {
         let sub = argv.first().map(|s| s.as_str()).unwrap_or("run");
         let exe = std::env::current_exe()
             .unwrap_or_else(|_| std::path::PathBuf::from("talkservo-server"));
-        let dir = argv
+        let arg_dir = argv
             .get(1)
             .filter(|a| !a.starts_with("--"))
             .cloned()
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| talkservo_server::lifecycle::default_instance_dir(&exe));
+            .map(std::path::PathBuf::from);
+        // PIT-44: init defaults to the bin sibling unconditionally (it CREATES
+        // run/oxfile.toml, so the exists-check default would fork .server/).
+        let dir = arg_dir.unwrap_or_else(|| {
+            if sub == "init" {
+                talkservo_server::lifecycle::default_init_dir(&exe)
+            } else {
+                talkservo_server::lifecycle::default_instance_dir(&exe)
+            }
+        });
         let code = match sub {
             "init" => match crate_ok(talkservo_server::lifecycle::init_instance(&dir, &exe)) {
                 Ok(lines) => {
