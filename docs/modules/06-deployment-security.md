@@ -42,3 +42,5 @@
 Ladder: PoC(1+4) → Alpha(+3 rotation, +5 accounts) → Beta+(+8 devices, +6 SSO) → Production(+7 gateway, +9 admin).
 
 Adoption discipline: every mechanism converges to the SAME wire credential — a short-lived, room-scoped JWT (modules/02 gains no auth-specific messages); `TS_JWT_SECRET` and `TURN_SECRET` remain physically separate (independent rotation); a new mechanism requires a named consumer (D8 discipline) and only ever adds an issuance path, never a second verification surface.
+
+> **Ops pointer (2026-10-23)**: rotation procedure, `/ws` per-IP budget (O-F6), audit retention/seq and the UDP port-pool ruling are owned by [../reference/deployment.md](../reference/deployment.md) (GAP-5 home; skeleton this date).

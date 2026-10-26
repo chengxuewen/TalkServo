@@ -35,6 +35,7 @@ One-time competitive and selection research (frozen dossiers); living references
 |----------|---------|--------|
 | [reference/server-api.md](reference/server-api.md) | implemented server surface: routes, J-sequence, floor/media behaviors, config keys, honest gaps | living (plan-2) |
 | [reference/admin-events.md](reference/admin-events.md) | `/admin/ws` contract: handshake, frame tables, hint-not-row rule, hub/budget limits | living (plan-9 W1, landed 2026-10-21) |
+| [reference/deployment.md](reference/deployment.md) | GAP-5 ops home: deploy shapes, GAP-3 rotation, GAP-4 audit ops (seq cursor + retention), /ws per-IP budget, UDP port pool, runbook stubs | living (SKELETON 2026-10-23; first slice of next wave) |
 | [reference/fixtures/ws-transcript.json](reference/fixtures/ws-transcript.json) | recorded signaling frames replayed by the SDK; re-recorded only with `TS_RECORD_FIXTURES=1` | living (one artifact, both ends) |
 
 ## Conventions (project-wide)
@@ -48,7 +49,6 @@ One-time competitive and selection research (frozen dossiers); living references
 | Document | Trigger |
 |----------|---------|
 | `docs/reference/signaling-schema.md` — OpenAPI/JSON-schema generated from `talkservo-core` wire types | re-anchored 2026-10-22: the old trigger (`when talkservo-core compiles`) was met weeks ago and produced nothing, because the contract of record already exists in three places (the modules/02 variant table, the Rust enum, the drift-tested TS mirror). The gap this document was standing in for is really a declared-variant-set drift test for `SignalingMessage` — the AdminEvent one in `crates/talkservo-server/tests/admin_events.rs` is the pattern — not a fourth schema copy. New trigger: the first external integrator that cannot read a Rust enum |
-| `docs/reference/deployment.md` — split-services rollout, capacity, upgrade/rollout policy (OQ gap fix) | Alpha |
 | `docs/reference/config-handbook.md` — live mirror of the modules/06 §config table | first config drift |
 
 All design docs already live in `docs/modules/01-09` (C2 tiering).
