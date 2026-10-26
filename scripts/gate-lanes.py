@@ -40,7 +40,12 @@ IDE_BUILD_TARGETS = [
     ("talkservo-e2e-stub-build", "-L e2e-stub", "lanes", ["talkservo-lanes-stub-build"]),
 ]
 
-EXPECTED_TARGET_INVENTORY_LINE = "Inventory (17 targets"
+DEPLOY_TARGETS = [
+    ("talkservo-deploy-stub-build", "talkservo-server-stub"),
+    ("talkservo-deploy-live-build", "talkservo-server-live"),
+]
+
+EXPECTED_TARGET_INVENTORY_LINE = "Inventory (19 targets"
 
 EXPECTED_CLEAN_TARGETS = {
     "talkservo-lanes-stub-clean",
@@ -273,6 +278,31 @@ def gates_custom_target_block(text: str, target: str) -> str:
     return match.group(1) if match else ""
 
 
+def check_deploy_targets(install_text: str, docs_text: str, docs_source: str) -> list[str]:
+    errors: list[str] = []
+    source = str(INSTALL_PATH)
+    for target, handle in DEPLOY_TARGETS:
+        if f"add_custom_target(talkservo-deploy-" not in install_text:
+            errors.append(
+                f"FAIL: {source} missing deploy staging targets: expected talkservo-deploy-{{stub,live}}-build"
+            )
+            break
+    if "talkservo-deploy-${_lane}-build" not in install_text and "talkservo-deploy-{stub,live}-build" not in install_text:
+        errors.append(
+            f"FAIL: {source} deploy target names drifted: expected talkservo-deploy-${{_lane}}-build"
+        )
+    for target, handle in DEPLOY_TARGETS:
+        if f'DEPENDS {handle}-build' not in install_text.replace("${_handle}-build", "DEPENDS talkservo-server-${_lane}-build") and f"${{_handle}}-build" not in install_text:
+            errors.append(
+                f"FAIL: {source} deploy target must depend on its lane build handle"
+            )
+        if target not in docs_text:
+            errors.append(
+                f"FAIL: {docs_source} missing deploy target row for {target}"
+            )
+    return errors
+
+
 def check_ide_build_targets(gates_text: str, docs_text: str, docs_source: str) -> list[str]:
     errors: list[str] = []
     source = str(GATES_PATH)
@@ -339,6 +369,9 @@ def check_repo() -> int:
     errors.extend(check_gates_label_substrings(str(GATES_PATH)))
     errors.extend(
         check_ide_build_targets(read_text(GATES_PATH), read_text(DOCS_PATH), str(DOCS_PATH))
+    )
+    errors.extend(
+        check_deploy_targets(read_text(INSTALL_PATH), read_text(DOCS_PATH), str(DOCS_PATH))
     )
 
     for error in errors:

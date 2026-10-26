@@ -76,11 +76,13 @@ cmd_build() {
     esac
     # plan-10 T2: the graph target name is composed from the lane word, so this script and
     # the lane registry can no longer drift apart by one renamed handle.
-    tgt="talkservo-server-${LANE}-build"
+    # plan-11 follow-up: the graph owns build + staging now (talkservo-deploy-<lane>-build
+    # = lane build + out/<lane>/bin copy of server and vendored oxmgr). The runtime
+    # `init` stays HERE (D25 red line: instance lifecycle is not a build step).
+    tgt="talkservo-deploy-${LANE}-build"
     "$PIXI_BIN" run -e dev cmake -B "$bdir" -G Ninja -DCMAKE_BUILD_TYPE="$cfg" \
-        -DTALKSERVO_PACKAGE_LANE="$LANE" -DTALKSERVO_OXMGR="$(command -v oxmgr || true)" >/dev/null
+        -DTALKSERVO_PACKAGE_LANE="$LANE" >/dev/null
     "$PIXI_BIN" run -e dev cmake --build "$bdir" --target "$tgt"
-    "$PIXI_BIN" run -e dev cmake --install "$bdir" --prefix "out/$LANE" --component bin
     # web dist rides the embedded lane (rust-embed baked; keep a copy for ops)
     [ -d web/dist ] && { rm -rf "out/$LANE/web"; mkdir -p "out/$LANE/web"; cp -r web/dist "out/$LANE/web/dist"; }
     if command -v oxmgr >/dev/null 2>&1; then

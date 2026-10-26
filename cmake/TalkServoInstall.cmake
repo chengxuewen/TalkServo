@@ -8,6 +8,7 @@
 
 set(TALKSERVO_PACKAGE_LANE "live" CACHE STRING "lane whose server artifact ships (stub|live)")
 set(TALKSERVO_OXMGR "" CACHE FILEPATH "staged oxmgr binary (empty = WARN-and-skip, script semantics)")
+set(TALKSERVO_OXMGR_VERSION "v0.5.0" CACHE STRING "vendored oxmgr version tag (talkservo.sh OXMGR_VER; drives the .cache/oxmgr staging copy)")
 
 # talkservo_install_tree() - call AFTER talkservo_gates().
 function(talkservo_install_tree)
@@ -46,4 +47,38 @@ function(talkservo_install_tree)
   endif()
   install(PROGRAMS "${CMAKE_SOURCE_DIR}/scripts/issue-token.sh" DESTINATION scripts COMPONENT dist)
   message(STATUS "talkservo install: lane=${TALKSERVO_PACKAGE_LANE} ships ${_handle}; oxmgr=${TALKSERVO_OXMGR}")
+endfunction()
+
+# talkservo_deploy_targets() - call AFTER talkservo_install_tree(). One staging
+# button per lane (build:deploy minus the runtime `init` — D25 red line keeps
+# instance lifecycle out of the graph): builds that lane's server in THIS build
+# tree's config and stages bin + vendored oxmgr into out/<lane>/bin. Deliberately
+# NOT `cmake --install`: the install handle is fixed per configure by
+# TALKSERVO_PACKAGE_LANE, while these buttons must work for either lane from one
+# configure. web/dist stays baked into the binary (rust-embed); the ops copy
+# remains the shell's passthrough (same split as plan-8 P4).
+function(talkservo_deploy_targets)
+  foreach(_lane stub live)
+    set(_handle talkservo-server-${_lane})
+    if(NOT TARGET ${_handle})
+      message(FATAL_ERROR "talkservo deploy: lane handle ${_handle} not registered (crates face order changed?)")
+    endif()
+    set(_dest "${CMAKE_SOURCE_DIR}/out/${_lane}/bin")
+    file(GLOB _oxmgr_candidates "${CMAKE_SOURCE_DIR}/.cache/oxmgr/oxmgr-${TALKSERVO_OXMGR_VERSION}-*/oxmgr")
+    set(_copy_oxmgr "")
+    if(_oxmgr_candidates)
+      list(GET _oxmgr_candidates 0 _oxmgr_cache)
+      set(_copy_oxmgr
+        COMMAND ${CMAKE_COMMAND} -E copy "${_oxmgr_cache}" "${_dest}/oxmgr")
+    endif()
+    add_custom_target(talkservo-deploy-${_lane}-build
+        DEPENDS ${_handle}-build
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${_dest}"
+        COMMAND ${CMAKE_COMMAND} -E copy
+                "$<TARGET_FILE:${_handle}>" "${_dest}/talkservo-server"
+        ${_copy_oxmgr}
+        COMMENT "stage ${_handle} -> out/${_lane}/bin (deploy staging; init stays in talkservo.sh)")
+    set_property(TARGET talkservo-deploy-${_lane}-build PROPERTY FOLDER "lanes")
+  endforeach()
+  message(STATUS "talkservo deploy: staging buttons talkservo-deploy-{stub,live}-build -> out/<lane>/bin")
 endfunction()
