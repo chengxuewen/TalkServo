@@ -41,11 +41,10 @@ IDE_BUILD_TARGETS = [
 ]
 
 DEPLOY_TARGETS = [
-    ("talkservo-deploy-stub-build", "talkservo-server-stub"),
-    ("talkservo-deploy-live-build", "talkservo-server-live"),
+    ("talkservo-deploy-build", "talkservo-server-${TALKSERVO_PACKAGE_LANE}"),
 ]
 
-EXPECTED_TARGET_INVENTORY_LINE = "Inventory (19 targets"
+EXPECTED_TARGET_INVENTORY_LINE = "Inventory (18 targets"
 
 EXPECTED_CLEAN_TARGETS = {
     "talkservo-lanes-stub-clean",
@@ -281,21 +280,17 @@ def gates_custom_target_block(text: str, target: str) -> str:
 def check_deploy_targets(install_text: str, docs_text: str, docs_source: str) -> list[str]:
     errors: list[str] = []
     source = str(INSTALL_PATH)
-    for target, handle in DEPLOY_TARGETS:
-        if f"add_custom_target(talkservo-deploy-" not in install_text:
-            errors.append(
-                f"FAIL: {source} missing deploy staging targets: expected talkservo-deploy-{{stub,live}}-build"
-            )
-            break
-    if "talkservo-deploy-${_lane}-build" not in install_text and "talkservo-deploy-{stub,live}-build" not in install_text:
+    if "add_custom_target(talkservo-deploy-build" not in install_text:
         errors.append(
-            f"FAIL: {source} deploy target names drifted: expected talkservo-deploy-${{_lane}}-build"
+            f"FAIL: {source} missing deploy staging target: expected talkservo-deploy-build"
         )
-    for target, handle in DEPLOY_TARGETS:
-        if f'DEPENDS {handle}-build' not in install_text.replace("${_handle}-build", "DEPENDS talkservo-server-${_lane}-build") and f"${{_handle}}-build" not in install_text:
-            errors.append(
-                f"FAIL: {source} deploy target must depend on its lane build handle"
-            )
+    if "DEPENDS ${_handle}-build" not in install_text:
+        errors.append(
+            f"FAIL: {source} deploy target must depend on the configured lane build handle"
+        )
+    if "TALKSERVO_PACKAGE_LANE" not in install_text or "out/${TALKSERVO_PACKAGE_LANE}/bin" not in install_text.replace('${_dest}', 'out/${TALKSERVO_PACKAGE_LANE}/bin'):
+        pass  # lane-word composition is checked in check_install_handle
+    for target, _handle in DEPLOY_TARGETS:
         if target not in docs_text:
             errors.append(
                 f"FAIL: {docs_source} missing deploy target row for {target}"

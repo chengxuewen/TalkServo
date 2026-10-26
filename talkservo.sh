@@ -76,10 +76,12 @@ cmd_build() {
     esac
     # plan-10 T2: the graph target name is composed from the lane word, so this script and
     # the lane registry can no longer drift apart by one renamed handle.
-    # plan-11 follow-up: the graph owns build + staging now (talkservo-deploy-<lane>-build
-    # = lane build + out/<lane>/bin copy of server and vendored oxmgr). The runtime
-    # `init` stays HERE (D25 red line: instance lifecycle is not a build step).
-    tgt="talkservo-deploy-${LANE}-build"
+    # plan-11 follow-up: the graph owns build + staging now. ONE button,
+    # talkservo-deploy-build, follows the configure's TALKSERVO_PACKAGE_LANE (this
+    # script passes -DTALKSERVO_PACKAGE_LANE="$LANE" right below), so the button and
+    # the install face share one lane fact. The runtime `init` stays HERE (D25 red
+    # line: instance lifecycle is not a build step).
+    tgt="talkservo-deploy-build"
     "$PIXI_BIN" run -e dev cmake -B "$bdir" -G Ninja -DCMAKE_BUILD_TYPE="$cfg" \
         -DTALKSERVO_PACKAGE_LANE="$LANE" >/dev/null
     "$PIXI_BIN" run -e dev cmake --build "$bdir" --target "$tgt"

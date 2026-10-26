@@ -117,7 +117,7 @@ five surfaces. The `talkservo-` prefix is load-bearing, not decorative: CMake ta
 global to the project and this graph is built to be embedded in a superbuild (first-wins
 sentinel), where a bare `lanes-clean` would collide with any sibling repo on the same pattern.
 
-Inventory (19 targets, every one carrying an IDE `FOLDER`, asserted at configure time):
+Inventory (18 targets, every one carrying an IDE `FOLDER`, asserted at configure time):
 
 | lane | build | test | clean | cache group | ctest label |
 |---|---|---|---|---|---|
@@ -129,7 +129,7 @@ Inventory (19 targets, every one carrying an IDE `FOLDER`, asserted at configure
 | scope `lanes` | `talkservo-lanes-stub-build` (aggregate, carries `ALL`) | — | `talkservo-lanes-{stub,live}-clean` per group + `talkservo-lanes-clean` root | — | — |
 | scope `gate` | `talkservo-gates-build` (runs `ctest -L gate`, not `ALL`) | — | — | — | — |
 | scope `e2e-stub` | `talkservo-e2e-stub-build` (runs `ctest -L e2e-stub`, depends on the stub aggregate, not `ALL`) | — | — | — | — |
-| scope `deploy` | `talkservo-deploy-stub-build` / `talkservo-deploy-live-build` (lane build + stage `out/<lane>/bin/{talkservo-server,oxmgr}`; runtime `init` stays in talkservo.sh, D25 red line) | — | — | — | — |
+| scope `deploy` | `talkservo-deploy-build` (builds the configured `TALKSERVO_PACKAGE_LANE` handle and stages `out/<lane>/bin/{talkservo-server,oxmgr}`; lane = the install knob's configure value, not a per-lane button; runtime `init` stays in talkservo.sh, D25 red line) | — | — | — | — |
 
 Four facts that cost measurement to learn, recorded so nobody re-pays them:
 

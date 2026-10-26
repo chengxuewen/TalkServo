@@ -49,36 +49,35 @@ function(talkservo_install_tree)
   message(STATUS "talkservo install: lane=${TALKSERVO_PACKAGE_LANE} ships ${_handle}; oxmgr=${TALKSERVO_OXMGR}")
 endfunction()
 
-# talkservo_deploy_targets() - call AFTER talkservo_install_tree(). One staging
-# button per lane (build:deploy minus the runtime `init` — D25 red line keeps
-# instance lifecycle out of the graph): builds that lane's server in THIS build
-# tree's config and stages bin + vendored oxmgr into out/<lane>/bin. Deliberately
-# NOT `cmake --install`: the install handle is fixed per configure by
-# TALKSERVO_PACKAGE_LANE, while these buttons must work for either lane from one
-# configure. web/dist stays baked into the binary (rust-embed); the ops copy
-# remains the shell's passthrough (same split as plan-8 P4).
+# talkservo_deploy_targets() - call AFTER talkservo_install_tree(). ONE staging
+# button for the configured delivery lane (build:deploy minus the runtime `init`
+# — D25 red line keeps instance lifecycle out of the graph): builds that lane's
+# server in THIS build tree's config and stages bin + vendored oxmgr into
+# out/<lane>/bin. Lane selection is the SAME knob install uses
+# (TALKSERVO_PACKAGE_LANE) — one fact source, no second lane semantic. Deliberately
+# NOT `cmake --install`: component installs belong to packaging; this button is
+# the run-by-hand staging path. web/dist stays baked into the binary
+# (rust-embed); the ops copy remains the shell's passthrough (plan-8 P4 split).
 function(talkservo_deploy_targets)
-  foreach(_lane stub live)
-    set(_handle talkservo-server-${_lane})
-    if(NOT TARGET ${_handle})
-      message(FATAL_ERROR "talkservo deploy: lane handle ${_handle} not registered (crates face order changed?)")
-    endif()
-    set(_dest "${CMAKE_SOURCE_DIR}/out/${_lane}/bin")
-    file(GLOB _oxmgr_candidates "${CMAKE_SOURCE_DIR}/.cache/oxmgr/oxmgr-${TALKSERVO_OXMGR_VERSION}-*/oxmgr")
-    set(_copy_oxmgr "")
-    if(_oxmgr_candidates)
-      list(GET _oxmgr_candidates 0 _oxmgr_cache)
-      set(_copy_oxmgr
-        COMMAND ${CMAKE_COMMAND} -E copy "${_oxmgr_cache}" "${_dest}/oxmgr")
-    endif()
-    add_custom_target(talkservo-deploy-${_lane}-build
-        DEPENDS ${_handle}-build
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${_dest}"
-        COMMAND ${CMAKE_COMMAND} -E copy
-                "$<TARGET_FILE:${_handle}>" "${_dest}/talkservo-server"
-        ${_copy_oxmgr}
-        COMMENT "stage ${_handle} -> out/${_lane}/bin (deploy staging; init stays in talkservo.sh)")
-    set_property(TARGET talkservo-deploy-${_lane}-build PROPERTY FOLDER "lanes")
-  endforeach()
-  message(STATUS "talkservo deploy: staging buttons talkservo-deploy-{stub,live}-build -> out/<lane>/bin")
+  set(_handle talkservo-server-${TALKSERVO_PACKAGE_LANE})
+  if(NOT TARGET ${_handle})
+    message(FATAL_ERROR "talkservo deploy: lane handle ${_handle} not registered (crates face order changed?)")
+  endif()
+  set(_dest "${CMAKE_SOURCE_DIR}/out/${TALKSERVO_PACKAGE_LANE}/bin")
+  file(GLOB _oxmgr_candidates "${CMAKE_SOURCE_DIR}/.cache/oxmgr/oxmgr-${TALKSERVO_OXMGR_VERSION}-*/oxmgr")
+  set(_copy_oxmgr "")
+  if(_oxmgr_candidates)
+    list(GET _oxmgr_candidates 0 _oxmgr_cache)
+    set(_copy_oxmgr
+      COMMAND ${CMAKE_COMMAND} -E copy "${_oxmgr_cache}" "${_dest}/oxmgr")
+  endif()
+  add_custom_target(talkservo-deploy-build
+      DEPENDS ${_handle}-build
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${_dest}"
+      COMMAND ${CMAKE_COMMAND} -E copy
+              "$<TARGET_FILE:${_handle}>" "${_dest}/talkservo-server"
+      ${_copy_oxmgr}
+      COMMENT "stage ${_handle} -> out/${TALKSERVO_PACKAGE_LANE}/bin (deploy staging; init stays in talkservo.sh)")
+  set_property(TARGET talkservo-deploy-build PROPERTY FOLDER "lanes")
+  message(STATUS "talkservo deploy: staging button talkservo-deploy-build -> out/${TALKSERVO_PACKAGE_LANE}/bin")
 endfunction()
