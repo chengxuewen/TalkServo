@@ -1,6 +1,6 @@
 ---
 name: ci-cd-automation
-description: "TalkServo CI/CD pipeline management: Docker compose (server + SFU), GitHub Actions (fmt/check/clippy/test/mediasoup/benchmark), pixi tasks (check/build/lint/test/audit/coverage), cargo-deny audit, and platform-specific builds (macOS native + Linux Docker). Use for CI troubleshooting, pipeline changes, or pre-merge verification."
+description: "TalkServo local verification pipeline: scripts/gate.sh ledger gates, pixi tasks (build/test/gate/e2e), ctest lanes via the PolyOrch graph, cargo-deny audit. There is no hosted CI (D26) — ci.yml is an inert job spec. Use for local gate troubleshooting, pipeline changes, or pre-push verification."
 ---
 
 # ci-cd-automation — TalkServo CI/CD Pipeline
@@ -21,7 +21,9 @@ description: "TalkServo CI/CD pipeline management: Docker compose (server + SFU)
 > runtime verbs oxmgr/compose are NOT graph members).
 
 ```
-GitHub Actions (on push/PR to main)
+Inert job spec, not a runner (D26): the `ci.yml` job tree below is the portable
+specification for a future GitHub mirror; nothing executes it today. Local parity is
+the authority: pixi run test / pixi run gate / pixi run e2e run the same ctest labels.
 │
 ├── fmt          : cargo fmt --all --check
 ├── check        : cargo check --workspace  (ubuntu + macOS)
@@ -257,7 +259,7 @@ Rules:
 
 | Pitfall | Reference | Fix |
 |---------|-----------|-----|
-| Resolved (official registry version) — local builds go through Docker (C13) |
+| Resolved (official registry version) — local builds go through Docker (C13, MediaServo-sister convention) |
 | MESON must be absolute path | PIT-12 | `pixi run -- which meson` |
 | cargo clean -p doesn't clear build cache | MediaServo PIT-13 | `rm -rf target/debug/build/<pkg>-*` |
 | macOS Docker volume mount slow | constraints.md | Use cargo-cache named volume |

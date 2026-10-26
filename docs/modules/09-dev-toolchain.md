@@ -103,7 +103,7 @@ secrets:      scripts/scan-hardcode.sh            # path already referenced by s
   template is a source-activate file, swapping it would change the daily ritual). Sister
   repos use COPY_SCRIPTS; we deliberately diverge here and record the choice.
 - **P1.0 env**: `cmake >=3.25` added to the pixi host dependencies (PolyOrch embed floor,
-  PolyOrch D39 equivalent — foreign ledger id, not a TalkServo decision); resolved in Pixi.lock 2026-10-19.
+  PolyOrch D39 equivalent — foreign MediaServo-sister ledger id, not a TalkServo decision); resolved in Pixi.lock 2026-10-19.
 
 ## 6. Lane target vocabulary and cache facts (plan-10, D27; landed 2026-10-22)
 

@@ -2,11 +2,11 @@
 
 > **TalkServo calibration (D11, 2026-09-28)**: the macOS-dev + Docker-server posture below is inherited from MediaServo's
 > macOS reality. TalkServo's primary dev machine is Linux x86_64 — mediasoup builds and tests **natively** there.
-> Docker remains for CI-parity runs and deploy images; the macOS workflow applies only if a macOS contributor joins.
+> Docker remains for hand-run parity checks (no hosted CI, D26) and deploy images; the macOS workflow applies only if a macOS contributor joins.
 > See `docs/modules/09-dev-toolchain.md`.
 
 
-> Split from [constraints.md](constraints.md) per D202 (OpenCode config optimization).
+> Split from [constraints.md](constraints.md) per D202 (MediaServo-sister decision, OpenCode config optimization).
 > This file: OS/platform-specific constraints for TalkServo development.
 
 ## Platform Constraints

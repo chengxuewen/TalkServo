@@ -17,7 +17,7 @@ Every external dependency decision must be backed by official documentation. Tal
 - Adding or upgrading a crate dependency (check changelog, migration guide, MSRV)
 - Implementing mediasoup API calls (Worker, Router, Transport, Producer, Consumer)
 - Using webrtc-rs or webrtc-sys APIs (SDP, ICE, DataChannel)
-- Writing Docker/CI configs (Dockerfile, docker-compose, GitHub Actions)
+- Writing Docker/CI configs (Dockerfile, docker-compose, GitHub Actions) — for OTHER projects only; TalkServo has no hosted CI (D26/inert)
 - Integrating GStreamer pipelines, FFmpeg codec flags
 - Building Admin Dashboard with React/TS patterns
 - Any time you're about to write framework-specific code from memory
@@ -59,7 +59,7 @@ DEPENDENCIES DETECTED:
 → Fetching upstream docs for the relevant APIs.
 ```
 
-For Docker/CI: check Dockerfile base image (`ubuntu:22.04`), docker-compose service configs, GitHub Actions `runs-on`.
+For Docker/CI (upstream projects only; TalkServo CI claims are inert/D26): check Dockerfile base image (`ubuntu:22.04`), docker-compose service configs, GitHub Actions `runs-on`.
 
 For TS: check `package.json` for React, Playwright, and other TS deps.
 

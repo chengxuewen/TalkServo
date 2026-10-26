@@ -1,10 +1,10 @@
 # Docker & Network Constraints
 
-> **TalkServo calibration (D11, 2026-09-28)**: docker-cargo.sh is a CI-parity fallback here, not the default dev loop (Linux-native-first). Volume-mount and first-build notes below describe the macOS/Docker pain we deliberately avoid on this host; mediasoup UDP port-range and ICE/STUN constraints remain fully in force.
+> **TalkServo calibration (D11, 2026-09-28; D26 wording)**: docker-cargo.sh is a hand-run clean-environment parity image, not the default dev loop (Linux-native-first); there is no hosted CI (D26). Volume-mount and first-build notes below describe the macOS/Docker pain we deliberately avoid on this host; mediasoup UDP port-range and ICE/STUN constraints remain fully in force.
 
 
 
-> Split from [constraints.md](constraints.md) per D202 (OpenCode config optimization).
+> Split from [constraints.md](constraints.md) per D202 (MediaServo-sister decision, OpenCode config optimization).
 > This file: Docker, network, and container-specific constraints for TalkServo development.
 
 ## Docker Constraints

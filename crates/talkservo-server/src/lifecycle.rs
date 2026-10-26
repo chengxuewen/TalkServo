@@ -302,7 +302,7 @@ pub fn init_instance(dir: &Path, server_bin: &Path) -> std::io::Result<Vec<Strin
         "etc/Caddyfile generated (https://:{front} -> {backend_proxy})"
     ));
     // sister T16 parity: init bootstraps the credential layer, idempotently
-    // (PIT-160 never-overwrite; secrets only into 0600 files, never logs).
+    // (PIT-160 never-overwrite, MediaServo sister lineage; secrets only into 0600 files, never logs).
     let accf = abs.join("etc/accounts.yaml");
     let yaml_has_hash = std::fs::read_to_string(&yaml)
         .map(|t| t.contains("admin_password_hash"))

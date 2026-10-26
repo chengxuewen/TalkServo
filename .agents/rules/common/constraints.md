@@ -1,6 +1,6 @@
 # Development Constraints
 
-> This is a stub file. Platform and Docker constraints have been split out per D202.
+> This is a stub file. Platform and Docker constraints have been split out per D202 (MediaServo-sister decision).
 >
 > - [docker.md](docker.md) — Docker & Network constraints (volume mounts, UDP ports, ICE/STUN)
 > - [platform.md](platform.md) — Platform constraints (macOS/Linux, mediasoup, CI)

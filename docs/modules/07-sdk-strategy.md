@@ -28,14 +28,14 @@ modules/02-06 server architecture is engine-agnostic by construction (floor/arbi
 ```text
 bindings/
 ├── c/
-│   ├── include/talkservo/client.h          # hand-maintained headers (D248 parity: no codegen promises)
+│   ├── include/talkservo/client.h          # hand-maintained headers (MediaServo-sister D248 parity: no codegen promises)
 │   ├── cmake/                              # FindTalkServo.cmake + pkg-config for C consumers
-│   └── talkservo-client-c/                 # cdylib → libtalkservo_client.so, symbols `talkservo_*` (D247 parity)
+│   └── talkservo-client-c/                 # cdylib → libtalkservo_client.so, symbols `talkservo_*` (MediaServo-sister D247 parity)
 ├── cxx/
 │   ├── include/talkservo/                  # header-only RAII over client.h (tl::expected-style Result vendored w/ NOTICE)
 │   ├── talkservo-client-cxx/               # cargo member (builds the header check + examples)
 │   └── examples/  tests/
-├── python/talkservo/                       # ctypes package — NOT a cargo member (D228 parity); pyproject + sdist
+├── python/talkservo/                       # ctypes package — NOT a cargo member (MediaServo-sister D228 parity); pyproject + sdist
 └── mobile/                                 # UniFFI: .udl in talkservo-client, Kotlin/Swift shells generated per target app
 ```
 

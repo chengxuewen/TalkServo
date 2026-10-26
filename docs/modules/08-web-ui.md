@@ -3,7 +3,7 @@
 
 ## 1. Screens, layout, visualization (evidence: ui research dossiers)
 
-Three role screens + one admin console, one SPA (`web/`, Vite+React18+TS+AntD5+zustand, rust-embed served — D196-style packaging precedent):
+Three role screens + one admin console, one SPA (`web/`, Vite+React18+TS+AntD5+zustand, rust-embed served — MediaServo-sister D196-style packaging precedent):
 
 | Route | Role | Layout (normalized from research) |
 |-------|------|-----------------------------------|
@@ -33,7 +33,7 @@ Browser matrix (BCD-verified, C-1/C-2/C-3): Chrome/Edge/Firefox/Safari≥12 (med
 
 Floor visualization law: **one state, one source** — on-air is server-event-driven (`FloorGranted/Taken/Idle`), the client never guesses (UI projection of modules/05 §1 principle 2); audio cues on grant/deny/taken (Mumble pattern, non-visual channel).
 
-SPA is a THIN VIEW over `packages/client` (D14) — views + theming + input handling only; all wire/media/state logic lives in the SDK package. Stack decisions fixed: no zod (hand-written TS union mirrors modules/02 §1 until core generates types); no chart libs; dark dispatch theme via ConfigProvider tokens; store split wire/media/ui; iOS Safari AudioContext unlock at Join (gesture-synchronous) is an acceptance item; Admin JWT separate from signaling JWT — rule adopted from D196 now, surface built at Alpha.
+SPA is a THIN VIEW over `packages/client` (D14) — views + theming + input handling only; all wire/media/state logic lives in the SDK package. Stack decisions fixed: no zod (hand-written TS union mirrors modules/02 §1 until core generates types); no chart libs; dark dispatch theme via ConfigProvider tokens; store split wire/media/ui; iOS Safari AudioContext unlock at Join (gesture-synchronous) is an acceptance item; Admin JWT separate from signaling JWT — rule adopted from MediaServo-sister D196 now, surface built at Alpha.
 
 **Gap ledger** vs mainstream (full analysis in `reference/research/ui/ptt-ui-patterns.md` §2):
 

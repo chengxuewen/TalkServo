@@ -45,7 +45,7 @@ Measured 2026-10-19: core = `FloorState::apply()` rules 1-9 (crates/talkservo-co
 - **C3**: user-facing route/CLI/API names use full mainstream words (`/admin`, `/field/:room`, `/dispatch/:room`, `/room/:room`) — no cryptic abbreviations.
 - **C4**: files that *index* the ledgers (AGENTS.md ranges, status.md decision table) must match ledger contents — `bash scripts/gate.sh` C4 block enforces; update index rows in the same commit as the ledger entry.
 - **C5**: living docs never present hosted/automatic verification as if it runs — name the command or mark `inert`/`D26`; gate-embedded block 5 in `scripts/gate.sh`.
-- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D28, C1-C5, PIT-1..42.
+- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D28, C1-C6, PIT-1..42.
 - **Cargo.lock committed**; mediasoup UDP/ICE constraints in `.agents/rules/common/{docker,platform}.md` (Linux-native-first per D11 — their macOS posture is conditional).
 
 ## ANTI-PATTERNS (THIS PROJECT — learned in-session, enforced)

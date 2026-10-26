@@ -32,7 +32,7 @@ think-before-act  ->  [Action]  ->  lesson-memory  ->  doc-audit
 | Complement | First line of defense (no omissions) | Second line of defense (no misclassification + sorting) |
 
 - `think-before-act` (consult): check existing lessons before acting, avoid repeating mistakes
-- `lesson-memory` (C9 rule): **instantly auto-written** after every error, no user request needed
+- `lesson-memory` (C9 rule, MediaServo-sister): **instantly auto-written** after every error, no user request needed
 - `lesson-review` (this skill): **batch review** at session end, fill gaps, sort and archive
 - `doc-audit` (audit): periodically check memory file self-consistency
 

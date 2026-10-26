@@ -96,7 +96,7 @@ Test layers: unit (core, any platform) → integration (stub-media) → e2e auto
 | Domain | multimedia infra (video/teleop/streaming) | voice floor control (dispatch first) |
 | SFU engine | mediasoup-sys (same crate lineage) | **same engine (D6)** — ported platform/docker rules now live assets |
 | Arbitration | none | the core primitive (D1) |
-| SDP flow | Server-Offer (D198) | standard client-offer mediasoup-client npm in web PoC; revisit for native SDK |
+| SDP flow | Server-Offer (D198, MediaServo-sister precedent) | standard client-offer mediasoup-client npm in web PoC; revisit for native SDK |
 | SDK shape | four facades (link/field/deck/client) × 4 binding langs, wide matrix | single client facade, ≤3 binding jobs, trigger-growth (modules/07) |
 
  > - 2026-09-28 (D14): TS client SDK = `packages/client` (PoC unreleased, npm at Beta); SPA/Electron are thin views over it — modules/07 §TS-SDK

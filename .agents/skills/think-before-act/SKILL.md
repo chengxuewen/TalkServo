@@ -144,7 +144,7 @@ CRITICAL items found in review must be fixed. LOW items can be recorded as techn
 
 | Skill | Relationship |
 |------|------|
-| `lesson-memory` (C9) | think-before-act checks past lessons; lesson-memory records new ones |
+| `lesson-memory` (C9, MediaServo-sister convention) | think-before-act checks past lessons; lesson-memory records new ones |
 | `lesson-review` | think-before-act is prevention; lesson-review is retrospective |
 | `systematic-debugging` | think-before-act covers "investigate before fixing"; debugging covers "how to fix" |
 | `verification-before-completion` | think-before-act covers "before starting"; verification covers "after finishing" |

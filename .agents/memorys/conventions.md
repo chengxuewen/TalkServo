@@ -78,11 +78,56 @@ ghosts=$(comm -13 <(echo "$ids") <(echo "$rows"))
 
 - **Constraint**: in living docs (`AGENTS.md`, `docs/architecture.md`, `docs/README.md`, `docs/modules/`, the living `docs/reference/*.md`), any sentence about CI, nightly runs, hosted runners, "CI check target" or "CI-parity" must either (a) name the command a human actually runs, or (b) carry an explicit `inert` / `D26` qualifier on the same line. Frozen dossiers under `docs/reference/research/` are exempt — they are never back-written (PIT-3), which is why the check is path-scoped instead of repo-wide.
 - **Rationale**: D26 found five jobs in `.github/workflows/ci.yml` that had never executed *and* six living-doc lines presenting a dual-OS CI, a `nightly e2e` and a "CI check target" as if some machine honored them. A doc that implies "CI checks this" outsources the check to nobody; the belief is exactly what lets a lane rot unexamined — the same failure family as an env-gated spec that self-skips green (PIT-27) and an assertion that passes for the wrong reason (PIT-33). C4 keeps the *ledger indexes* honest; C5 keeps the *verification claims* honest.
-- **Check**: embedded verbatim in `scripts/gate.sh` (refresh with `python3 scripts/gate-gen.py`, never hand-edit the embedded region).
+- **Check**: embedded verbatim in `scripts/gate.sh` (refresh with `python3 scripts/gate-gen.py`, never hand-edit the embedded region). Coverage includes living docs AND the injected `.agents/` surface: skills (`*/SKILL.md`), rules (`**/*.md`), and `memorys/{status,decisions}.md` — a rule file opencode injects every turn is exactly where a phantom-CI sentence does damage.
 - **Source**: this project, session 2026-10-22 (CI-location ruling = option C / D26; the drift sweep that found the five lines).
 
 ```bash
-out=$(grep -rnE 'GitHub Actions|actions/runs|nightly|CI check target|CI lane|CI[- ]parity' AGENTS.md docs/architecture.md docs/README.md docs/modules docs/reference/server-api.md docs/reference/admin-events.md docs/reference/README.md 2>/dev/null | grep -viE 'inert|D26')
+out=$(grep -rnE 'GitHub Actions|actions/runs|nightly|CI check target|CI lane|CI[- ]parity' \
+  AGENTS.md docs/architecture.md docs/README.md docs/modules \
+  docs/reference/server-api.md docs/reference/admin-events.md docs/reference/README.md \
+  .agents/skills .agents/rules .agents/memorys/status.md .agents/memorys/decisions.md 2>/dev/null \
+  | grep -viE 'inert|D26')
 if [ -n "$out" ]; then echo "FAIL: hosted-verification claims with no runnable command and no inert marker:"; echo "$out"; exit 1; fi
 echo PASS
+```
+
+## C6: ledger ids cited anywhere must resolve locally or carry a MediaServo/sister label (2026-10-23)
+
+- **Constraint**: any `D{n}` / `C{n}` / `PIT-{n}` id cited in living files — docs (`docs/**.md` excluding `reference/research/`), `.agents/rules/**`, `.agents/skills/*/SKILL.md`, `.agents/memorys/{status,decisions}.md`, and `.rs` comments under `crates/` — must either resolve against `.agents/memorys/` (within the AGENTS.md ranges) or carry an explicit `MediaServo` / `sister` marker on the same line. Unlabeled foreign ids fabricate project history (the PIT-3 trap) and mislead every later agent.
+- **Rationale**: full-audit 2026-10-23 found eight unresolvable cites (`D202`, `C13`, `C9`, `D196`, `PIT-160`, `D39`/`D43`/`D66` in foreign contexts) across injected rules, skills, living docs and code comments. Local-lens citation discipline already exists in prose; it was not mechanical.
+- **Check**: embedded verbatim in `scripts/gate.sh` (refresh with `python3 scripts/gate-gen.py`). Scans for `\bD[0-9]+\b`, `\bC[0-9]+\b`, `\bPIT-[0-9]+\b` in the covered files; an id is a FAIL unless it resolves within the AGENTS.md ranges or the line matches `MediaServo|sister|inert`. Exemptions: `docs/reference/research/` (frozen), `docs/plans/` (historical working tier), this conventions file itself, and generic tokens like `CMAKE` (word-boundary + no-letter-prefix rules keep false positives near zero).
+- **Source**: full doc-audit 2026-10-23, user adjudication #9 ("标来源+加 gate"). c1:allow-zh
+
+```bash
+python3 - <<'PY'
+import re, sys
+from pathlib import Path
+
+DMAX, CMAX, PMAX = 28, 6, 42  # AGENTS.md ledger ranges
+paths = []
+for pat in ["docs/**/*.md", ".agents/rules/**/*.md", ".agents/skills/*/SKILL.md"]:
+    paths += [p for p in Path('.').glob(pat)
+              if 'reference/research' not in str(p) and 'docs/plans' not in str(p)]
+paths += [Path('.agents/memorys/status.md'), Path('.agents/memorys/decisions.md')]
+paths += [Path('.agents/AGENTS.md')]
+paths += [p for p in Path('crates').rglob('*.rs')]
+
+bad = []
+for p in paths:
+    for i, line in enumerate(p.read_text().splitlines(), 1):
+        ids = re.findall(r'\bD\d+\b|\bC\d+\b|\bPIT-\d+\b', line)
+        keep = []
+        for tok in ids:
+            if tok.startswith('PIT-'):
+                n = int(tok[4:])
+                if not (1 <= n <= PMAX): keep.append(tok); continue
+            else:
+                n = int(tok[1:])
+                if tok.startswith('D') and not (1 <= n <= 28): keep.append(tok); continue
+                if tok.startswith('C') and not (1 <= n <= 6): keep.append(tok); continue
+        if keep and not re.search(r'MediaServo|sister|inert', line):
+            bad.append(f'{p}:{i}: {keep} {line.strip()[:100]}')
+for b in bad: print('FAIL:', b)
+raise SystemExit(1 if bad else 0)
+PY
 ```

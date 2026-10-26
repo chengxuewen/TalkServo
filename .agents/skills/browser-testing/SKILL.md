@@ -262,7 +262,7 @@ After any browser-facing change:
 ## See Also
 
 - `.agents/memorys/pitfalls.md` — PIT-06 (snake_case), PIT-07 (transport connect), MediaServo PIT-08 (peer_id)
-- `.agents/memorys/decisions.md` — D198 (SFU Server-Offer architecture)
+- `.agents/memorys/decisions.md` — D198 (SFU Server-Offer architecture, MediaServo-sister)
 - `.agents/memorys/status.md` — SFU Video Playback status
 - `.agents/rules/common/edit-safety.md` — Verification honesty, self-verification requirement
 - `docs/modules/development/sfu-integration.md` — SFU integration details
