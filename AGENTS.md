@@ -1,10 +1,10 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-09-28 | **Commit:** 34300f1 | **Branch:** main
+**Generated:** 2026-10-23 | **Branch:** main
 
 ## OVERVIEW
 
-TalkServo — real-time voice **floor-control platform** (PTT exclusive / conference open / hybrid), pre-implementation: design-doc-driven PoC. Planned stack: Rust core/server + mediasoup SFU (D6) + React/TS web SPA (D9) + Electron desktop shell (D10). Sister project of MediaServo (same RTC domain; conventions shared, ledgers NOT).
+TalkServo — real-time voice **floor-control platform** (PTT exclusive / conference open / hybrid); PoC implementation LANDED through plan-11 (3 crates, web SPA, SDK package, Alpha wave-1/2). Stack: Rust core/server + mediasoup SFU (D6) + React/TS web SPA (D9) + Electron desktop shell pending (D10, Alpha trigger). Sister project of MediaServo (same RTC domain; conventions shared, ledgers NOT).
 
 ## STRUCTURE
 
@@ -14,7 +14,7 @@ TalkServo — real-time voice **floor-control platform** (PTT exclusive / confer
 ├── .opencode/      # opencode config: opencode.json (instructions injection list), init-mcp-*.mjs launchers
 ├── .omo/           # agent runtime state (run-continuation/ is git-ignored; only omo.jsonc tracked)
 ├── docs/           # whitepaper + architecture MASTER + modules/ (design) + reference/ (living + frozen research) — see its AGENTS.md
-├── crates/         # workspace: talkservo-core (42 tests) / -sfu / -server (88 stub-lane) — plan-1..6 EXECUTED
+├── crates/         # workspace: talkservo-core (42 tests) / -sfu (4) / -server (102 stub-lane) — plan-1..11 EXECUTED
 ├── web/            # SPA (Vite+React18+AntD5): dispatch/field/participant/admin pages + e2e
 ├── packages/client # TS SDK (24 tests, unpublished D14)
 ├── scripts/ config/ docker/ pixi.toml  # toolchain + coturn + lanes (docs/modules/09)
@@ -30,7 +30,7 @@ TalkServo — real-time voice **floor-control platform** (PTT exclusive / confer
 | Why a decision exists | .agents/memorys/decisions.md D1-D28 | cite by id; D23 = Alpha wave-1 (plan-7, S1-S7.5 landed), D25 = PolyOrch build graph, D26 = verification is local (no hosted CI), D27 = lane target vocabulary, D28 = PolyOrch 0.7.1 supplier CTEST/sentinel floor/lane gate (plan-11) |
 | Binding rules on this repo | .agents/memorys/conventions.md C1-C5 | C1 English, C2 docs-tiering, C3 full-word routes, C4 ledger-index consistency, C5 no phantom-CI claims |
 | Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..42 | MediaServo ids labeled, never assume |
-| Competitive/selection evidence | docs/reference/research/{ptt,media,ui,tooling}/ | FROZEN dossiers |
+| Competitive/selection evidence | docs/reference/research/{ptt,media,ui,internal}/ | FROZEN dossiers |
 | What is left to do | .agents/memorys/status.md → Next Steps | rewritten 2026-10-21 (it had kept advertising plan-1 items as open work) |
 | SDK/binding future shape | docs/modules/07 + D8 | nothing built at Beta trigger, not before |
 

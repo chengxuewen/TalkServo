@@ -11,8 +11,8 @@ Three-plane agent infrastructure for TalkServo: binding rules, task skills, and 
 ```
 .agents/
 ├── memorys/     # THE LEDGER (single source): conventions.md C1+, decisions.md D1+, pitfalls.md PIT-1+, status.md
-├── rules/       # common/ (always-relevant) + per-language dirs (14 langs exist, only rust/ + 2 injected by default)
-└── skills/      # 22 project skills, each SKILL.md + .skill_id; injected or on-demand
+├── rules/       # common/ (always-relevant) + per-language dirs (common + 13 lang dirs exist; rust/ has 5 files, 2 of them injected by default)
+└── skills/      # 23 project skills, each SKILL.md (+ one missing .skill_id: adjudication-walkthrough); injected or on-demand
 ```
 
 ## WHERE TO LOOK
@@ -22,6 +22,8 @@ Three-plane agent infrastructure for TalkServo: binding rules, task skills, and 
 | Which rules auto-inject per turn | ../../.opencode/opencode.json → `instructions[]` (18 files: memorys/2 + rules/common/*14 + rules/rust/*2) |
 | New constraint / decision / pitfall | append to the matching ledger with its template format — executable check command mandatory |
 | Skill list vs routing table | `context-engineering/SKILL.md` routing rows (re-check after any skill add/remove) |
+| "Which skill should I use?" | `skill-router/SKILL.md` (auto-activates on ambiguous intent) |
+| Walk adjudications one at a time | `adjudication-walkthrough/SKILL.md` (adjudicate one by one) | c1:allow-zh
 | Skill self-test | `npx tsx scripts/verify-skills.ts` — script NOT yet ported; manual grep fallback below |
 
 ## CONVENTIONS (this subtree only)
@@ -41,5 +43,6 @@ Three-plane agent infrastructure for TalkServo: binding rules, task skills, and 
 
 ```bash
 grep -c "^## C" memorys/conventions.md; grep -c "^## D" memorys/decisions.md; grep -c "^## PIT-" memorys/pitfalls.md   # counts = ledger size truth
+ls -d skills/*/ | wc -l   # skill inventory = directory truth
 grep -rn "media-stack-alternatives\|docs/reference" skills/doc-audit/SKILL.md   # doc paths vs C2 layout spot-check
 ```

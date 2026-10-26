@@ -35,7 +35,7 @@ One-time competitive and selection research (frozen dossiers); living references
 |----------|---------|--------|
 | [reference/server-api.md](reference/server-api.md) | implemented server surface: routes, J-sequence, floor/media behaviors, config keys, honest gaps | living (plan-2) |
 | [reference/admin-events.md](reference/admin-events.md) | `/admin/ws` contract: handshake, frame tables, hint-not-row rule, hub/budget limits | living (plan-9 W1, landed 2026-10-21) |
-| [reference/fixtures/ws-transcript.json](fixtures/ws-transcript.json) | recorded signaling frames replayed by the SDK; re-recorded only with `TS_RECORD_FIXTURES=1` | living (one artifact, both ends) |
+| [reference/fixtures/ws-transcript.json](reference/fixtures/ws-transcript.json) | recorded signaling frames replayed by the SDK; re-recorded only with `TS_RECORD_FIXTURES=1` | living (one artifact, both ends) |
 
 ## Conventions (project-wide)
 

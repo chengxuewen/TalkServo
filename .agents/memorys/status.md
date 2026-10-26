@@ -10,11 +10,11 @@
 | Crate / Module | Tests | Notes |
 |-------|:----:|------|
 | packages/client (TS SDK, unpublished D14) | 24 | wire mirror + signal transport + store + facade + media manager; coverage 78.9% |
-| web/ (SPA, Vite+React18+AntD5) | 25 | dispatcher + field + participant pages (deny≠mute copy via lib/floorCopy.ts, plan-7 S7.5), admin five-tab console (pages/admin/, S7), S-3 session bridge, dark theme; embedded via feature `embedded-web`; e2e 15 tests/5 files in the graph lane (floor incl. the live mute row; admin: click-through + cross-client kick + audit Logs line + registry lock) |
-| crates/talkservo-core | 42 | ids + wire contract (27-variant, D16) + FloorState apply() rules 1-9 (Rule 2/8 re-scoped by S7.5: mute revokes grant + queue slot) + grant-set shrink rebroadcast (PIT-21); floor.rs coverage 87.5% |
-| crates/talkservo-sfu | 1 | Sfu trait (create/connect/produce/consume/apply_floor diff/peer_left/media_activity E11 seam) + StubSfu call-log backend + MediasoupSfu skeleton (supervisor seam) |
-| crates/talkservo-sfu | 1 | Sfu trait + exactly-one-backend compile gate (mediasoup\|stub) |
-| crates/talkservo-server | 88 (stub lane) | WS signaling (J burst, cooldown, AlreadyJoined, bad_version), media routing (E4/E10), timers (E11/max-hold/TokenRefresh), mute as privilege revocation with live roster snapshot (S7.5) — count is `--no-default-features --features embedded-web,stub-media`; mediasoup worker builds natively (3m52s) |
+| web/ (SPA, Vite+React18+AntD5) | 25 (vitest) | dispatcher + field + participant pages (deny≠mute copy via lib/floorCopy.ts, plan-7 S7.5), admin five-tab console (pages/admin/, S7), S-3 session bridge, dark theme; embedded via feature `embedded-web`; vitest count = `npx vitest run`; e2e = 17 tests/5 files (`npx playwright test --list`; stub-lane runs the graph subset incl. admin click-through + cross-client kick + audit Logs line + registry lock) |
+
+| crates/talkservo-core | 42 | ids + wire contract (27-variant, D16) + FloorState apply() rules 1-9 (Rule 2/8 re-scoped by S7.5: mute revokes grant + queue slot) + grant-set shrink rebroadcast (PIT-21); floor.rs coverage 87.5%; count = `cargo test -p talkservo-core -- --list` |
+| crates/talkservo-sfu | 4 | Sfu trait (create/connect/produce/consume/apply_floor diff/peer_left/media_activity E11 seam) + StubSfu call-log backend + MediasoupSfu skeleton (supervisor seam) + exactly-one-backend compile gate (mediasoup\|stub); count = `cargo test -p talkservo-sfu --no-default-features --features stub-media -- --list` |
+| crates/talkservo-server | 102 (stub lane) | WS signaling (J burst, cooldown, AlreadyJoined, bad_version), media routing (E4/E10), timers (E11/max-hold/TokenRefresh), mute as privilege revocation with live roster snapshot (S7.5) — count is `cargo test -p talkservo-server --no-default-features --features embedded-web,stub-media -- --list` (107 static test fns; 5 sit behind mediasoup-cfg); mediasoup worker builds natively (3m52s) |
 | docs/ (whitepaper + architecture + modules/01-09 + reference) | — | v0.2 + plan series |
 
 ## Phase Status
