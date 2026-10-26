@@ -50,6 +50,9 @@ function(talkservo_install_tree)
 endfunction()
 
 # talkservo_deploy_targets() - call AFTER talkservo_install_tree(). ONE staging
+# button, RUNTIME-INSTANCE ONLY: SDK/bindings delivery is a separate face
+# (cmake/TalkServoBindings.cmake at Beta per modules/07 + D8) and must never be
+# folded into this deploy channel. ONE staging
 # button for the configured delivery lane (build:deploy minus the runtime `init`
 # — D25 red line keeps instance lifecycle out of the graph): builds that lane's
 # server in THIS build tree's config and stages bin + vendored oxmgr into

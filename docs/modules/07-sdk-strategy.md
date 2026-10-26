@@ -61,3 +61,18 @@ Node.js status update (D10, 2026-09-28): the Electron desktop shell names a *pot
 | Java | JNI over the C ABI | trigger-gated | none named yet |
 
 Rules: binding CI jobs capped at 3 (C/Cxx/Py); C#/Java compile against the .so/.dll and never enter the Rust build matrix; every new language requires a named real consumer first (D8).
+
+## Delivery-face impact on the build graph (D28; planned at Beta, D8 trigger)
+
+The runtime-deploy channel and the SDK-delivery channel stay SEPARATE — MediaServo's verified shape (`MediaServoBindings.cmake` + `package host|bindings` dual tar, D-H13) is the template, and the split is its load-bearing lesson:
+
+- **Runtime deploy** = today's `talkservo-deploy-build` button: builds the configured `TALKSERVO_PACKAGE_LANE` handle and stages `out/<lane>/bin/{talkservo-server,oxmgr}`. It stages a runnable instance, nothing else. SDK artifacts must never ride this channel.
+- **SDK delivery** = a future `cmake/TalkServoBindings.cmake` face (option-gated, opens only at the D8 trigger), mirroring the sister face point-for-point:
+  - `polyorch_rust_build(SHARED)` for `bindings/c/talkservo-client-c` (ONE C-ABI cdylib — TalkServo has a single facade where MediaServo has four domains, so the matrix is 1 crate, not 4);
+  - ONE `polyorch_rust_install(TARGETS talkservo-client-c SOVERSION VERSION STALE_GLOB "libtalkservo_*.so.[0-9]*" STRIP)` (co-located-install sweep semantics — single owner per swept destination);
+  - one `install(DIRECTORY)` header fan-in into `include/talkservo/`;
+  - configure-time `.pc` + `TalkServoConfig.cmake`/`ConfigVersion.cmake` renderers + a `bindings-gen` marker target;
+  - staging (wheel/sdist/strip orchestration) stays out of cmake — python/ops own it, as in MediaServo.
+- **Package contract (D-H13 parity)**: `dist/talkservo-server-<ver>.tar.gz` (today) + `dist/talkservo-sdk-<ver>.tar.gz` (Beta) — two tars, never one.
+- **Open item at trigger time (cache groups)**: MediaServo's bindings lanes deliberately share the workspace `target/` because python staging and the ABI-drift check consume fixed paths; TalkServo's stub/live cache groups (`out/cargo-target/{stub,live}`, D27) conflict with that pattern. Decide at activation: bindings lane rides the stub group, or a third `out/cargo-target/bindings` group. Measure, do not guess (the .so-duplication failure mode is the documented reason both ways).
+- **Cxx header-only + python ctypes are NOT cargo members / NOT lanes**: cxx is a header check + examples cargo member; python is a pyproject sdist (MediaServo D228 parity). Only `-c` gets a build button; UniFFI shells generate per app target, no lane of their own.
