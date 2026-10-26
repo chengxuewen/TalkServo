@@ -45,4 +45,4 @@
 
 - [constraints.md](constraints.md) — Git commit rules
 - [docker.md](docker.md) — Docker + network constraints
-- `docs/modules/development/docker-workflow.md` — Docker dev workflow details
+- `docs/modules/09-dev-toolchain.md` — toolchain + Docker parity workflow details

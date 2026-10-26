@@ -1,72 +1,56 @@
 # Rules
 
-Rules are part of the `.agents/` directory, organized into a **common** layer plus **language-specific** directories:
+Rules are part of the `.agents/` directory, organized into a **common** layer plus **language-specific** directories. The tree below is the disk truth (2026-10-23); regenerate it with `ls .agents/rules/` when in doubt — this repo already paid for a README that described directories that never existed (full doc-audit 2026-10-23, F4).
 
 ```text
 .agents/rules/
-├── common/          # Language-agnostic principles (always install)
-│   ├── coding-style.md
-│   ├── git-workflow.md
-│   ├── testing.md
-│   ├── performance.md
-│   ├── patterns.md
-│   ├── hooks.md
-│   ├── agents.md
-│   └── security.md
-├── typescript/      # TypeScript/JavaScript specific
-├── python/          # Python specific
-├── golang/          # Go specific
-├── web/             # Web and frontend specific
-├── swift/           # Swift specific
-└── php/             # PHP specific
+├── common/          # Language-agnostic principles — injected EVERY turn (14 files)
+│   ├── agents.md            # agent orchestration + execution gate
+│   ├── code-review.md       # review standards + severity gates
+│   ├── coding-style.md      # KISS/DRY/YAGNI, naming, smells
+│   ├── constraints.md       # stub: git-commit rules; points to docker/platform
+│   ├── development-workflow.md  # feature workflow, TDD, commit format
+│   ├── docker.md            # Docker/UDP/ICE constraints (D11/D26 calibration banner)
+│   ├── edit-safety.md       # edit-tool rules 1-24 + recovery patterns
+│   ├── hooks.md             # hook types + todo discipline
+│   ├── lesson-memory.md     # when/where to write PIT/C/D entries
+│   ├── patterns.md          # repository pattern, API envelope, skeletons
+│   ├── performance.md       # model selection, context budget
+│   ├── platform.md          # macOS/Linux posture (D11 calibration banner)
+│   ├── security.md          # mandatory security checks
+│   └── testing.md           # coverage, browser-lane rules, lane ratchets
+├── rust/            # injected (2 of 5 files: coding-style.md, hooks.md)
+├── typescript/      # injected (2 of 5: coding-style.md, testing.md) — for web/ + packages/client
+└── web/             # injected (2 of 7: coding-style.md, testing.md) — SPA + e2e surface
 ```
 
+Injection list = `.opencode/opencode.json` → `instructions[]` (22 entries as of 2026-10-23: memorys/2 + common/14 + rust/2 + typescript/2 + web/2).
+
 - **common/** contains universal principles — no language-specific code examples.
-- **Language directories** extend the common rules with framework-specific patterns, tools, and code examples. Each file references its common counterpart.
+- **Language directories** extend the common rules; the injected subset is what every turn sees. Files not injected (`rust/patterns.md`, `rust/security.md`, `rust/testing.md`, the remaining ts/web files) are pulled in by path-relevant tasks or read on demand — they still carry the standard `> This file extends [common/xxx.md](../common/xxx.md)` header.
 
 Rules are project-local and read directly by the AI assistant from `.agents/rules/` — no copying to `~/.claude/` needed.
 
 ## Rules vs Skills
 
 - **Rules** define standards, conventions, and checklists that apply broadly (e.g., "80% test coverage", "no hardcoded secrets").
-- **Skills** (`skills/` directory) provide deep, actionable reference material for specific tasks (e.g., `python-patterns`, `golang-testing`).
+- **Skills** (`skills/` directory) provide deep, actionable reference material for specific tasks.
 
-Language-specific rule files reference relevant skills where appropriate. Rules tell you *what* to do; skills tell you *how* to do it.
+Rules tell you *what* to do; skills tell you *how* to do it.
 
-## Adding a New Language
+## Adding a Language or Domain
 
-To add support for a new language (e.g., `rust/`):
+Only when the repo actually has source in that language (the "content earns its directory" anti-pattern applies here — 8 empty language dirs were deleted on 2026-10-23 for exactly this reason):
 
-1. Create an `.agents/rules/rust/` directory
-2. Add files that extend the common rules:
-   - `coding-style.md` — formatting tools, idioms, error handling patterns
-   - `testing.md` — test framework, coverage tools, test organization
-   - `patterns.md` — language-specific design patterns
-   - `hooks.md` — PostToolUse hooks for formatters, linters, type checkers
-   - `security.md` — secret management, security scanning tools
-3. Each file should start with:
+1. Create `.agents/rules/<lang>/` with files extending the common ones, each starting:
    ```
    > This file extends [common/xxx.md](../common/xxx.md) with <Language> specific content.
    ```
-4. Reference existing skills if available, or create new ones under `skills/`.
-
-For non-language domains like `web/`, follow the same layered pattern when there is enough reusable domain-specific guidance to justify a standalone ruleset.
+2. Wire the files you want injected into `.opencode/opencode.json` → `instructions[]`.
+3. Update this README's tree.
 
 ## Rule Priority
 
-When language-specific rules and common rules conflict, **language-specific rules take precedence** (specific overrides general). This follows the standard layered configuration pattern (similar to CSS specificity or `.gitignore` precedence).
+When language-specific rules and common rules conflict, **language-specific rules take precedence** (specific overrides general — same layering model as CSS specificity / `.gitignore`).
 
-- `.agents/rules/common/` defines universal defaults applicable to all projects.
-- `.agents/rules/golang/`, `.agents/rules/python/`, `.agents/rules/swift/`, `.agents/rules/php/`, `.agents/rules/typescript/`, etc. override those defaults where language idioms differ.
-
-### Example
-
-`common/coding-style.md` recommends immutability as a default principle. A language-specific `golang/coding-style.md` can override this:
-
-> Idiomatic Go uses pointer receivers for struct mutation — see [common/coding-style.md](../common/coding-style.md) for the general principle, but Go-idiomatic mutation is preferred here.
-
-### Common rules with override notes
-
-Rules in `.agents/rules/common/` that may be overridden by language-specific files are marked with:
-
-> **Language note**: This rule may be overridden by language-specific rules for languages where this pattern is not idiomatic.
+Commit standards live in [common/development-workflow.md](common/development-workflow.md) ("Commit Message Format") — there is no separate `git-workflow.md`.

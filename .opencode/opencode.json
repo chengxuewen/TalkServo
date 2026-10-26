@@ -32,10 +32,13 @@
     ".agents/rules/common/edit-safety.md",
     ".agents/rules/common/lesson-memory.md",
     ".agents/rules/rust/coding-style.md",
-    ".agents/rules/rust/hooks.md"
+    ".agents/rules/rust/hooks.md",
+    ".agents/rules/typescript/coding-style.md",
+    ".agents/rules/typescript/testing.md",
+    ".agents/rules/web/coding-style.md",
+    ".agents/rules/web/testing.md"
   ],
   "mcp": {
-    
     "websearch": {
       "type": "remote",
       "url": "https://websearch.opencode.ai",

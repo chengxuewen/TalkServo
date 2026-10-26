@@ -2,6 +2,8 @@
 name: incremental-implementation
 description: "Thin vertical slices across Rust+TS. Implement→test→verify→commit per slice. Use when implementing multi-file Rust crate changes, Admin Dashboard TS features, or any change touching 2+ crates. Triggers: 'incremental', 'slice by slice', 'one crate at a time', multi-crate refactor."
 ---
+> **Porting note (doc-audit 2026-10-23)**: example snippets below may cite DeskServo/sister-lineage crates (`talkservo-common`, `talkservo-webrtc`, `hal-flatbuffers`, `talkservo`) that do NOT exist in this repo — real crates are `talkservo-core` / `talkservo-sfu` / `talkservo-server`. Trust `docs/modules/`, not the examples.
+
 
 # Incremental Implementation — TalkServo
 
@@ -183,4 +185,4 @@ After each slice, verify with these commands (run only what changed):
 - `.agents/memorys/pitfalls ledger (MediaServo PIT-07 connect / PIT-11 build heritage)
 - `.agents/memorys/conventions.md` — C1/C2 (GStreamer/C5-C6 lineage belongs to the sister ledger, not this repo)
 - `.agents/rules/rust/coding-style.md` — Rust conventions
-- `docs/modules/development/docker-workflow.md` — Docker dev workflow
+- `docs/modules/09-dev-toolchain.md` — toolchain + Docker parity workflow

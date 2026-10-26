@@ -138,7 +138,7 @@ Create `docs/plans/<change-name>/tasks.md`. Tasks must be **atomic, ordered, ind
   - Verify: `cargo test --test <name>_test`
 
 - [ ] **Run pixi gate** (`pixi run lint && pixi run test`)
-  - Verify: `./scripts/qa/qa-fast.sh` (5 gates: test/clippy/fmt/deny/unwrap)
+  - Verify: `pixi run lint && pixi run test` (fmt/clippy + graph lanes)
 
 ## Phase 4: Documentation & Cleanup
 
@@ -178,9 +178,9 @@ Display summary — change name, artifact list, line counts. Let user request ch
 
 | Crate | Path | Type |
 |---------|------|------|
-| HAL Core | `crates/talkservo-common/` | Rust (traits, types, primitives) |
+| Core | `crates/talkservo-core/` | Rust (floor state, wire types, ids) |
 | amw-inproc | `crates/talkservo/` | Rust (HAL Transport/Discovery in-process) |
-| HAL FlatBuffers | `crates/hal-flatbuffers/` | Rust + .fbs schemas |
+| SFU | `crates/talkservo-sfu/` | Rust (mediasoup/stub backend seam) |
 | Studio | `apps/studio/` | Tauri + React + TypeScript (D21) |
 
 ### Build commands
@@ -189,7 +189,7 @@ Display summary — change name, artifact list, line counts. Let user request ch
 cargo build                                    # Full build
 cargo build --package talkservo-common --package talkservo  # HAL-only
 cargo test                                     # Debug build + tests
-./scripts/qa/qa-fast.sh                        # QA fast gate (5 checks)
+~/.pixi/bin/pixi run test                        # QA gate (graph lanes)
 ```
 
 ### Rust conventions

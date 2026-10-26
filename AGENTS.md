@@ -55,7 +55,7 @@ Measured 2026-10-19: core = `FloorState::apply()` rules 1-9 (crates/talkservo-co
 - **Never port prose without a referential-integrity join** (ids/paths/ports → target ledger) (PIT-3).
 - **No speculative scaffolding**: empty crate dirs, hardware-capacity docs, "for later" bindings — content earns its directory (modules/03 P0-1, gap audit refusal).
 - **No back-writing frozen dossiers**; superseding decisions annotate the live doc, research stays as evidence.
-- **`openspec-explore`/`openspec-propose` skills contain DeskServo-lineage architecture illustrations** — flagged porting warnings; trust docs/modules/, not their examples (adjudication pending).
+- **Ported skills contain sister/DeskServo-lineage architecture illustrations** — `openspec-explore`/`openspec-propose` are flagged, and so are example snippets inside `api-interface-design`, `test-harness`, `incremental-implementation`, `source-driven-development`, `code-simplification`, `context-engineering`, `performance-optimization` (e.g. `talkservo-common`/`talkservo-webrtc`/`hal-flatbuffers` crates that do NOT exist here; real crates are core/sfu/server). Trust `docs/modules/`, not their examples.
 
 ## COMMANDS
 

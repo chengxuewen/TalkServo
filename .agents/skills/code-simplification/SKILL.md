@@ -2,6 +2,8 @@
 name: code-simplification
 description: "Reduce complexity in TalkServo Rust/TS code. Chesterton's Fence analysis, Rule of 500 enforcement, dead code elimination, borrow checker simplification patterns. Complements ponytail for Rust-specific over-engineering. Use after ponytail-audit, before PRs, or when diagnosing complexity smells."
 ---
+> **Porting note (doc-audit 2026-10-23)**: example snippets below may cite DeskServo/sister-lineage crates (`talkservo-common`, `talkservo-webrtc`, `hal-flatbuffers`, `talkservo`) that do NOT exist in this repo — real crates are `talkservo-core` / `talkservo-sfu` / `talkservo-server`. Trust `docs/modules/`, not the examples.
+
 
 # code-simplification: complexity reduction
 
@@ -160,7 +162,7 @@ git diff --stat | grep -E '\+[0-9]+.*-' | tail -5
 ```
 ## Simplification report
 
-File: crates/talkservo-webrtc/src/backend/mod.rs
+File: crates/talkservo-sfu/src/backend/mod.rs
 Before: 487 lines → after: 312 lines (-36%)
 
 ### Removed

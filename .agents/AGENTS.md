@@ -11,7 +11,7 @@ Three-plane agent infrastructure for TalkServo: binding rules, task skills, and 
 ```
 .agents/
 ├── memorys/     # THE LEDGER (single source): conventions.md C1+, decisions.md D1+, pitfalls.md PIT-1+, status.md
-├── rules/       # common/ (always-relevant) + per-language dirs (common + 13 lang dirs exist; rust/ has 5 files, 2 of them injected by default)
+├── rules/       # common/ (always-relevant, injected) + rust/ typescript/ web/ (partially injected); 8 no-source lang dirs deleted 2026-10-23
 └── skills/      # 23 project skills, each SKILL.md (+ one missing .skill_id: adjudication-walkthrough); injected or on-demand
 ```
 
@@ -19,7 +19,7 @@ Three-plane agent infrastructure for TalkServo: binding rules, task skills, and 
 
 | Need | File |
 |------|------|
-| Which rules auto-inject per turn | ../../.opencode/opencode.json → `instructions[]` (18 files: memorys/2 + rules/common/*14 + rules/rust/*2) |
+| Which rules auto-inject per turn | ../../.opencode/opencode.json → `instructions[]` (22 files: memorys/2 + rules/common/*14 + rust/2 + typescript/2 + web/2) |
 | New constraint / decision / pitfall | append to the matching ledger with its template format — executable check command mandatory |
 | Skill list vs routing table | `context-engineering/SKILL.md` routing rows (re-check after any skill add/remove) |
 | "Which skill should I use?" | `skill-router/SKILL.md` (auto-activates on ambiguous intent) |

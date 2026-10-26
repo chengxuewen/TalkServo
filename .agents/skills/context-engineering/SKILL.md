@@ -2,6 +2,8 @@
 name: context-engineering
 description: "Feed TalkServo agents the right context for the workspace (3 crates at PoC per D7; see docs/modules/03). Routes Rust rules to .rs tasks, C++/FFI rules to webrtc-sys/mediasoup boundaries, protocol rules to WS contract work. Prevents wrong-language lint violations and out-of-scope analysis. Use BEFORE any cross-crate or multi-language TalkServo task."
 ---
+> **Porting note (doc-audit 2026-10-23)**: example snippets below may cite DeskServo/sister-lineage crates (`talkservo-common`, `talkservo-webrtc`, `hal-flatbuffers`, `talkservo`) that do NOT exist in this repo — real crates are `talkservo-core` / `talkservo-sfu` / `talkservo-server`. Trust `docs/modules/`, not the examples.
+
 
 # context-engineering — Right Context, Right Language
 
@@ -93,7 +95,7 @@ for each crate in scope:
 ### Rust → Protocol (WebSocket JSON)
 - All messages use `#[serde(tag = "type", rename_all = "snake_case")]`
 - Browser clients must use snake_case NOT camelCase (PIT-06)
-- Protocol changes → update `crates/talkservo-common/src/protocol.rs`
+- Protocol changes → update `crates/talkservo-core/src/wire.rs` + `docs/modules/02-signaling-protocol.md` (and the TS mirror in packages/client)
 - E2E tests must validate new message types
 
 ### Rust → Admin UI (HTML/JS)

@@ -265,4 +265,4 @@ After any browser-facing change:
 - `.agents/memorys/decisions.md` — D198 (SFU Server-Offer architecture, MediaServo-sister)
 - `.agents/memorys/status.md` — SFU Video Playback status
 - `.agents/rules/common/edit-safety.md` — Verification honesty, self-verification requirement
-- `docs/modules/development/sfu-integration.md` — SFU integration details
+- `docs/modules/04-media-pipeline.md` — SFU integration details

@@ -2,6 +2,8 @@
 name: source-driven-development
 description: "Ground every external dependency decision in official docs. Use when integrating mediasoup, webrtc-rs, React, Docker, GStreamer, FFmpeg, or any crate/framework. Verifies Cargo.toml deps against upstream docs. Triggers: 'check the docs', 'is this API correct', 'what does the spec say', 'verify against upstream', crate upgrade, new dependency."
 ---
+> **Porting note (doc-audit 2026-10-23)**: example snippets below may cite DeskServo/sister-lineage crates (`talkservo-common`, `talkservo-webrtc`, `hal-flatbuffers`, `talkservo`) that do NOT exist in this repo — real crates are `talkservo-core` / `talkservo-sfu` / `talkservo-server`. Trust `docs/modules/`, not the examples.
+
 
 # Source-Driven Development — TalkServo
 
@@ -54,7 +56,7 @@ State what you found:
 ```
 DEPENDENCIES DETECTED:
 - mediasoup-sys 0.13 (from crates/talkservo-server/Cargo.toml)
-- webrtc 0.14 (from crates/talkservo-webrtc/Cargo.toml)
+- mediasoup 0.24 / mediasoup-types 0.4 (from crates/talkservo-sfu/Cargo.toml)
 - gstreamer 0.24 (from crates/talkservo-codec/Cargo.toml)
 → Fetching upstream docs for the relevant APIs.
 ```
@@ -279,4 +281,4 @@ C) Test on Linux CI
 - `.agents/memorys/conventions.md` — C1/C2 (C5/C6 lineage = sister ledger, not this repo)
 - `.agents/memorys/sister ledgers: MediaServo D198/D155 (engine heritage reading only)
 - `.agents/rules/common/constraints.md` — Platform constraints, Docker constraints
-- `crates/talkservo-webrtc/Cargo.toml` — Feature flag matrix
+- `crates/talkservo-sfu/Cargo.toml` — Feature flag matrix (sfu-mediasoup | stub-media)

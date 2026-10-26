@@ -2,6 +2,8 @@
 name: api-interface-design
 description: "Contract-first design for TalkServo: Rust traits (Component/Plugin), WebSocket signaling protocol (SignalingMessage enum), and REST API boundaries (OpenAPI 3.0.3). Enforces protocol backward compatibility, crate-boundary contracts, and serde wire-format discipline. Use BEFORE adding new API endpoints, WS message types, or crate-level trait changes."
 ---
+> **Porting note (doc-audit 2026-10-23)**: example snippets below may cite DeskServo/sister-lineage crates (`talkservo-common`, `talkservo-webrtc`, `hal-flatbuffers`, `talkservo`) that do NOT exist in this repo — real crates are `talkservo-core` / `talkservo-sfu` / `talkservo-server`. Trust `docs/modules/`, not the examples.
+
 
 # api-interface-design — Contract-First API Design
 
@@ -18,7 +20,7 @@ TalkServo has three distinct API contract surfaces:
 |----------|------|----------|----------|
 | **Component/Plugin traits** | Rust traits | `talkservo-media` (engine/), `talkservo-host` (host/) | Trait signature stability |
 | **WebSocket signaling** | JSON enum | `talkservo-common/src/protocol.rs` | `#[serde(tag = "type")]` discipline |
-| **REST API** | OpenAPI 3.0.3 | `docs/openapi.yaml` | Schema + validation |
+| **REST API** | OpenAPI 3.0.3 (planned, unwritten — trigger: first external integrator) | `docs/reference/signaling-schema.md` (planned) | Schema + validation |
 
 ## Design Protocol
 
@@ -89,7 +91,7 @@ Rules:
 **REST API Contract (OpenAPI 3.0.3):**
 
 ```yaml
-# docs/openapi.yaml
+# docs/reference/signaling-schema.yaml (planned; today the contract of record is modules/02 + SignalingMessage + the TS mirror)
 paths:
   /api/health:
     get:
@@ -166,7 +168,7 @@ No circular dependencies. The protocol crate has zero internal deps.
 ```
 [ ] Rust trait:  cargo doc --no-deps -p talkservo-media  (check docs compile)
 [ ] WS protocol: cargo test -p talkservo-common           (serde roundtrip tests)
-[ ] REST API:    python3 -c "import yaml; yaml.safe_load(open('docs/openapi.yaml'))"
+[ ] REST API:    python3 -c "import yaml; yaml.safe_load(open('docs/reference/signaling-schema.yaml'))"  # until written: no OpenAPI artifact exists
 [ ] E2E:         Host → WS → Server → WS → Client test scripts pass
 ```
 
@@ -184,10 +186,10 @@ No circular dependencies. The protocol crate has zero internal deps.
 
 ### Breaking Change Protocol (IF UNAVOIDABLE)
 
-1. Draft the breaking change in `docs/modules/protocol/`
+1. Draft the breaking change in `docs/modules/02-signaling-protocol.md` (the wire contract lives there)
 2. Version the WS endpoint: `/ws/v2` alongside `/ws`
 3. Deprecation window: 1 release cycle
-4. Migration guide in `docs/modules/protocol/migration-v1-to-v2.md`
+4. Migration guide in the same module (dated section), NOT a new docs tree
 
 ## Common Pitfalls
 

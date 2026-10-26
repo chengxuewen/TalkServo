@@ -3,274 +3,115 @@ name: ci-cd-automation
 description: "TalkServo local verification pipeline: scripts/gate.sh ledger gates, pixi tasks (build/test/gate/e2e), ctest lanes via the PolyOrch graph, cargo-deny audit. There is no hosted CI (D26) — ci.yml is an inert job spec. Use for local gate troubleshooting, pipeline changes, or pre-push verification."
 ---
 
-# ci-cd-automation — TalkServo CI/CD Pipeline
+# ci-cd-automation — TalkServo Local Verification Pipeline
 
-> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C2, D1-D11, PIT-1-PIT-3).
+> **Ledger note (doc-audit 2026-09-28, PIT-3)**: bare `PIT-{n}` / `C{n}` / `D{nn}` identifiers in this file cite the **MediaServo ledger** (sister project), not this repo — TalkServo's own ids live in `.agents/memorys/` (C1-C6, D1-D28, PIT-1..42).
 
+> **Verification topology (D26, authoritative)**: TalkServo has NO hosted CI. The only remote is Gitee, so `.github/workflows/ci.yml` is an INERT job spec kept for a future GitHub mirror — nothing executes it. Enforcement is local: `.githooks/pre-push` runs `scripts/gate.sh` on every push (enable once per clone: `git config core.hooksPath .githooks`), and the pixi tasks below are the push obligations.
 
-> The pipeline IS the gate. Every check is a contract. Don't merge red.
+## The Actual Verification Pipeline
 
-## Pipeline Architecture
+Everything routes through the PolyOrch CMake graph (D25/D27/D28): build/test/gate/e2e are ctest labels over `out/cmake-build`. Run tasks through pixi so the toolchain env (meson/clang/Ninja PATH, linker pins) is correct.
 
-> **2026-10-19 plan-8 P4 update (authoritative over the diagrams below, which predate the graph):**
-> `ci.yml` jobs = `graph` (ctest -L "rust|web|gate" via PolyOrch: pixi bootstrap + submodules:true),
-> `e2e` (ctest -L e2e-stub, chromium via playwright install), `check` (cargo matrix unchanged),
-> `test-mediasoup` + `audit` (cargo-direct, no graph verb yet). The old fmt/clippy/test/web jobs were
-> folded into `graph`. Local parity: `pixi run test` / `pixi run gate` / `pixi run e2e` are the same
-> ctest labels; build verbs (`build`, `web-test`, `web-build`) are thin forwarders (plan-8 §2 red lines:
-> runtime verbs oxmgr/compose are NOT graph members).
-
-```
-Inert job spec, not a runner (D26): the `ci.yml` job tree below is the portable
-specification for a future GitHub mirror; nothing executes it today. Local parity is
-the authority: pixi run test / pixi run gate / pixi run e2e run the same ctest labels.
+```text
+pixi tasks (from pixi.toml [feature.dev.tasks] / [feature.ci.tasks])
 │
-├── fmt          : cargo fmt --all --check
-├── check        : cargo check --workspace  (ubuntu + macOS)
-├── clippy       : cargo clippy --workspace -- -D warnings
-├── test         : cargo test --workspace   (ubuntu + macOS)
-├── test-gstreamer   : pixi run test-gstreamer  (ubuntu)
-├── test-mediasoup   : SFU tests (ubuntu-22.04 only)
-├── benchmark        : cargo bench -p talkservo-server
-└── openapi-validate : Python OpenAPI 3.0.3 validation
+├── cmake-probe   : cmake -B out/cmake-build -G Ninja          # configure/discoverability
+├── build         : cmake --build out/cmake-build --target talkservo-lanes-stub-build
+├── test          : ctest -L "rust|web"                        # daily lane (5 entries)
+├── gate          : ctest -L gate                              # ledger/fmt/clippy/deny
+├── e2e           : ctest -L e2e-stub                          # Playwright stub lane
+├── test-sfu      : TS_LANE_LIVE=1 ctest -L mediasoup          # live lane (~25 min)
+├── lint          : fmt + clippy workspace
+├── format        : cargo fmt --all -- --check
+├── format-fix    : cargo fmt --all
+├── check         : cargo check --workspace
+├── audit         : cargo deny check (gate-deny runs it too; needs network for the DB)
+├── coverage      : cargo tarpaulin --workspace
+├── client-install / web-install / web-build / web-test / web-dev
+├── run-server / run-coturn / issue-token
+└── ci-check / ci-check-mac / ci-lint / ci-test / ci-test-mediasoup   # [feature.ci.tasks]
 ```
 
-## Local Development Workflow
+IDE equivalents (graph buttons, not ALL): `talkservo-gates-build` runs `ctest -L gate`; `talkservo-e2e-stub-build` runs `ctest -L e2e-stub` after the stub aggregate. Full inventory: `docs/modules/09-dev-toolchain.md` §6 (17 targets, D27/D28).
 
-### Quick (no SFU, no mediasoup)
+## Pre-Push Verification Sequence
+
+Run in order (the pre-push hook runs the first two automatically; the rest are your push obligations):
 
 ```bash
-pixi run check-fast     # cargo check --workspace --no-default-features
-pixi run build-fast     # cargo build --workspace --no-default-features
-pixi run format         # cargo fmt --all -- --check
-cargo clippy --workspace -- -D warnings
-cargo test --workspace
+# 0. Ledger + graph gates (the hook runs this): C1-C6, POLYORCH floor, LANES, LINK
+bash scripts/gate.sh
+
+# 1. Format + clippy (minutes warm, tens of minutes cold)
+~/.pixi/bin/pixi run lint
+
+# 2. Supply-chain audit (needs network for the advisory DB; ~1.4s warm)
+~/.pixi/bin/pixi run audit
+
+# 3. Daily graph lane (rust + web + fixture, ~4 min)
+~/.pixi/bin/pixi run test
+
+# 4. Full gate incl. deny via the graph
+~/.pixi/bin/pixi run gate
+
+# 5. Browser e2e stub lane
+~/.pixi/bin/pixi run e2e
+
+# 6. Live SFU lane — ONLY when touching server/media; TS_LANE_LIVE=1 required
+TS_LANE_LIVE=1 ~/.pixi/bin/pixi run test-sfu
 ```
 
-### Full (with mediasoup)
+## Quick Reference: Cargo-Direct Tasks
 
-```bash
-pixi run check          # workspace (excludes talkservo-server)
-pixi run build          # workspace (excludes talkservo-server)
-pixi run lint           # clippy workspace
-pixi run test           # workspace (excludes talkservo-server)
-pixi run check-server   # talkservo-server via Docker (mediasoup)
-pixi run test-sfu       # talkservo-server with sfu-mediasoup feature (Docker)
-```
-
-## Docker Compose Workflow
-
-### Server Dev Container
-
-```bash
-# Build and start
-docker compose up -d
-
-# View logs
-docker compose logs -f server
-
-# Execute commands inside
-docker compose exec server cargo check -p talkservo-server --features sfu-mediasoup
-
-# SFU E2E test inside container
-docker compose exec server bash scripts/test-sfu-e2e.sh
-
-# Stop
-docker compose down
-```
-
-### Critical Constraints
-
-| Constraint | Detail |
-|-----------|--------|
-| mediasoup = Linux x86_64 only | macOS: `check` works, `build`/`test` fails — use Docker |
-| macOS volume mounts 3-5x slower | Use `cargo-cache` named volume for target |
-| First Docker build: 15-30 min | mediasoup C++ Worker + Rust deps from scratch |
-| UDP ports 40000-40100 | Must be mapped for SFU RTP/RTCP |
-| Server TLS uses rustls | No OpenSSL dependency needed |
-
-## pixi Task Reference
-
-### Cargo Tasks (mediasoup separate)
-
-talkservo-server Docker path (MediaServo C13 heritage) — `scripts/docker-cargo.sh` / `docker compose exec server`;
-The remaining crates compile natively.
+For crate-level iteration outside the graph (note: a manual `cargo …` without `--target-dir` forks whichever cache the lanes are not using — for lane work pass `--target-dir out/cargo-target/{stub,live}`, see modules/09 §6):
 
 | Task | Command | When |
 |------|---------|------|
-| `pixi run check` | `cargo check --workspace --exclude talkservo-server` | After any code change |
-| `pixi run build` | `cargo build --workspace --exclude talkservo-server` | Before running bins |
-| `pixi run lint` | `cargo clippy --workspace --all-targets -- -D warnings` | Before commit |
-| `pixi run test` | `cargo test --workspace --exclude talkservo-server` | Before PR |
-Server changes
-| `pixi run test-server` | `scripts/docker-cargo.sh test -p talkservo-server --features sfu-mediasoup` | SFU changes only |
-
-### Vanilla Tasks (no wrapper, faster)
-
-| Task | Command | When |
-|------|---------|------|
-| `pixi run check-fast` | `cargo check --workspace --no-default-features` | Quick iteration (no mediasoup) |
-| `pixi run build-fast` | `cargo build --workspace --no-default-features` | Quick build |
-| `pixi run format` | `cargo fmt --all -- --check` | Pre-commit |
-| `pixi run format-fix` | `cargo fmt --all` | Auto-fix formatting |
-| `pixi run audit` | `cargo deny check` | Pre-merge security audit |
+| `pixi run check` | `cargo check --workspace` | After any code change |
+| `pixi run lint` | fmt --check + clippy -D warnings | Before commit |
+| `pixi run format` / `format-fix` | `cargo fmt --all [-- --check]` | Style pass |
+| `pixi run audit` | `cargo deny check` | Pre-push security audit |
 | `pixi run coverage` | `cargo tarpaulin --workspace --out Html --out Lcov` | Coverage report |
-| `pixi run test-gstreamer` | GStreamer codec tests (pixi env) | Codec changes |
+
+There is deliberately NO `check-fast`/`build-fast`/`test-server`/`test-gstreamer` task — the fast path is `pixi run check` (stub features need no C++ worker for compile checks) and the server test path is the graph lane `TS_LANE_LIVE=1 pixi run test-sfu` or the stub lane inside `pixi run test`.
+
+## mediasoup / Linux-Only Reality
+
+- mediasoup's C++ Worker builds on Linux x86_64 only. On macOS: `cargo check` works; `build`/`test` with `sfu-mediasoup` do not (use a Linux box or the hand-run Docker parity image).
+- The live lane (`TS_LANE_LIVE=1 pixi run test-sfu`) compiles the worker: measured ~25 min warm-cache, and a killed mid-download build can poison the meson subproject cache (PIT-39) — never SIGKILL a downloading build.
+- Host toolchain comes from pixi (`pixi run -e dev`); a bare shell cmake/ninja is not the supported entry.
 
 ## cargo-deny Audit
 
-Run before EVERY merge:
-
 ```bash
-pixi run audit   # cargo deny check
+~/.pixi/bin/pixi run audit   # cargo deny check
 ```
-
-### What It Checks
 
 | Check | Config | Threshold |
 |-------|--------|-----------|
 | Security advisories | `deny.toml [advisories]` | Deny yanked crates |
-| License compliance | `deny.toml [licenses]` | Allow: Apache-2.0, MIT, BSD-*, ISC, Unicode-3.0, Zlib, LGPL-3.0 |
+| License compliance | `deny.toml [licenses]` | Allow-list per deny.toml |
 | Duplicate deps | `deny.toml [bans]` | Warn on multiple versions |
 | Source registry | `deny.toml [sources]` | Deny unknown registries/git |
-| Ignored advisories | RUSTSEC-2022-0004, RUSTSEC-2025-0025 | Reviewed and accepted |
 
-### Audit Failure Protocol
-
-1. **Security advisory (yanked)**: Find replacement version, update Cargo.toml
-2. **License violation**: Check if new dep's license is in allow-list; if not, discuss with team
-3. **Duplicate dependency**: Run `cargo tree -d` to find duplicates, deduplicate if possible
-4. **Unknown source**: Remove git dependency or add to `allow-git`
-
-## Pre-Merge Verification Sequence
-
-Run in order. Do NOT skip steps.
-
-```bash
-# 1. Format check (fastest, catches most style issues)
-pixi run format
-
-# 2. Clippy (finds logic errors)
-pixi run lint
-
-# 3. Compile check (catches type errors)
-pixi run check
-
-# 4. Unit + integration tests (catches regressions)
-pixi run test
-
-# 5. Security audit (catches vulnerable deps)
-pixi run audit
-
-# 6. SFU tests (if touching server/media)
-pixi run test-sfu        # Linux only
-docker compose exec server cargo test --features sfu-mediasoup  # macOS workaround
-
-# 7. GStreamer tests (if touching codec)
-pixi run test-gstreamer  # Linux only
-
-# 8. Coverage check (target: 80%+)
-pixi run coverage | grep -E "talkservo|TOTAL"
-```
-
-## CI Troubleshooting
-
-### CI Failed: macOS but Passes Locally (Linux)
-
-```bash
-# Check for Linux-specific code paths
-grep -r "cfg.*target_os.*linux" crates/
-grep -r "cfg.*target_os.*macos" crates/
-
-# Common causes:
-# - Missing #[cfg(target_os = "macos")] guards
-# - macOS-specific API usage without conditional compilation
-# - Hardcoded Linux paths (/usr/lib, /etc)
-```
-
-### CI Failed: test-mediasoup
-
-```bash
-# mediasoup only builds on Linux x86_64
-# CI uses ubuntu-22.04 for widest glibc compatibility
-
-# Check required system deps:
-sudo apt-get install -y meson ninja-build libuv1-dev libssl-dev
-
-# Check MESON env var (absolute path — MediaServo PIT-12)
-# Check buildtype conflict (MediaServo PIT-11: remove --buildtype from tasks.py)
-# Clear build cache if build.rs changed (MediaServo PIT-13):
-rm -rf target/debug/build/mediasoup-sys-*
-```
-
-### CI Failed: openapi-validate
-
-```bash
-# Validate locally:
-python3 -c "
-import yaml
-with open('docs/openapi.yaml') as f:
-    spec = yaml.safe_load(f)
-assert spec.get('openapi') == '3.0.3', 'Not OpenAPI 3.0.3'
-for path, methods in spec['paths'].items():
-    for method, detail in methods.items():
-        assert 'responses' in detail, f'{path} {method}: missing responses'
-print('OK')
-"
-```
-
-## macOS-Specific Workflow
-
-```bash
-# Host and Client: NATIVE (no mediasoup dep)
-cargo build -p talkservo-host
-cargo build -p talkservo-client
-
-# Server: check only (mediasoup won't build)
-cargo check -p talkservo-server --features sfu-mediasoup
-
-# Full server build + test: use Docker
-docker compose up -d
-docker compose exec server cargo test -p talkservo-server --features sfu-mediasoup
-```
-
-## Adding a New CI Job
-
-Template:
-
-```yaml
-new-job-name:
-  runs-on: ubuntu-latest   # or macos-latest, ubuntu-22.04 for mediasoup
-  steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: Swatinem/rust-cache@v2     # always include
-    - run: <command>
-```
-
-Rules:
-- All jobs must use `rust-cache@v2` (saves ~5 min per run)
-- mediasoup jobs: `runs-on: ubuntu-22.04`
-- GStreamer jobs: use `prefix-dev/setup-pixi` + `pixi run`
-- No hardcoded secrets in workflow files
-- New jobs → update this skill's pipeline diagram
+A red `gate-deny`/`audit` means check connectivity first — the advisory DB fetch needs the network and fails transiently through some proxies (measured 2026-10-21/22).
 
 ## Common Pitfalls
 
 | Pitfall | Reference | Fix |
 |---------|-----------|-----|
-| Resolved (official registry version) — local builds go through Docker (C13, MediaServo-sister convention) |
-| MESON must be absolute path | PIT-12 | `pixi run -- which meson` |
+| MESON must be absolute path | MediaServo PIT-12 | env comes from pixi activation; never set it by hand |
 | cargo clean -p doesn't clear build cache | MediaServo PIT-13 | `rm -rf target/debug/build/<pkg>-*` |
-| macOS Docker volume mount slow | constraints.md | Use cargo-cache named volume |
-| Sending test on macOS with sfu-mediasoup | constraints.md | Use Docker or check-only |
-| First Docker build takes 15-30 min | constraints.md | Cache everything possible |
+| Shared cargo target dir refuses `cargo clean -p` | TalkServo PIT-41 | deletion is per cache group (`talkservo-lanes-{stub,live}-clean`) |
+| Phantom cargo failure during a parallel cargo | TalkServo rule (edit-safety 22) | check `pgrep -x cargo` empty; rerun once before diagnosing |
+| gate-clippy claims green but ran fmt | TalkServo PIT (c1334f9) | configure-time assertion in TalkServoGates.cmake guards the argv |
 
 ## Related Skills
 
 | Skill | Relationship |
 |-------|-------------|
 | `review-hardcode` | Run BEFORE audit — catch hardcoded secrets in CI config |
-| `test-harness` | Generate test skeletons that CI will run |
-| `lesson-memory` rule | CI failures → write to pitfalls.md |
-| `think-before-act` | Check CI status BEFORE implementing fix |
+| `test-harness` | Generate test skeletons that the lanes will run |
+| `lesson-memory` rule | Build/gate failures → write to pitfalls.md |
+| `think-before-act` | Reproduce a gate failure locally BEFORE implementing a fix |

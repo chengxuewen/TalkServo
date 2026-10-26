@@ -2,6 +2,8 @@
 name: test-harness
 description: "TalkServo multi-language automated test harness. Generates test skeletons from SDD specs (Rust/TS/Python/C++/C), enforces AAA mode, test-to-spec reverse tracing, coverage reports. Interactive menu-driven. Supports Phase awareness (skips modules that are not ready)."
 ---
+> **Porting note (doc-audit 2026-10-23)**: example snippets below may cite DeskServo/sister-lineage crates (`talkservo-common`, `talkservo-webrtc`, `hal-flatbuffers`, `talkservo`) that do NOT exist in this repo — real crates are `talkservo-core` / `talkservo-sfu` / `talkservo-server`. Trust `docs/modules/`, not the examples.
+
 
 # Test Harness
 
@@ -140,7 +142,7 @@ Let the user pick spec files (single or multiple selection).
 
 #### Step 2: Phase-Aware Filtering
 
-Read `docs/plans/p0-milestone-roadmap.md` and determine the current Phase:
+Read `docs/README.md` (Implementation plans table) and determine the current phase:
 
 | Phase | Available Specs |
 |-------|---------|
@@ -328,12 +330,12 @@ Identify changes from `git diff` -> run only the affected tests (not a gate, a s
 
 | Changed path match | Test command |
 |---|---|
-| `crates/talkservo-common/` | `cargo test -p talkservo-common` |
+| `crates/talkservo-core/` | `cargo test -p talkservo-core` |
 | `crates/talkservo/` | `cargo test -p talkservo` (Phase 1, stub only) |
-| `crates/hal-flatbuffers/` | `cargo test -p hal-flatbuffers` (Phase 1, stub only) |
+| `crates/talkservo-sfu/` | `cargo test -p talkservo-sfu --no-default-features --features stub-media` |
 | `*.fbs` (FlatBuffers schema) | `cargo test -p hal-flatbuffers` |
 | `Cargo.toml` or `Cargo.lock` | `cargo test --workspace` |
-| Cross-crate (3+ crates) | `./scripts/qa-fast.sh` |
+| Cross-crate (3+ crates) | `pixi run test` (graph lane) + `pixi run lint` |
 
 3. Run the tests (one layer at a time, avoid cargo lock contention)
 4. Report: layer / command / test count / passed / failed / duration
@@ -418,7 +420,7 @@ All test-generation operations show a diff preview before writing files, confirm
 
 ```
 Will generate the following changes:
-  crates/talkservo-common/src/types.rs +45 (inline test module)
+  crates/talkservo-core/src/floor.rs +N (inline test module)
   tests/integration/test_type_roundtrip.rs (new file, 150 lines)
   tests/integration/test_qos_security.rs (new file, 80 lines)
 
@@ -431,7 +433,7 @@ Execute? [Y/n]
 
 ## Phase-Aware Rules
 
-Read `docs/plans/p0-milestone-roadmap.md` automatically to confirm the current milestone.
+Read `docs/README.md` (Implementation plans table) automatically to confirm the current phase.
 
 | Checkpoint | Behavior |
 |--------|------|

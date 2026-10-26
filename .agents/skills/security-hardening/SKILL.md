@@ -212,7 +212,7 @@ Hardcoded values marked `TODO:` (allowed to exist temporarily) should be manuall
 # Check commands
 grep -rn 'pre_shared_key\|psk' crates/talkservo-server/src/ --include='*.rs'
 grep -rn 'env::var.*PSK\|env::var.*SECRET' crates/ --include='*.rs'
-grep -rn 'session.*ttl\|token.*expir\|jwt.*exp' crates/talkservo-common/src/auth/ --include='*.rs'
+grep -rn 'session.*ttl\|token.*expir\|jwt.*exp' crates/talkservo-server/src/ --include='*.rs'
 grep -rn 'rate.limit\|429\|too.many' crates/talkservo-server/src/ --include='*.rs'
 ```
 
@@ -224,10 +224,10 @@ grep -rn 'rate.limit\|429\|too.many' crates/talkservo-server/src/ --include='*.r
 grep -rn 'jwt.*secret\|JWT_SECRET' crates/ --include='*.rs' | grep -v env::var
 
 # 2. Confirm the algorithm is HS256 or RS256 (not none)
-grep -rn 'Algorithm\|alg.*HS\|alg.*RS' crates/talkservo-common/src/auth/ --include='*.rs'
+grep -rn 'Algorithm\|alg.*HS\|alg.*RS' crates/talkservo-server/src/ --include='*.rs'
 
 # 3. Confirm an exp claim exists
-grep -rn 'exp\|expir' crates/talkservo-common/src/auth/ --include='*.rs'
+grep -rn 'exp\|expir' crates/talkservo-server/src/ --include='*.rs'
 
 # 4. Confirm refresh token rotation
 grep -rn 'refresh_token\|refresh' crates/talkservo-server/src/ --include='*.rs'

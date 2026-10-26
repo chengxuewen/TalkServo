@@ -2,6 +2,8 @@
 name: performance-optimization
 description: "TalkServo performance profiling and optimization. WebRTC latency tracing, mediasoup SFU throughput, Admin UI React render profiling, cargo bench regression detection. Use when latency spikes, after media pipeline changes, or before release."
 ---
+> **Porting note (doc-audit 2026-10-23)**: example snippets below may cite DeskServo/sister-lineage crates (`talkservo-common`, `talkservo-webrtc`, `hal-flatbuffers`, `talkservo`) that do NOT exist in this repo — real crates are `talkservo-core` / `talkservo-sfu` / `talkservo-server`. Trust `docs/modules/`, not the examples.
+
 
 # performance-optimization — Performance Optimization
 
@@ -73,7 +75,7 @@ cargo flamegraph --bin talkservo-host -- --capture test-video
 valgrind --tool=cachegrind cargo run -p talkservo-host --release
 
 # Code-level timing (project already has a metrics module)
-# crates/talkservo-common/src/metrics.rs
+# crates/talkservo-server/src/obs.rs
 use std::time::Instant;
 let start = Instant::now();
 // ... operation ...
@@ -92,7 +94,7 @@ metrics::record("encode_latency_us", start.elapsed().as_micros());
 
 ```bash
 # Check existing metrics instrumentation
-grep -rn 'metrics::record\|latency\|Instant::now' crates/talkservo-webrtc/src/ --include='*.rs'
+grep -rn 'metrics::record\|latency\|Instant::now' crates/talkservo-sfu/src/ crates/talkservo-server/src/ --include='*.rs'
 grep -rn 'metrics::record\|latency\|Instant::now' crates/talkservo-media/src/ --include='*.rs'
 ```
 
