@@ -265,3 +265,38 @@ test.describe("FEC A/B harness (live host, netem)", () => {
     expect(b.share!).toBeLessThan(a.share!);
   });
 });
+
+// test-transmit track (docs/plans/test-transmit-track): the stand-in PTT key drives the
+// SAME floor path with a synthetic source. Asserted on the live lane only — the stub lane
+// carries no RTP, and AnalyserNode RMS reads 0 in headless chromium (helpers.ts note);
+// audioLevel() (RTP bytesReceived delta) is the audibility truth here.
+test.describe("test transmit (dev)", () => {
+  test.skip(!LIVE, "requires the live mediasoup host (real RTP)");
+  test("synthetic source reaches the listener and release silences it", async ({ browser }) => {
+    const hb = await browser.newContext();
+    const holder = await hb.newPage();
+    const lb = await browser.newContext();
+    const listener = await lb.newPage();
+
+    // ?tone=1 pre-seeds test transmit (sine) — the publish seam skips getUserMedia
+    await holder.goto(urlFor("m-holder") + "&tone=1");
+    await expect(holder.getByText("connected")).toBeVisible({ timeout: 15_000 });
+    await joinField(listener, "m-listener");
+
+    // pre-grant: producer exists but server-paused -> no RTP growth
+    const pre = await audioLevel(listener, "m-holder");
+    await holder.getByRole("button", { name: /HOLD/i }).dispatchEvent("pointerdown");
+    await holder.waitForTimeout(1500); // grant sweep
+    const granted = await audioLevel(listener, "m-holder");
+    expect(granted).toBeGreaterThan(pre);
+
+    // release: server pauses the producer -> bytes stop growing
+    await holder.getByRole("button", { name: /HOLD/i }).dispatchEvent("pointerup");
+    await holder.waitForTimeout(800);
+    const afterRelease = await audioLevel(listener, "m-holder");
+    expect(afterRelease).toBeLessThan(granted + 500); // flat, not growing
+
+    await hb.close();
+    await lb.close();
+  });
+});

@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Button, Card, List, Tag, Drawer, Switch, Typography, Space, Badge } from "antd";
+import { Button, Card, List, Tag, Drawer, Switch, Typography, Space, Badge, Select } from "antd";
 import { SettingOutlined, AudioOutlined } from "@ant-design/icons";
 import {
   ensureSession,
@@ -19,7 +19,10 @@ import {
   useMirror,
   useSessionStatus,
   jwtFromQuery,
+  applyTestTransmit,
+  setTestTransmit,
 } from "../lib/session.js";
+import { resumeIfNeeded } from "../lib/testAudio.js";
 import {
   MUTED_BY_DISPATCHER,
   REMOVED_BY_DISPATCHER,
@@ -36,6 +39,8 @@ export function FieldPage() {
   const [holding, setHolding] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [a11y, setA11y] = useState(true);
+  const [testTx, setTestTx] = useState(false);
+  const [testSrc, setTestSrc] = useState<"sine" | "clip">("sine");
   const [announcement, setAnnouncement] = useState("");
   const [keybind, setKeybind] = useState<string | null>(null);
   const [keybindCapture, setKeybindCapture] = useState(false);
@@ -259,6 +264,35 @@ export function FieldPage() {
           <Text>Accessibility announcements</Text>
           <Switch checked={a11y} onChange={setA11y} />
           <Text type="secondary">Reads floor transitions via aria-live and shows the gen badge.</Text>
+          <Text style={{ marginTop: 12 }}>Test transmit (dev)</Text>
+          <Space>
+            <Switch
+              checked={testTx}
+              onChange={(on) => {
+                resumeIfNeeded(); // the click is the gesture (context resume)
+                setTestTransmit(on, testSrc);
+                setTestTx(on);
+                if (status.connected) void applyTestTransmit(key, on, testSrc);
+              }}
+            />
+            <Select
+              size="small"
+              value={testSrc}
+              style={{ width: 90 }}
+              onChange={(v) => {
+                setTestSrc(v);
+                if (testTx) {
+                  setTestTransmit(true, v);
+                  if (status.connected) void applyTestTransmit(key, true, v);
+                }
+              }}
+              options={[
+                { value: "sine", label: "440 Hz" },
+                { value: "clip", label: "hello" },
+              ]}
+            />
+          </Space>
+          <Text type="secondary">Synthetic source for the stand-in PTT key (goes to the room through the normal floor path).</Text>
           <Text style={{ marginTop: 12 }}>Talk keybind</Text>
           <Button
             size="small"

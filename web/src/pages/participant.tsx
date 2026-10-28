@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Button, Card, Tag, Typography, Space } from "antd";
+import { Button, Card, Tag, Typography, Space, Switch, Select } from "antd";
 import { AudioMutedOutlined, AudioOutlined } from "@ant-design/icons";
 import {
   ensureSession,
@@ -14,7 +14,10 @@ import {
   useMirror,
   useSessionStatus,
   jwtFromQuery,
+  applyTestTransmit,
+  setTestTransmit,
 } from "../lib/session.js";
+import { resumeIfNeeded } from "../lib/testAudio.js";
 import {
   MUTED_BY_DISPATCHER,
   REMOVED_BY_DISPATCHER,
@@ -30,6 +33,8 @@ export function ParticipantPage() {
   const mirror = useMirror(key);
   const status = useSessionStatus(key);
   const [micOn, setMicOn] = useState(false);
+  const [testTx, setTestTx] = useState(false);
+  const [testSrc, setTestSrc] = useState<"sine" | "clip">("sine");
 
   useEffect(() => {
     const session = ensureSession({ room, role: "field" });
@@ -129,6 +134,36 @@ export function ParticipantPage() {
                   ? "REQUESTING FLOOR…"
                   : "JOIN THE CONVERSATION"}
       </Button>
+
+      {/* test-transmit (dev): inline control — participant has no settings drawer */}
+      <Space style={{ marginTop: 8 }} data-testid="test-transmit">
+        <Switch
+          size="small"
+          checked={testTx}
+          disabled={!status.connected}
+          onChange={(on) => {
+            resumeIfNeeded(); // the click is the gesture (context resume)
+            setTestTransmit(on, testSrc);
+            setTestTx(on);
+            if (status.connected) void applyTestTransmit(key, on, testSrc);
+          }}
+        />
+        <Select
+          size="small"
+          value={testSrc}
+          style={{ width: 90 }}
+          disabled={testTx}
+          onChange={(v) => {
+            setTestSrc(v);
+            setTestTransmit(testTx, v);
+          }}
+          options={[
+            { value: "sine", label: "440 Hz" },
+            { value: "clip", label: "hello" },
+          ]}
+        />
+        <Typography.Text type="secondary">test tx (dev)</Typography.Text>
+      </Space>
 
       <div className="mirror-note" style={{ marginTop: 8 }}>
         gen {mirror.generation} — you speak only while granted ({mirror.mode} mode;

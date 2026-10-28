@@ -84,3 +84,24 @@ test("Open mode: three web clients speak at once", async ({ browser }) => {
   await p2.context().close();
   await f3.context().close();
 });
+
+// test-transmit publish-origin (stub lane): ?tone=1 joins publish a SYNTHETIC track —
+// asserted at the signaling surface (the stub lane carries no RTP; audibility is the
+// live lane's media.spec row). The published track's empty label proves synthetic origin.
+test("tone join publishes a synthetic track (publish-origin)", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  await p.goto(urlFor("t-tx") + "&tone=1");
+  await expect(p.getByText("connected")).toBeVisible({ timeout: 15_000 });
+  const label = await p.evaluate(() => {
+    const s = (window as unknown as {
+      __tsSessions?: Map<string, { media: { micTrack: MediaStreamTrack | null } }>
+    }).__tsSessions;
+    const session = [...(s?.values() ?? [])][0];
+    return session ? session.media.micTrack?.label ?? null : null;
+  });
+  // synthetic tracks from MediaStreamDestination carry an empty label; a mic
+  // (or chromium fake-device) track carries a device name.
+  expect(label).toBe("");
+  await ctx.close();
+});

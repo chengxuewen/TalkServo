@@ -11,7 +11,14 @@ import {
   type FloorMirror,
   type Role,
   type LikeWebSocket,
+  type ProducerLike,
 } from "@talkservo/client";
+import {
+  makeClipTrack,
+  makeToneTrack,
+  resumeIfNeeded,
+  stopTestSource,
+} from "./testAudio.js";
 
 export interface RoomSession {
   client: TalkServoClient;
@@ -59,6 +66,59 @@ export function getSession(key: string): RoomSession | undefined {
 }
 
 /** Idempotent create-or-get (StrictMode safe). */
+// ---- test-transmit (docs/plans/test-transmit-track) ----
+// Page-owned toggle state, mirrored into a module var the publish seam reads at join.
+// URL param ?tone=1|clip is the CI/automation path (adjudicated: URL-DRIVEN AUTO-LOOP was
+// rejected, but a one-shot SOURCE choice is harmless and keeps e2e honest).
+export type TestTransmitSource = "sine" | "clip";
+interface TestTransmitCfg {
+  on: boolean;
+  source: TestTransmitSource;
+}
+let testTransmit: TestTransmitCfg = { on: false, source: "sine" };
+
+/** Query param pre-seed: ?tone=1 -> sine, ?tone=clip -> clip (one-shot source choice). */
+function seedTestTransmitFromQuery(): void {
+  if (testTransmit.on) return; // page toggle wins over URL
+  const v = new URLSearchParams(location.search).get("tone");
+  if (v === "1") testTransmit = { on: true, source: "sine" };
+  else if (v === "clip") testTransmit = { on: true, source: "clip" };
+}
+
+/** Toggle from the settings drawer / inline control (the user gesture). */
+export function setTestTransmit(on: boolean, source: TestTransmitSource = "sine"): void {
+  testTransmit = { on, source };
+  if (!on) stopTestSource();
+}
+
+function readTestTransmit(): TestTransmitCfg {
+  seedTestTransmitFromQuery();
+  return testTransmit;
+}
+
+/** Live hot-switch for an already-connected session (synthetic -> synthetic or -> mic). */
+export async function applyTestTransmit(
+  key: string,
+  on: boolean,
+  source: TestTransmitSource = "sine",
+): Promise<void> {
+  const s = getSession(key);
+  if (!s) throw new Error(`no session ${key}`);
+  setTestTransmit(on, source);
+  const rtt = s as unknown as { setTestSource?: (t: MediaStreamTrack | null) => Promise<void> };
+  if (!rtt.setTestSource) throw new Error("session has no test seam (media not wired)");
+  if (on) {
+    const track =
+      source === "clip" ? await makeClipTrack("/assets/hello.wav") : makeToneTrack(440);
+    await rtt.setTestSource(track);
+  } else {
+    // back to mic: the page re-runs connectSession flow is NOT required — swap in a fresh
+    // mic track is the user's reconnect story for the dev flow; document as such.
+    stopTestSource();
+    await rtt.setTestSource(null); // replaceTrack(null) = silence the producer (dev-only)
+  }
+}
+
 export function ensureSession(
   { room, role }: SessionKey,
   wsFactory?: (url: string) => LikeWebSocket,
@@ -225,17 +285,38 @@ async function wireMedia(s: RoomSession): Promise<void> {
       (d: unknown) => s.client.connectTransport({ dtlsParameters: d }, "recv");
     (stack as unknown as { sendProduce: (r: unknown) => Promise<string> }).sendProduce =
       (r: unknown) => s.client.produce(r);
-    // mic publish (paused server-side until granted — D13)
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const track = stream.getAudioTracks()[0];
-    // produce ride: mediasoup send transport → facade.produce pairing
+    // mic publish (paused server-side until granted — D13). Test-transmit mode
+    // (docs/plans/test-transmit-track): the toggle-owned synthetic source replaces
+    // the mic entirely — getUserMedia is NEVER called (privacy + no-mic machines).
+    const testCfg = readTestTransmit();
+    let track: MediaStreamTrack | undefined;
+    if (testCfg.on) {
+      resumeIfNeeded(); // drawer click was the gesture; belt-and-suspenders
+      track =
+        testCfg.source === "clip"
+          ? await makeClipTrack("/assets/hello.wav")
+          : makeToneTrack(440);
+    } else {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      track = stream.getAudioTracks()[0];
+    }
+    // produce ride: mediasoup send transport -> facade.produce pairing
     (window as unknown as { __tsAddrs?: unknown }).__tsAddrs = info.addrs;
     const infoRecv = await s.client.requestTransport("recv");
     const sendT = await stack.createSendTransport({ ice: info.ice, addrs: info.addrs, dtls: info.dtls, ...iceOpts });
+    // test-transmit seam (docs/plans/test-transmit-track): the toggle-owned source
+    // replaces the mic at publish time; retained handle enables mid-session replaceTrack.
+    let micProducer: ProducerLike | null = null;
     s.media.setSendMic(async (t) => {
       const handle = await sendT.produce({ track: t });
+      micProducer = handle;
       return handle.id;
     });
+    (s as unknown as { setTestSource: (t: MediaStreamTrack | null) => Promise<void> }).setTestSource =
+      async (t) => {
+        if (!micProducer) throw new Error("no mic producer to swap (not published yet)");
+        if (t) await micProducer.replaceTrack(t);
+      };
     if (track) await s.media.publishMic(track);
     // ONE recv transport per peer — consumers share it. Measured: creating a
     // fresh transport per consume (announce-direct + grant-sweep = 2x) made

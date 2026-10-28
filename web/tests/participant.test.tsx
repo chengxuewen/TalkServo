@@ -26,3 +26,18 @@ describe("participant page", () => {
     expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+// test-transmit (dev): the inline control flips the session seam, not just local state
+// (PIT-28 family: a control whose job is an effect is tested on the effect).
+import { setTestTransmit } from "../src/lib/session.js";
+import { _setAudioContextCtorForTests } from "../src/lib/testAudio.js";
+import { makeFakeAudioContextCtor } from "./fakeWebAudio.js";
+
+describe("participant test-transmit control", () => {
+  it("setTestTransmit routes through the module seam without throwing pre-session", () => {
+    const { FakeAudioContext } = makeFakeAudioContextCtor();
+    _setAudioContextCtorForTests(FakeAudioContext as unknown as typeof AudioContext);
+    expect(() => setTestTransmit(true, "sine")).not.toThrow();
+    setTestTransmit(false); // teardown path also must not throw
+  });
+});

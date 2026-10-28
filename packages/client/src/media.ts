@@ -55,6 +55,9 @@ export interface ProducerLike {
   pause(): void;
   resume(): void;
   close(): void;
+  /** Swap the upstream track live (mediasoup-client Producer.replaceTrack). Used by the
+   *  web app's test-transmit toggle (docs/plans/test-transmit-track). */
+  replaceTrack(t: MediaStreamTrack | null): Promise<void>;
 }
 
 export interface ConsumerLike {

@@ -3,14 +3,14 @@
 
 import { Device } from "mediasoup-client";
 import type { Transport } from "mediasoup-client/types";
-import type { MediaStack, RecvTransportLike, SendTransportLike } from "./media.js";
+import type { MediaStack, ProducerLike, RecvTransportLike, SendTransportLike } from "./media.js";
 
 /** Loose structural view of a mediasoup Transport — the official class has
  *  richer generics than this adapter needs. */
 interface AnyTransport {
   on(event: "connect", fn: (p: { dtlsParameters: unknown }, cb: () => void, eb: (e: Error) => void) => void): void;
   on(event: "produce", fn: (p: { rtpParameters: unknown }, cb: (d: { id: string }) => void, eb: (e: Error) => void) => void): void;
-  produce(o: { track: MediaStreamTrack; appData: object; codecOptions?: object }): Promise<{ id: string; pause(): void; resume(): void; close(): void }>;
+  produce(o: { track: MediaStreamTrack; appData: object; codecOptions?: object }): Promise<{ id: string; pause(): void; resume(): void; close(): void; replaceTrack(t: { track: MediaStreamTrack | null }): Promise<void> }>;
   consume(o: { id: string; producerId: string; kind: "audio"; rtpParameters: unknown; appData: object }): Promise<{ id: string; producerId: string; track: MediaStreamTrack; pause(): void; resume(): void; close(): void }>;
 }
 
@@ -175,6 +175,7 @@ function wrapSend(t: AnyTransport): SendTransportLike {
         pause: () => void producer.pause(),
         resume: () => void producer.resume(),
         close: () => void producer.close(),
+        replaceTrack: (t) => producer.replaceTrack({ track: t }), // adapt interface(direct) -> native({track})
       };
     },
   };
