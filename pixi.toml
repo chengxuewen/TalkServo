@@ -54,6 +54,10 @@ web-dev     = "npm run dev --prefix web"
 run-server  = "cargo run -p talkservo-server"
 run-coturn  = "docker compose -f docker/compose.yml up coturn"
 issue-token = "bash scripts/issue-token.sh"
+# mediasoup C++ subproject tarballs: build.rs wipes meson's packagecache after every successful
+# worker build, and github/wrapdb are unreachable bare-direct on CN networks - re-seed it from
+# the persistent staging dir before a cold live build (native-build-env-hardening).
+worker-cache-restore = "bash scripts/worker-cache-restore.sh"
 
 [feature.ci.tasks]
 ci-check     = "cargo check --workspace"

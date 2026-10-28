@@ -44,6 +44,12 @@ function(talkservo_gates)
   # same bypass. The linker pin comes along for identity, not necessity (clippy links
   # nothing) - a gate that diverges from the lanes in env fails in a way the lanes do not.
   set(_clippy_env "NO_PROXY=*" "no_proxy=*")
+  # Compiler-trio parity with the live lane (2026-10-27): clippy --workspace also builds the
+  # mediasoup worker, and on a cold target/ cache meson fell back to the host gcc-9 and died
+  # on C++20 concepts (measured). Same principle as the NO_PROXY line above - a gate that
+  # diverges from the lanes in env fails in a way the lanes do not.
+  talkservo_mediasoup_toolchain_env(OUT _ms_env WARN_TARGET "gate-clippy")
+  list(APPEND _clippy_env ${_ms_env})
   get_filename_component(_cargodir "${POLYORCH_RUST_CARGO}" DIRECTORY)
   if(DEFINED TALKSERVO_CONDA_CC)
     string(TOUPPER "${POLYORCH_RUST_HOST_TARGET}" _clinktr)

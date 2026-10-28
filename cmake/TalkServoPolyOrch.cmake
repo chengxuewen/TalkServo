@@ -84,3 +84,27 @@ function(talkservo_ensure_polyorch_rust)
   endif()
   message(STATUS "talkservo: rust face ready (pixi=${TALKSERVO_USE_PIXI}, cargo=${POLYORCH_RUST_CARGO})")
 endfunction()
+
+# talkservo_mediasoup_toolchain_env(OUT <var> [WARN_TARGET <name>]) - the env trio that
+# mediasoup-sys' build.rs→meson needs to build the C++ worker from a NOT-activated shell
+# (native-build-env-hardening, 2026-10-27): CC/CXX = the conda clang that pixi.toml
+# [activation.env] pins (the supplier wrapper strips inherited CC/CXX by design, and the
+# env bin carries no bare c++ symlink, so meson would fall back to the system gcc and die
+# on C++20 concepts); LD_LIBRARY_PATH = the conda lib dir for flatc's runtime libstdc++
+# (host GLIBCXX is older than what conda-compiled flatc loads). Values derive from the
+# resolved toolchain's own bin dir (POLYORCH_RUST_BIN_DIR) - no .pixi/envs literals.
+# Empty result + WARNING when the files are absent (caller then gets the historical
+# activated-shell behavior; the divergence stays visible).
+function(talkservo_mediasoup_toolchain_env)
+  cmake_parse_arguments(PARSE_ARGV 0 E "" "OUT;WARN_TARGET" "")
+  set(_env "")
+  set(_cc "${POLYORCH_RUST_BIN_DIR}/clang")
+  set(_ld "${POLYORCH_RUST_BIN_DIR}/../lib")
+  if(EXISTS "${_cc}" AND EXISTS "${_ld}/libstdc++.so.6")
+    set(_env "CC=${_cc}" "CXX=${POLYORCH_RUST_BIN_DIR}/clang++-23" "LD_LIBRARY_PATH=${_ld}")
+  else()
+    message(WARNING "talkservo ${E_WARN_TARGET}: conda clang toolchain not found at ${_cc} -"
+      " the mediasoup C++ worker build needs an activated pixi shell (CC/CXX)")
+  endif()
+  set(${E_OUT} "${_env}" PARENT_SCOPE)
+endfunction()

@@ -24,6 +24,12 @@ include(cmake/TalkServoPolyOrch.cmake)
 talkservo_ensure_polyorch()             # sentinel embed: outer scope first-wins, else gitlink pin
 talkservo_ensure_polyorch_rust()        # TALKSERVO_USE_PIXI -> polyorch_rust_setup(FROM pixi)
 
+# TALKSERVO_PACKAGE_LANE lives in TalkServoInstall.cmake, but the live-lane opt-in is
+# decided in talkservo_crates() (line order: crates register BEFORE install declares the
+# cache var) - declare the default here so the crates face can see and follow it.
+if(NOT DEFINED TALKSERVO_PACKAGE_LANE)
+  set(TALKSERVO_PACKAGE_LANE "live" CACHE STRING "lane whose server artifact ships (stub|live)")
+endif()
 include(cmake/TalkServoCrates.cmake)
 talkservo_crates()                      # P2: core+sfu+server stub lanes -> ctest "rust"; mediasoup =
                                         # build-only artifact handle (test verb stays test-sfu until P3)
@@ -32,6 +38,7 @@ talkservo_web()                         # P2: web Node lane (npm scripts keep au
 include(cmake/TalkServoGates.cmake)
 talkservo_gates()                       # P3: gate-docs/fmt/clippy/deny + e2e-stub/live ctest labels
 
+include(cmake/TalkServoOxmgrVendor.cmake)   # build-time oxmgr vendoring (deploy bin/ completeness)
 include(cmake/TalkServoInstall.cmake)
 talkservo_install_tree()
 talkservo_deploy_targets()               # build:deploy staging buttons (out/<lane>/bin)

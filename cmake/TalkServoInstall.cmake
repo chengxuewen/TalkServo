@@ -15,6 +15,13 @@ function(talkservo_install_tree)
   if(NOT TALKSERVO_PACKAGE_LANE MATCHES "^(stub|live)$")
     message(FATAL_ERROR "TALKSERVO_PACKAGE_LANE must be stub or live, got '${TALKSERVO_PACKAGE_LANE}'")
   endif()
+  # Live ships need the live lane registered (TALKSERVO_LIVE_LANE); when it is OFF, a live
+  # package lane has no handle to stage. Fail here with the fix, not in deploy with a bare
+  # "handle not registered" (native-build-env-hardening, 2026-10-27).
+  if(TALKSERVO_PACKAGE_LANE STREQUAL "live" AND NOT TALKSERVO_LIVE_LANE)
+    message(FATAL_ERROR "TALKSERVO_PACKAGE_LANE=live needs -DTALKSERVO_LIVE_LANE=ON (the live lane is "
+        "graph-opt-in; configure the live preset, or set TALKSERVO_PACKAGE_LANE=stub)")
+  endif()
   # The handle name is composed from the lane word (plan-10 T2) - no if/else name table
   # to keep in sync: stub -> talkservo-server-stub, live -> talkservo-server-live.
   set(_handle talkservo-server-${TALKSERVO_PACKAGE_LANE})
@@ -25,10 +32,21 @@ function(talkservo_install_tree)
       COMPONENT bin
       PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
+  # oxmgr for the bin component: user-set TALKSERVO_OXMGR wins; otherwise the vendored
+  # path (same build-time vendor as deploy staging, 2026-10-27) so --install on a
+  # supported Linux host ships a complete bin/ without the user having to know about .cache.
+  if(NOT TALKSERVO_OXMGR)
+    talkservo_oxmgr_vendor(OUT _vendored_oxmgr)
+    if(_vendored_oxmgr)
+      set(TALKSERVO_OXMGR "${_vendored_oxmgr}")
+    endif()
+  endif()
   if(TALKSERVO_OXMGR)
     install(PROGRAMS "${TALKSERVO_OXMGR}" DESTINATION bin RENAME oxmgr COMPONENT bin)
   else()
-    message(WARNING "TALKSERVO_OXMGR empty - oxmgr will not ship (start/stop fall back to PATH)")
+    message(WARNING "TALKSERVO_OXMGR empty and no vendored oxmgr for "
+        "${CMAKE_HOST_SYSTEM_NAME}/${CMAKE_HOST_SYSTEM_PROCESSOR} - bin component ships "
+        "without oxmgr (start/stop fall back to PATH)")
   endif()
 
   # dist component: the package's etc/ + scripts/ (existence-guarded = the
@@ -67,15 +85,19 @@ function(talkservo_deploy_targets)
     message(FATAL_ERROR "talkservo deploy: lane handle ${_handle} not registered (crates face order changed?)")
   endif()
   set(_dest "${CMAKE_SOURCE_DIR}/out/${TALKSERVO_PACKAGE_LANE}/bin")
-  file(GLOB _oxmgr_candidates "${CMAKE_SOURCE_DIR}/.cache/oxmgr/oxmgr-${TALKSERVO_OXMGR_VERSION}-*/oxmgr")
+  # oxmgr is vendored at BUILD time (talkservo-oxmgr-vendor), not globbed at configure:
+  # a tree configured before .cache/oxmgr existed used to freeze an empty copy list and
+  # silently stage a half bin/. Vendor first, then the deterministic path is a hard dep.
+  talkservo_oxmgr_vendor(OUT _oxmgr_path)
+  set(_oxmgr_deps "")
   set(_copy_oxmgr "")
-  if(_oxmgr_candidates)
-    list(GET _oxmgr_candidates 0 _oxmgr_cache)
+  if(_oxmgr_path)
+    set(_oxmgr_deps talkservo-oxmgr-vendor)
     set(_copy_oxmgr
-      COMMAND ${CMAKE_COMMAND} -E copy "${_oxmgr_cache}" "${_dest}/oxmgr")
+      COMMAND ${CMAKE_COMMAND} -E copy "${_oxmgr_path}" "${_dest}/oxmgr")
   endif()
   add_custom_target(talkservo-deploy-build
-      DEPENDS ${_handle}-build
+      DEPENDS ${_handle}-build ${_oxmgr_deps}
       COMMAND ${CMAKE_COMMAND} -E make_directory "${_dest}"
       COMMAND ${CMAKE_COMMAND} -E copy
               "$<TARGET_FILE:${_handle}>" "${_dest}/talkservo-server"

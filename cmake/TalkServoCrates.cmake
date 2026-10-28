@@ -32,6 +32,13 @@
 #     talkservo-server-${TALKSERVO_PACKAGE_LANE}, talkservo.sh composes the target name.
 
 option(TALKSERVO_POLYORCH_CRATES "register the PolyOrch-driven cargo lanes in the graph" ON)
+option(TALKSERVO_LIVE_LANE "register the talkservo-server-live lane (C++ worker build is opt-in)" OFF)
+# When the packaging face selects the live lane, the live lane must exist - default the
+# graph knob to follow it so the deploy/package flow needs one switch, not two
+# (TALKSERVO_PACKAGE_LANE lives in TalkServoInstall.cmake and defaults to live).
+if(DEFINED TALKSERVO_PACKAGE_LANE AND TALKSERVO_PACKAGE_LANE STREQUAL "live")
+  set(TALKSERVO_LIVE_LANE ON CACHE BOOL "forced by TALKSERVO_PACKAGE_LANE=live" FORCE)
+endif()
 
 set(TALKSERVO_CACHE_ROOT "${CMAKE_SOURCE_DIR}/out/cargo-target")
 
@@ -109,9 +116,15 @@ function(talkservo_rust_lane)
     # .pixi/envs/dev/bin/cc -> x86_64-conda-linux-gnu-cc, whose built-in sysroot lacks
     # __libc_single_threaded. The absolute path is what works.
     find_program(TALKSERVO_CONDA_CC cc REQUIRED)
+    # C++ worker toolchain (2026-10-27 native-build-env-hardening): the worker also builds
+    # via this lane's cargo, so it needs the same pins the gate carries - see
+    # talkservo_mediasoup_toolchain_env for what is pinned and why (strip + no bare c++
+    # symlink in the env bin = meson falls back to system gcc without this).
+    talkservo_mediasoup_toolchain_env(OUT _ms_env WARN_TARGET "lane ${L_HANDLE}")
+    list(APPEND _laneenv ${_ms_env})
     # NO_PROXY for pypi (both cases): mediasoup-sys build.rs pip-install hits a MITM proxy
     # that breaks pypi TLS specifically on this class of host (gitee/github still route fine).
-    set(_laneenv
+    list(APPEND _laneenv
         "CARGO_TARGET_${_linktr}_LINKER=${TALKSERVO_CONDA_CC}"
         "NO_PROXY=*"
         "no_proxy=*")
@@ -235,10 +248,16 @@ function(talkservo_crates)
   # like rust-live is matched by the daily `-L "rust|web"` filter too (measured: 5 entries
   # instead of 4). A label with no substring overlap keeps `ctest -L rust` meaning exactly
   # what it meant before this lane existed.
-  talkservo_rust_lane(HANDLE talkservo-server-live PACKAGE talkservo-server KIND BINARY
-      CACHE live FEATURES sfu-mediasoup,embedded-web
-      TEST ON TEST_LABELS "mediasoup;headless;slow"
-      TEST_GATE TS_LANE_LIVE TEST_GATE_VALUE 1 CLEAN ON)
+  # The live lane is graph-opt-in (TALKSERVO_LIVE_LANE, default OFF): the C++ worker build
+  # is minutes and needs the mediasoup toolchain face, so presets keep it out of the daily
+  # surface; the live preset and the deploy/package flow turn it on. The lane's ctest entry
+  # remains runtime-gated by TS_LANE_LIVE even when registered (default skips in seconds).
+  if(TALKSERVO_LIVE_LANE)
+    talkservo_rust_lane(HANDLE talkservo-server-live PACKAGE talkservo-server KIND BINARY
+        CACHE live FEATURES sfu-mediasoup,embedded-web
+        TEST ON TEST_LABELS "mediasoup;headless;slow"
+        TEST_GATE TS_LANE_LIVE TEST_GATE_VALUE 1 CLEAN ON)
+  endif()
 
   # Daily aggregate: every stub-group lane, never the live one (the C++ worker stays
   # opt-in per lane). ALL is deliberate (plan-10 F1=B): with no default goal a bare

@@ -66,7 +66,64 @@ verify loop:  pixi run lint && pixi run test        # daily, minutes
 push-to-live: TS_LANE_LIVE=1 pixi run test-sfu   # mediasoup backend incl. the C++ worker: measured 1545s
 clean-env parity: scripts/docker-cargo.sh test -p talkservo-server --features sfu-mediasoup   (ubuntu:22.04 image, by hand — no hosted runner, D26)
 secrets:      scripts/scan-hardcode.sh            # path already referenced by security-hardening skill — implementation = this repo's grep-based scan
+live cold build (bare shell OK):
+              pixi run worker-cache-restore        # seed meson's packagecache from the staging dir (see §3b)
+              cmake --preset live && cmake --build build/presets/live --target talkservo-deploy-build
+              # the live lane pins CC/CXX/LD_LIBRARY_PATH itself (see §3b) - no activated shell needed;
+              # first run downloads crates via the user's cargo config (modules/06 posture: mirror recommended on CN networks)
 ```
+
+### 4b. Native build env hardening (2026-10-27)
+
+> Why: PolyOrch's cargo wrapper strips host `CC/CXX/CFLAGS/CXXFLAGS` by design (host-leak isolation),
+> so mediasoup-sys's build.rs → meson fell back to the system gcc in any non-activated shell (the IDE
+> button) and died on C++20 concepts; conda-compiled flatc then needs the conda libstdc++ at runtime.
+> meson also re-downloads the C++ subproject tarballs from github/wrapdb after every successful worker
+> build (build.rs wipes `subprojects/packagecache` — cargo-publish hygiene), which bare-direct CN
+> networks cannot reach.
+
+Three mechanisms close the gap (each verified by the command named):
+
+1. **Worker toolchain env injection** (`talkservo_mediasoup_toolchain_env()` in
+   `cmake/TalkServoPolyOrch.cmake`, consumed by the live lane in `cmake/TalkServoCrates.cmake`
+   AND `gate-clippy` in `cmake/TalkServoGates.cmake` - workspace clippy builds the worker too,
+   and a cold `target/` cache reproduced the same gcc-9 failure; the gate's own comment states
+   the principle: a gate that diverges from the lanes in env fails in a way the lanes do not):
+   pins `CC=<POLYORCH_RUST_BIN_DIR>/clang`, `CXX=<POLYORCH_RUST_BIN_DIR>/clang++-23`, and
+   `LD_LIBRARY_PATH=<POLYORCH_RUST_BIN_DIR>/../lib` — the same values pixi.toml `[activation.env]`
+   pins, derived from the supplier's own bin dir, not literals. `CC/CXX` trail the supplier's strip
+   and win; `LD_LIBRARY_PATH` is not stripped; `LIBCLANG_PATH` needs no pin (the supplier derives it).
+   Check: bare-shell `cmake --build build --target talkservo-server-live-build` then
+   `grep -c clang out/cargo-target/live/debug/build/mediasoup-sys-*/out/build/meson-logs/meson-log.txt`.
+2. **Worker source-cache restore** (`pixi run worker-cache-restore` → `scripts/worker-cache-restore.sh`):
+   re-seeds `subprojects/packagecache` from a persistent staging dir
+   (`TALKSERVO_WORKER_CACHE`, default `~/.cache/talkservo/meson-packagecache`), sha256-verifying each
+   file against the wrap's `source_hash`/`patch_hash`. One-time bootstrap: fill the staging dir once
+   with network (the script prints the exact curl commands when a file is missing); afterwards cold
+   live builds need no github/wrapdb reachability. Idempotent: a built worker short-circuits the script.
+3. **Presets + IDE face** (`CMakePresets.json`, `.vscode/settings.example.json`): `stub` = the daily
+   surface without the C++ worker; `live` = adds the live lane via `TALKSERVO_PACKAGE_LANE=live`
+   (which force-enables the new `TALKSERVO_LIVE_LANE` graph knob). The vscode example pins
+   `cmake.cmakePath` into the pixi env so the IDE does not depend on the launching shell.
+
+The injected values deliberately do NOT reuse `TALKSERVO_CONDA_CC` (that `find_program(cc)` result
+is the conda **gcc** wrapper — repinning it as CC would reintrodu
+
+4. **Deploy bin/ completeness via build-time vendoring** (`talkservo-oxmgr-vendor`,
+   `cmake/TalkServoOxmgrVendor.cmake` + `cmake/OxmgrVendorScript.cmake`): the deploy target's
+   oxmgr copy used to be a configure-time `file(GLOB)` on `.cache/oxmgr` - a tree configured
+   before the cache existed silently staged a half `bin/` (server only; `start` then failed on
+   "oxmgr not found"; PIT-46). The target now vendors at BUILD time: deterministic arch path
+   (`x86_64|aarch64-unknown-linux-musl`, WARN on other hosts like the shell's own posture),
+   `file(SHA256)` against the committed sidecar with refuse-to-unpack semantics, idempotent
+   when unpacked. `talkservo-deploy-build` depends on it; `cmake --install` bin ships oxmgr
+   too (user-set `TALKSERVO_OXMGR` still wins). Contract: the graph guarantees
+   `out/<lane>/bin/ = talkservo-server + oxmgr`; instance layout (`etc/`, `run/`) stays
+   `init`'s (D25 red line - one command for the full assembly remains `talkservo.sh deploy`);
+   system prerequisites (caddy, coturn) stay `talkservo.sh doctor`'s report. Check:
+   `rm -rf .cache/oxmgr && cmake --build build --target talkservo-deploy-build` -> both
+   binaries present.
+ce the gcc-9 failure).
 
 `scripts/` initial inventory at P0 (LANDED 2026-09-29: _common.sh bootstrap.sh pixi.sh scan-hardcode.sh docker-cargo.sh + Cargo.toml pixi.toml rust-toolchain.toml deny.toml clippy.toml tarpaulin.toml; docker/ compose files deferred to plan-2 T5): `_common.sh bootstrap.sh pixi.sh scan-hardcode.sh docker-cargo.sh` + `Cargo.toml pixi.toml rust-toolchain.toml deny.toml clippy.toml tarpaulin.toml .gitignore` deltas + `docker/` compose files. No cargo tasks may reference crates that do not exist — bootstrap must be idempotent on a crates-less checkout (check-guard, exit 0 with notice).
 

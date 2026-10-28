@@ -1,0 +1,58 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/presets/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "stub",
+      "displayName": "stub — daily lanes (core/sfu/server-stub + web), no C++ worker",
+      "inherits": "base",
+      "cacheVariables": {
+        "TALKSERVO_PACKAGE_LANE": "stub"
+      }
+    },
+    {
+      "name": "live",
+      "displayName": "live — adds the mediasoup lane + deploy staging",
+      "inherits": "base",
+      "cacheVariables": {
+        "TALKSERVO_PACKAGE_LANE": "live"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "stub",
+      "configurePreset": "stub"
+    },
+    {
+      "name": "live",
+      "configurePreset": "live"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "stub",
+      "configurePreset": "stub",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "live",
+      "configurePreset": "live",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}
