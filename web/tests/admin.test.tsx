@@ -103,6 +103,7 @@ describe("admin console", () => {
     expect(screen.getByText("bob")).toBeTruthy();
     expect(screen.getByText("stale")).toBeTruthy();
     expect(screen.getByText(/Rooms 1/)).toBeTruthy();
+    expect(screen.getByText(/Live Rooms 1 · 2 registered/)).toBeTruthy();
     expect(screen.getByText(/Backend stub/)).toBeTruthy();
   });
 

@@ -22,16 +22,24 @@ export function MonitorTab({
 }): React.ReactElement {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [rooms, setRooms] = useState<RoomRow[]>([]);
+  // registry rows are cheap file reads; the count disambiguates "Rooms 0" (live) from
+  // "registered N" - a created-but-unjoined room is intentionally not live (S2 layering)
+  const [registered, setRegistered] = useState<number | null>(null);
   const [pollError, setPollError] = useState<string | null>(null);
 
   useEffect(() => {
     let stop = false;
     const tick = async () => {
       try {
-        const [o, r] = await Promise.all([api.overview(), api.roomsLive()]);
+        const [o, r, reg] = await Promise.all([
+          api.overview(),
+          api.roomsLive(),
+          api.roomsRegistry(),
+        ]);
         if (!stop) {
           setOverview(o);
           setRooms(r);
+          setRegistered(reg.length);
           setPollError(null);
         }
       } catch (e) {
@@ -63,7 +71,10 @@ export function MonitorTab({
         </div>
       )}
       <Space style={{ marginBottom: 16 }} wrap>
-        <Card size="small">Rooms {overview?.rooms ?? "—"}</Card>
+        <Card size="small">
+          Live Rooms {overview?.rooms ?? "—"}
+          {registered !== null ? ` · ${registered} registered` : ""}
+        </Card>
         <Card size="small">Peers {overview?.peers ?? "—"}</Card>
         <Card size="small">Up {overview?.uptime_s ?? "—"}s</Card>
         <Card size="small">Backend {overview?.backend ?? "—"}</Card>
