@@ -177,6 +177,10 @@ pub async fn rooms_body(app: &Arc<App>) -> Vec<serde_json::Value> {
 
 #[derive(Deserialize)]
 struct TokenReq {
+    /// OMITTED (not empty) = server generates u-xxxxxx at issue time (D29-#4). The
+    /// serde default is the contract: the wire shape is absence, and the empty-string
+    /// branch below is belt-and-suspenders for callers that send `""`.
+    #[serde(default)]
     sub: String,
     room: String,
     role: talkservo_core::wire::Role,
@@ -192,6 +196,41 @@ fn valid_id(s: &str) -> bool {
         && s.len() <= 64
         && s.bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
+}
+
+/// D29-#4: server-side subject autogeneration — `u-` + 6 base36 chars (base36 =
+/// lowercase+digits; no role in the identity: a participant changing roles must not
+/// change identity; no sequence: it leaks issuance volume). Collision-checked against
+/// `occupied` (live seats + registry rows) with a bounded retry; exhaustion is a 500,
+/// not a silent duplicate. Randomness = std hash of (time nanos, address entropy, and
+/// an atomic counter) — no new dependency for a 36^6 space with an 8-try bound.
+fn gen_subject(occupied: &std::collections::HashSet<String>) -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    for _ in 0..8 {
+        let t = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0);
+        let mix = t
+            ^ (COUNTER.fetch_add(0x9E37_79B9_7F4A_7C15, Ordering::Relaxed))
+            ^ (&COUNTER as *const _ as u64);
+        // splitmix64 finish for diffusion
+        let mut z = mix.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^= z >> 31;
+        const ALPHABET: &[u8; 36] = b"abcdefghijklmnopqrstuvwxyz0123456789";
+        let s: String = (0..6)
+            .map(|i| ALPHABET[((z >> (i * 6)) & 35) as usize] as char)
+            .collect();
+        let candidate = format!("u-{s}");
+        if !occupied.contains(&candidate) {
+            return candidate;
+        }
+    }
+    // caller turns this into a 500 — never a silent duplicate seat
+    String::new()
 }
 
 fn rate_ok(app: &App) -> bool {
@@ -395,7 +434,39 @@ async fn tokens(
             return (StatusCode::BAD_REQUEST, "malformed body").into_response();
         }
     };
-    if !valid_id(&req.sub) || !valid_id(&req.room) {
+    // D29-#4: empty sub = server-generated subject (fixed at issue time — it travels
+    // with the link so the D23 chain — audit/kick/mute — keeps working). Explicit
+    // invalid subs still 400 below.
+    let sub = if req.sub.is_empty() {
+        let mut occupied: std::collections::HashSet<String> = crate::rooms::load(&app.config)
+            .into_iter()
+            .map(|r| format!("u-{}", r.room))
+            .collect();
+        // live seats too: a generated sub equal to a joined subject would hijack
+        // that identity's re-entry. rooms_body() already fans out every live room's
+        // peer table — harvest subject ids from it (same source the console shows).
+        for row in rooms_body(&app).await {
+            if let Some(peers) = row.get("peers").and_then(|p| p.as_array()) {
+                for peer in peers {
+                    if let Some(pid) = peer.get("id").and_then(|v| v.as_str()) {
+                        occupied.insert(pid.to_string());
+                    }
+                }
+            }
+        }
+        let g = gen_subject(&occupied);
+        if g.is_empty() {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "subject generation failed (collision bound)",
+            )
+                .into_response();
+        }
+        g
+    } else {
+        req.sub.clone()
+    };
+    if !valid_id(&sub) || !valid_id(&req.room) {
         return (
             StatusCode::BAD_REQUEST,
             "sub/room must be 1-64 chars of [A-Za-z0-9._-]",
@@ -420,7 +491,7 @@ async fn tokens(
     }
     let jwt = match auth::issue_with_mods(
         &app.config.jwt_secret,
-        &req.sub,
+        &sub,
         &req.room,
         req.role,
         ttl,
@@ -433,7 +504,7 @@ async fn tokens(
     // the ONLY audit trail D18 allows — never the token value
     tracing::info!(
         event = "admin_token_issued",
-        sub = %req.sub,
+        sub = %sub,
         room = %req.room,
         role = ?req.role,
         ttl_s = ttl,
@@ -442,7 +513,7 @@ async fn tokens(
         a.emit(
             crate::audit::AuditEvent::new(crate::audit::AuditKind::TokenIssue)
                 .room(req.room.clone())
-                .actor(req.sub.clone())
+                .actor(sub.clone())
                 .change(
                     "grant",
                     serde_json::Value::Null,
@@ -845,6 +916,59 @@ fn json_of<T: serde::Serialize>(value: &T) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // D29-#4 (entry-flow wave): generated subjects are `u-` + 6 base36 chars,
+    // collision-checked against live seats + registry rows before issuance.
+    #[test]
+    fn gen_subject_format_is_u_plus_six_base36() {
+        let s = gen_subject(&std::collections::HashSet::new());
+        assert!(s.starts_with("u-"), "prefix: {s}");
+        let rest = &s[2..];
+        assert_eq!(rest.len(), 6, "len: {s}");
+        assert!(
+            rest.bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()),
+            "charset: {s}"
+        );
+    }
+
+    #[test]
+    fn gen_subject_avoids_registered_names() {
+        // seed every possible 6-char space? no — seed a few names and prove the
+        // generator never returns one (loop gives it 200 chances to collide).
+        let occupied: std::collections::HashSet<String> = ["u-aaa000", "u-zzz999"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        for _ in 0..200 {
+            let s = gen_subject(&occupied);
+            assert!(!occupied.contains(&s), "collision: {s}");
+        }
+    }
+
+    #[test]
+    fn gen_subject_unique_across_calls() {
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..50 {
+            seen.insert(gen_subject(&seen));
+        }
+        assert_eq!(seen.len(), 50);
+    }
+
+    #[test]
+    fn token_req_missing_sub_deserializes_to_empty() {
+        // the D29 wire shape is sub-ABSENT (entryActions omits it); serde must accept
+        // that and land it in the empty-string branch, not reject the whole body
+        // (regression: the 400 "malformed body" integration gap, 2026-10-28)
+        let req: TokenReq = serde_json::from_str(r#"{"room":"tst","role":"dispatch"}"#)
+            .expect("missing sub must deserialize");
+        assert_eq!(req.sub, "");
+        assert_eq!(req.room, "tst");
+        // explicit empty string takes the same branch
+        let req2: TokenReq = serde_json::from_str(r#"{"sub":"","room":"tst","role":"field"}"#)
+            .expect("empty sub must deserialize");
+        assert_eq!(req2.sub, "");
+    }
 
     #[test]
     fn id_validation_blocks_url_structures() {
