@@ -4,7 +4,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/_common.sh
-source "$SCRIPT_DIR/_common.sh"
+source "$SCRIPT_DIR/scripts/_common.sh"
 
 if ! pixi_present; then
   log "pixi not found — installing to ~/.pixi (curl installer)"

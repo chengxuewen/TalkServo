@@ -12,5 +12,5 @@ pixi_present() {
 }
 
 pixi_cmd() {
-  if command -v pixi >/dev/null 2>&1; then pixi; else "$HOME/.pixi/bin/pixi"; fi
+  if command -v pixi >/dev/null 2>&1; then command -v pixi; else printf '%s\n' "$HOME/.pixi/bin/pixi"; fi
 }
