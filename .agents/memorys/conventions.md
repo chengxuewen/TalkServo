@@ -111,8 +111,8 @@ def _max_id(path, pat):
     return max((int(x) for x in ids), default=0)
 
 DMAX = _max_id('.agents/memorys/decisions.md', r'^## D(\d+)')      # live bounds from the ledgers
-CMAX = _max_id('.agents/memorys/conventions.md', r'^## C(\d+)')   # themselves (C4 method) — no
-PMAX = _max_id('.agents/memorys/pitfalls.md', r'^## PIT-(\d+)')  # constant to re-pin per entry
+CMAX = _max_id('.agents/memorys/conventions.md', r'^## C(\d+)')   # (C4 method: derived,
+PMAX = _max_id('.agents/memorys/pitfalls.md', r'^## PIT-(\d+)')  #  never re-pinned per entry)
 paths = []
 for pat in ["docs/**/*.md", ".agents/rules/**/*.md", ".agents/skills/*/SKILL.md"]:
     paths += [p for p in Path('.').glob(pat)
@@ -132,8 +132,8 @@ for p in paths:
                 if not (1 <= n <= PMAX): keep.append(tok); continue
             else:
                 n = int(tok[1:])
-                if tok.startswith('D') and not (1 <= n <= 28): keep.append(tok); continue
-                if tok.startswith('C') and not (1 <= n <= 6): keep.append(tok); continue
+                if tok.startswith('D') and not (1 <= n <= DMAX): keep.append(tok); continue
+                if tok.startswith('C') and not (1 <= n <= CMAX): keep.append(tok); continue
         if keep and not re.search(r'MediaServo|sister|inert', line):
             bad.append(f'{p}:{i}: {keep} {line.strip()[:100]}')
 for b in bad: print('FAIL:', b)
