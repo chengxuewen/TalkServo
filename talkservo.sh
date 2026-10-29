@@ -82,6 +82,48 @@ cmd_build() {
     # the install face share one lane fact. The runtime `init` stays HERE (D25 red
     # line: instance lifecycle is not a build step).
     tgt="talkservo-deploy-build"
+    # Freshness for a DEPLOY verb: ninja skips the cargo call when the staged artifact
+    # exists and the command line is unchanged (PolyOrchRustHelpers:365 —
+    # "re-invocation is cargo-fingerprint-bounded") — but ninja never ASKS cargo, so a
+    # source edit can miss the binary entirely (measured 2026-10-28: build:deploy
+    # shipped a pre-fix binary after a serde change; 1h of false debugging, PIT-47).
+    # Touch-based busters were tried first and REJECTED: bumping workspace sources
+    # re-runs mediasoup-sys's build.rs (no rerun-if declared -> cargo's conservative
+    # default fires on anything), which re-downloads the C++ subprojects on a bare-CN
+    # network. The direct pre-build asks CARGO instead: same manifest/features/target-dir
+    # as the lane, so cargo's own (accurate) fingerprint recompiles exactly the changed
+    # crates into the SAME tree the graph step consumes; the later ninja step then finds
+    # fresh BYPRODUCTS and passes through. A no-change deploy costs one cargo check-grade
+    # pass (seconds); a changed one pays only the changed units.
+    # mediasoup-sys's build.rs wipes meson's packagecache on every re-run and
+    # re-downloads the C++ subprojects from github/wrapdb — unreachable bare-direct
+    # here. Re-seed the cache (sha256-verified) before ANY cargo call on this lane.
+    "$PIXI_BIN" run -e dev bash scripts/worker-cache-restore.sh || true
+    local lane_features="stub-media,embedded-web"
+    [ "$LANE" = "live" ] && lane_features="sfu-mediasoup,embedded-web"
+    local PIXI_ENV_BIN="$ROOT/.pixi/envs/dev/bin"
+    # SAME env wrapper as the graph's cargo call (cmake -E env with the lane pins) —
+    # a divergent pre-build env would flip-flop cargo fingerprints between this step
+    # and the ninja step, re-running the mediasoup-sys build.rs on every deploy
+    # (measured: direct pixi-env pre-build + graph build ping-ponged the worker
+    # build twice before this was unified).
+    # (the trio + linker pin below is the lane env from TalkServoCrates.cmake —
+    #  kept literally in sync; a divergence flips cargo fingerprints per deploy)
+    "$PIXI_BIN" run -e dev cmake -E env \
+        --unset=RUSTFLAGS --unset=CARGO_ENCODED_RUSTFLAGS \
+        --unset=CFLAGS --unset=CXXFLAGS --unset=CC --unset=CXX \
+        PATH="$PIXI_ENV_BIN:/usr/bin:/bin" \
+        CC="$PIXI_ENV_BIN/clang" \
+        CXX="$PIXI_ENV_BIN/clang++-23" \
+        LD_LIBRARY_PATH="$PIXI_ENV_BIN/../lib" \
+        LIBCLANG_PATH="$PIXI_ENV_BIN/../lib/libclang.so" \
+        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/cc \
+        NO_PROXY="*" no_proxy="*" \
+        cargo build --package talkservo-server \
+        --manifest-path crates/talkservo-server/Cargo.toml \
+        ${prof} --bin talkservo-server \
+        --features "$lane_features" --no-default-features \
+        --target-dir "out/cargo-target/$LANE"
     "$PIXI_BIN" run -e dev cmake -B "$bdir" -G Ninja -DCMAKE_BUILD_TYPE="$cfg" \
         -DTALKSERVO_PACKAGE_LANE="$LANE" >/dev/null
     "$PIXI_BIN" run -e dev cmake --build "$bdir" --target "$tgt"
