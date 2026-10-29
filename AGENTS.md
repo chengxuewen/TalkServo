@@ -29,7 +29,7 @@ TalkServo — real-time voice **floor-control platform** (PTT exclusive / confer
 | Architecture truth (live) | docs/architecture.md → modules/01-09 | master is thin by design |
 | Why a decision exists | .agents/memorys/decisions.md D1-D28 | cite by id; D23 = Alpha wave-1 (plan-7, S1-S7.5 landed), D25 = PolyOrch build graph, D26 = verification is local (no hosted CI), D27 = lane target vocabulary, D28 = PolyOrch 0.7.1 supplier CTEST/sentinel floor/lane gate (plan-11) |
 | Binding rules on this repo | .agents/memorys/conventions.md C1-C5 | C1 English, C2 docs-tiering, C3 full-word routes, C4 ledger-index consistency, C5 no phantom-CI claims |
-| Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..46 | MediaServo ids labeled, never assume |
+| Engineering lessons (ours) | .agents/memorys/pitfalls.md PIT-1..47 | MediaServo ids labeled, never assume |
 | Competitive/selection evidence | docs/reference/research/{ptt,media,ui,internal}/ | FROZEN dossiers |
 | What is left to do | .agents/memorys/status.md → Next Steps | rewritten 2026-10-21 (it had kept advertising plan-1 items as open work) |
 | SDK/binding future shape | docs/modules/07 + D8 | nothing built at Beta trigger, not before |
@@ -45,7 +45,7 @@ Measured 2026-10-19: core = `FloorState::apply()` rules 1-9 (crates/talkservo-co
 - **C3**: user-facing route/CLI/API names use full mainstream words (`/admin`, `/field/:room`, `/dispatch/:room`, `/room/:room`) — no cryptic abbreviations.
 - **C4**: files that *index* the ledgers (AGENTS.md ranges, status.md decision table) must match ledger contents — `bash scripts/gate.sh` C4 block enforces; update index rows in the same commit as the ledger entry.
 - **C5**: living docs never present hosted/automatic verification as if it runs — name the command or mark `inert`/`D26`; gate-embedded block 5 in `scripts/gate.sh`.
-- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D29, C1-C6, PIT-1..46.
+- **Ledger-first citation**: any C/D/PIT id in any file must resolve against `.agents/memorys/` or carry a "MediaServo" label (PIT-3). Ranges: D1-D29, C1-C6, PIT-1..47.
 - **Cargo.lock committed**; mediasoup UDP/ICE constraints in `.agents/rules/common/{docker,platform}.md` (Linux-native-first per D11 — their macOS posture is conditional).
 
 ## ANTI-PATTERNS (THIS PROJECT — learned in-session, enforced)
