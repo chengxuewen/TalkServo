@@ -38,6 +38,7 @@ export interface RoomSession {
   /** set when the server closed us with the operator-removal code (4410): this
    *  session ended by decision, not by weather, and no retry will come (R7-b) */
   removedReason: string | null;
+  expired: boolean;
 }
 
 interface SessionKey {
@@ -147,6 +148,7 @@ export function ensureSession(
     connectPromise: null,
     lastDenial: null,
     removedReason: null,
+    expired: false,
   };
   media.attach(client);
     if (typeof window !== "undefined") {
@@ -178,6 +180,10 @@ export function ensureSession(
         break;
       case "removed":
         session.removedReason = e.reason || "removed by the dispatcher";
+        break;
+      case "auth-expired":
+        session.expired = true;
+        session.connected = false;
         break;
       case "disconnected":
         session.connected = false;
@@ -350,6 +356,9 @@ export interface SessionStatus {
   /** set when the server closed us with the operator-removal code (4410): this
    *  session ended by decision, not by weather, and no retry will come (R7-b) */
   removedReason: string | null;
+  /** auth-expired (4010 family): the join link's token is dead — retry never
+   *  succeeds, the operator must mint a fresh link (entry-flow wave, D29-#6) */
+  expired: boolean;
 }
 
 const EMPTY_STATUS: SessionStatus = {
@@ -358,6 +367,7 @@ const EMPTY_STATUS: SessionStatus = {
   events: EMPTY_EVENTS,
   lastDenial: null,
   removedReason: null,
+  expired: false,
 };
 
 /** Cached status objects: getSnapshot must return a STABLE reference between
@@ -374,6 +384,7 @@ function statusOf(key: string): SessionStatus {
       events: s?.events ?? EMPTY_EVENTS,
       lastDenial: s?.lastDenial ?? null,
       removedReason: s?.removedReason ?? null,
+      expired: s?.expired ?? false,
     };
     statusCache.set(key, st);
   }

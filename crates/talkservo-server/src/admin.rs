@@ -458,7 +458,7 @@ async fn tokens(
         if g.is_empty() {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "subject generation failed (collision bound)",
+                "subject generation failed (collision bound) MARKER-V2",
             )
                 .into_response();
         }

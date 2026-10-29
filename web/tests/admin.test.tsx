@@ -5,9 +5,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within, cleanup, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { ConfigProvider, theme } from "antd";
+import { App, ConfigProvider, theme } from "antd";
 import React from "react";
 import { AdminPage } from "../src/pages/admin/index.js";
+import { AdminApi } from "../src/lib/adminApi.js";
 import { setAdminJwt, adminJwt } from "../src/lib/adminApi.js";
 
 const routes: Record<string, unknown> = {
@@ -343,5 +344,100 @@ describe("admin console", () => {
       },
       { timeout: 4000 },
     );
+  });
+});
+
+// entry-flow wave: Rooms-row Enter mints the operator token with an OMITTED sub —
+// the server generates u-xxxxxx (D29-#4). Ratchet row #4 (testing.md rule 1): the
+// issue call is a write path; the assert is on method+path+body (sub ABSENT).
+import { EntryActions } from "../src/pages/admin/entryActions.js";
+
+describe("rooms row entry actions", () => {
+  it("Enter issues {room, role:dispatch} with NO sub and Copy links issues field", async () => {
+    setAdminJwt("tok");
+    const calls: [string, RequestInit | undefined][] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown, init?: RequestInit) => {
+        calls.push([String(url), init as RequestInit | undefined]);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sub: "u-generated",
+            jwt: "j",
+            field_url: "http://x/field/r?jwt=j",
+            dispatch_url: "http://x/dispatch/r?jwt=j",
+            participant_url: "http://x/room/r?jwt=j",
+          }),
+        } as Response;
+      }) as unknown as typeof fetch,
+    );
+    render(
+      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
+        <App>
+          <EntryActions api={new AdminApi(() => {})} room="ops-01" />
+        </App>
+      </ConfigProvider>,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByText("Enter"));
+    });
+    await waitFor(() => {
+      const post = calls.find(([u, i]) => u === "/admin/api/tokens" && i?.method === "POST");
+      expect(post).toBeTruthy();
+      const req = JSON.parse((post?.[1]?.body as string) ?? "{}") as { sub?: string; room?: string; role?: string };
+      expect(req.room).toBe("ops-01");
+      expect(req.role).toBe("dispatch");
+      expect("sub" in req).toBe(false); // OMITTED, not empty string — the D29 wire shape
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Copy links"));
+    });
+    await waitFor(() => {
+      const posts = calls.filter(([u, i]) => u === "/admin/api/tokens" && i?.method === "POST");
+      expect(posts.length).toBe(2);
+    });
+  });
+});
+
+// entry-flow wave: JoinFailure tiers render from the status fields the client already
+// classifies (signal.ts: auth-expired/4410) — no apply-to-join affordance (D29-#2=B).
+import { JoinFailure } from "../src/components/joinFailure.js";
+
+describe("join failure tiers", () => {
+  const base = {
+    connected: false,
+    selfId: null,
+    events: [],
+    lastDenial: null,
+    removedReason: null,
+    expired: false,
+  };
+  it("expired tier: link-expired copy, no retry promise", () => {
+    render(
+      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
+        <JoinFailure status={{ ...base, expired: true }} />
+      </ConfigProvider>,
+    );
+    expect(screen.getByTestId("join-expired")).toBeTruthy();
+    expect(screen.getByText(/fresh join link/)).toBeTruthy();
+  });
+  it("removed tier: shows the operator's reason verbatim (R7)", () => {
+    render(
+      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
+        <JoinFailure status={{ ...base, removedReason: "noise on channel" }} />
+      </ConfigProvider>,
+    );
+    expect(screen.getByTestId("join-removed")).toBeTruthy();
+    expect(screen.getByText("noise on channel")).toBeTruthy();
+  });
+  it("no terminal state: renders nothing (reconnect flow owns the UI)", () => {
+    const { container } = render(
+      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
+        <JoinFailure status={base} />
+      </ConfigProvider>,
+    );
+    expect(container.querySelector(".ant-alert")).toBeNull();
   });
 });

@@ -22,6 +22,7 @@ import {
   applyTestTransmit,
   setTestTransmit,
 } from "../lib/session.js";
+import { JoinFailure } from "../components/joinFailure.js";
 import { resumeIfNeeded } from "../lib/testAudio.js";
 import {
   MUTED_BY_DISPATCHER,
@@ -178,6 +179,7 @@ export function FieldPage() {
 
   return (
     <div style={{ padding: 16, userSelect: "none" }}>
+      <JoinFailure status={status} />
       <Space style={{ marginBottom: 12 }}>
         <Title level={4} style={{ margin: 0 }}>
           Field — {room}

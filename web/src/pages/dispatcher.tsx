@@ -19,6 +19,7 @@ import {
   useSessionStatus,
   jwtFromQuery,
 } from "../lib/session.js";
+import { JoinFailure } from "../components/joinFailure.js";
 
 const { Text, Title } = Typography;
 
@@ -42,6 +43,7 @@ export function DispatcherPage() {
 
   return (
     <div style={{ padding: 16 }}>
+      <JoinFailure status={status} />
       <Space style={{ marginBottom: 12 }}>
         <Title level={4} style={{ margin: 0 }}>
           Dispatch — {room}

@@ -3,7 +3,8 @@
 // disabled here and refused by the server (403). Delete warns the kick-all
 // consequence (S2 eviction).
 import React, { useEffect, useState } from "react";
-import { Alert, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Switch, Table } from "antd";
+import { Alert, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table } from "antd";
+import { EntryActions } from "./entryActions.js";
 import type { AdminApi, RoomConfigRow } from "../../lib/adminApi.js";
 
 type Draft = Partial<RoomConfigRow> & { room: string };
@@ -97,7 +98,8 @@ export function RoomsTab({ api, tier }: { api: AdminApi; tier: string }): React.
             key: "ops",
             render: (_, r) => (
               <span>
-                <Button size="small" disabled={!writable} onClick={() => openDraft({ ...r })}>
+                <EntryActions api={api} room={r.room} />
+                <Button size="small" disabled={!writable} style={{ marginLeft: 6 }} onClick={() => openDraft({ ...r })}>
                   Edit
                 </Button>
                 <Popconfirm

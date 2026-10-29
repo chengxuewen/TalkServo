@@ -198,7 +198,8 @@ export class AdminApi {
     return this.call("GET", `/admin/api/audit${qs ? `?${qs}` : ""}`);
   }
   issue(req: {
-    sub: string;
+    /** empty/omitted = server-generated subject (D29-#4: u-xxxxxx, fixed at issue) */
+    sub?: string;
     room: string;
     role: "dispatch" | "field";
     ttl_s?: number;

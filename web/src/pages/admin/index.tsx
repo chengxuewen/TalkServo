@@ -3,7 +3,7 @@
 // Accounts renders for the admin tier only - the server's 403 is the real gate,
 // the Sider filter is UX (D24 audit note). Sections split per file (<=150 lines).
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Button, Card, Input, Layout, Space } from "antd";
+import { Alert, App as AntApp, Button, Card, Input, Layout, Space } from "antd";
 import {
   AdminApi,
   adminJwt,
@@ -136,6 +136,7 @@ export function AdminPage(): React.ReactElement {
   );
 
   return (
+    <AntApp>
     <Layout style={{ minHeight: "100vh" }}>
       <Sider width={180} theme="dark">
         <div style={{ padding: 16 }}>
@@ -162,5 +163,6 @@ export function AdminPage(): React.ReactElement {
         {tab === "logs" && <LogsTab api={api} hint={hint} link={link} />}
       </Content>
     </Layout>
+    </AntApp>
   );
 }
